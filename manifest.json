@@ -1,5 +1,5 @@
 {
-  "version": "5.0.0-alpha.1",
+  "version": "5.0.0-alpha.2",
   "channel": "alpha",
   "entrypoint": "kimi.lua",
   "managed": [
@@ -12,11 +12,18 @@
     "core/module_loader.lua",
     "core/network.lua",
     "core/watchdog.lua",
+    "core/update_service.lua",
     "roles/server.lua",
     "roles/client.lua",
     "clients/terminal.lua",
     "modules/environment.lua",
     "modules/system.lua"
+  ],
+  "remove": [
+    "server.lua",
+    "client.lua",
+    "lib/environment.lua",
+    "lib/network.lua"
   ],
   "preserve": [
     ".kimi/config",
