@@ -1,88 +1,92 @@
 local M = {}
 
-local OWNER, REPO, BRANCH = "Bwoah07", "KIMI-Base-OS", "main"
-local MANIFEST_URL = "https://raw.githubusercontent.com/" .. OWNER .. "/" .. REPO .. "/" .. BRANCH .. "/manifest.json"
 local ROOT = ".kimi"
 local PENDING = ROOT .. "/update_pending"
+local REQUESTED = ROOT .. "/update_requested"
+local MANIFEST_URL = "https://raw.githubusercontent.com/Bwoah07/KIMI-Base-OS/main/manifest.json"
 
 local function readFile(path)
     if not fs.exists(path) or fs.isDir(path) then return nil end
     local f = fs.open(path, "r")
     if not f then return nil end
-    local data = f.readAll()
-    f.close()
-    return data
+    local data = f.readAll(); f.close(); return data
 end
 
 local function writeFile(path, data)
     local dir = fs.getDir(path)
     if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
-    local f = assert(fs.open(path, "w"))
-    f.write(data)
-    f.close()
+    local f = assert(fs.open(path, "w")); f.write(data); f.close()
 end
 
-local function localVersion()
-    local v = readFile("version.txt") or "not-installed"
-    return (v:gsub("%s+$", ""))
+function M.localVersion()
+    return ((readFile("version.txt") or "not-installed"):gsub("%s+$", ""))
 end
 
-local function remoteManifest()
-    local response, err = http.get(MANIFEST_URL)
-    if not response then return nil, err end
-    local body = response.readAll()
-    response.close()
-    local parsed = textutils.unserializeJSON(body)
-    if type(parsed) ~= "table" or type(parsed.version) ~= "string" then
-        return nil, "invalid remote manifest"
+function M.remoteVersion()
+    local r, err = http.get(MANIFEST_URL)
+    if not r then return nil, err end
+    local body = r.readAll(); r.close()
+    if not body or body == "" then return nil, "empty manifest response" end
+    local manifest = textutils.unserializeJSON(body)
+    if type(manifest) ~= "table" or type(manifest.version) ~= "string" then
+        return nil, "invalid manifest"
     end
-    return parsed
-end
-
-function M.isPending()
-    return fs.exists(PENDING)
-end
-
-function M.markHealthy()
-    if fs.exists(PENDING) then fs.delete(PENDING) end
+    return manifest.version, manifest
 end
 
 function M.check()
-    local manifest, err = remoteManifest()
-    if not manifest then return nil, err end
-    return manifest.version ~= localVersion(), manifest.version
+    local remote, manifestOrErr = M.remoteVersion()
+    if not remote then return nil, manifestOrErr end
+    local current = M.localVersion()
+    return {
+        current = current,
+        remote = remote,
+        available = current ~= remote,
+        manifest = manifestOrErr
+    }
 end
 
-function M.requestUpdate(version)
-    writeFile(ROOT .. "/update_requested", textutils.serialize({
-        version = version,
+function M.autoEnabled(cfg)
+    return cfg and cfg.update and cfg.update.auto ~= false
+end
+
+function M.interval(cfg)
+    local n = cfg and cfg.update and tonumber(cfg.update.interval) or 600
+    return math.max(60, n)
+end
+
+function M.request(targetVersion, reason)
+    if not fs.exists(ROOT) then fs.makeDir(ROOT) end
+    writeFile(REQUESTED, textutils.serialize({
+        target = targetVersion,
+        reason = reason or "fleet",
         requested = os.epoch("utc")
     }))
 end
 
-function M.periodic(updateCfg)
-    updateCfg = updateCfg or {}
-    if updateCfg.auto == false then
-        while true do sleep(3600) end
-    end
+function M.hasPendingProbation()
+    return fs.exists(PENDING)
+end
 
-    local interval = tonumber(updateCfg.interval) or 600
-    interval = math.max(60, interval)
-
-    while true do
-        sleep(interval)
-        local available, value = M.check()
-        if available == true then
-            term.setTextColor(colors.yellow)
-            print("[KIMI] update " .. tostring(value) .. " available; rebooting to install...")
-            term.setTextColor(colors.white)
-            M.requestUpdate(value)
-            sleep(2)
-            os.reboot()
-        elseif available == nil then
-            -- Internet/GitHub failures are intentionally non-fatal.
-        end
+function M.markHealthy()
+    if not fs.exists(PENDING) then return false end
+    local raw = readFile(PENDING)
+    local pending = raw and textutils.unserialize(raw) or nil
+    if type(pending) == "table" then
+        pending.healthy = os.epoch("utc")
+        writeFile(ROOT .. "/last_good_update", textutils.serialize(pending))
     end
+    fs.delete(PENDING)
+    return true
+end
+
+function M.rebootForUpdate(targetVersion, reason)
+    M.request(targetVersion, reason)
+    term.setTextColor(colors.yellow)
+    print("[KIMI] rebooting for update" .. (targetVersion and (" -> " .. tostring(targetVersion)) or ""))
+    term.setTextColor(colors.white)
+    sleep(1)
+    os.reboot()
 end
 
 return M
