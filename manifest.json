@@ -1,9 +1,8 @@
 {
-  "version": "5.0.0-alpha.2",
+  "version": "5.0.0-alpha.3",
   "channel": "alpha",
   "entrypoint": "kimi.lua",
   "managed": [
-    "startup.lua",
     "updater.lua",
     "installer.lua",
     "kimi.lua",
@@ -26,6 +25,7 @@
     "lib/network.lua"
   ],
   "preserve": [
+    "startup.lua",
     ".kimi/config",
     ".kimi/monitors",
     ".kimi/state",
