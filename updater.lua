@@ -1,29 +1,54 @@
--- KIMI Base OS transactional updater
+-- KIMI Base OS transactional updater / recovery tool
 local OWNER, REPO, BRANCH = "Bwoah07", "KIMI-Base-OS", "main"
 local BASE = "https://raw.githubusercontent.com/" .. OWNER .. "/" .. REPO .. "/" .. BRANCH .. "/"
 local ROOT = ".kimi"
 local STAGE = ROOT .. "/staging"
 local BACKUP = ROOT .. "/rollback"
-
-local function fetch(path)
-    local r, err = http.get(BASE .. path)
-    if not r then return nil, err end
-    local body = r.readAll()
-    r.close()
-    if not body or body == "" then return nil, "empty response for " .. path end
-    return body
-end
+local INSTALLED_MANIFEST = ROOT .. "/installed_manifest.json"
+local PENDING = ROOT .. "/update_pending"
+local REQUESTED = ROOT .. "/update_requested"
+local mode = ({...})[1] or "auto"
 
 local function ensureParent(path)
     local dir = fs.getDir(path)
     if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
 end
 
-local function writeFile(path, body)
+local function readFile(path)
+    if not fs.exists(path) or fs.isDir(path) then return nil end
+    local f = fs.open(path, "r")
+    if not f then return nil end
+    local data = f.readAll(); f.close(); return data
+end
+
+local function writeFile(path, data)
     ensureParent(path)
-    local f = assert(fs.open(path, "w"))
-    f.write(body)
-    f.close()
+    local f = assert(fs.open(path, "w")); f.write(data); f.close()
+end
+
+local function fetch(path)
+    local r, err = http.get(BASE .. path)
+    if not r then return nil, err end
+    local body = r.readAll(); r.close()
+    if not body or body == "" then return nil, "empty response for " .. path end
+    return body
+end
+
+local function decodeManifest(raw)
+    local m = raw and textutils.unserializeJSON(raw) or nil
+    if type(m) ~= "table" or type(m.version) ~= "string" or type(m.managed) ~= "table" then
+        return nil, "invalid manifest"
+    end
+    return m
+end
+
+local function localVersion()
+    return ((readFile("version.txt") or "not-installed"):gsub("%s+$", ""))
+end
+
+local function clearDir(path)
+    if fs.exists(path) then fs.delete(path) end
+    fs.makeDir(path)
 end
 
 local function copyFile(src, dst)
@@ -32,67 +57,140 @@ local function copyFile(src, dst)
     fs.copy(src, dst)
 end
 
-local function clearDir(path)
-    if fs.exists(path) then fs.delete(path) end
-    fs.makeDir(path)
+local function validateLua(path, body)
+    if path:sub(-4) ~= ".lua" then return true end
+    local fn, err = load(body, "@" .. path)
+    if not fn then return false, err end
+    return true
+end
+
+local function listUnion(oldManifest, newManifest)
+    local seen, out = {}, {}
+    local function add(list)
+        for _, path in ipairs(list or {}) do
+            if not seen[path] then seen[path] = true; out[#out + 1] = path end
+        end
+    end
+    add(oldManifest and oldManifest.managed)
+    add(newManifest and newManifest.managed)
+    add(newManifest and newManifest.remove)
+    return out
+end
+
+local function rollback()
+    local stateRaw = readFile(BACKUP .. "/state")
+    local state = stateRaw and textutils.unserialize(stateRaw) or nil
+    if type(state) ~= "table" or type(state.files) ~= "table" then
+        print("[KIMI] no rollback snapshot available")
+        return false
+    end
+
+    print("[KIMI] restoring " .. tostring(state.version or "previous version") .. "...")
+    for _, item in ipairs(state.files) do
+        if fs.exists(item.path) then fs.delete(item.path) end
+        if item.existed then
+            local backupPath = BACKUP .. "/files/" .. item.path
+            if fs.exists(backupPath) then copyFile(backupPath, item.path) end
+        end
+    end
+
+    local oldManifest = readFile(BACKUP .. "/installed_manifest.json")
+    if oldManifest then writeFile(INSTALLED_MANIFEST, oldManifest) end
+    if fs.exists(PENDING) then fs.delete(PENDING) end
+    if fs.exists(REQUESTED) then fs.delete(REQUESTED) end
+    print("[KIMI] rollback complete")
+    return true
+end
+
+if not fs.exists(ROOT) then fs.makeDir(ROOT) end
+if mode == "rollback" then
+    if rollback() then return else error("rollback unavailable") end
 end
 
 local manifestRaw, manifestErr = fetch("manifest.json")
-if not manifestRaw then error("Manifest download failed: " .. tostring(manifestErr)) end
-local manifest = textutils.unserializeJSON(manifestRaw)
-if type(manifest) ~= "table" or type(manifest.managed) ~= "table" or not manifest.version then
-    error("Invalid KIMI manifest")
+if not manifestRaw then
+    if mode == "auto" or mode == "check" then
+        print("[KIMI] update check skipped: " .. tostring(manifestErr))
+        return
+    end
+    error("manifest download failed: " .. tostring(manifestErr))
 end
 
-print("KIMI Base OS updater")
-print("Target: " .. tostring(manifest.version))
+local manifest, manifestDecodeErr = decodeManifest(manifestRaw)
+if not manifest then error(manifestDecodeErr) end
+local current = localVersion()
 
-if not fs.exists(ROOT) then fs.makeDir(ROOT) end
+if mode == "check" then
+    if current == manifest.version then print("KIMI is up to date: " .. current)
+    else print("KIMI update available: " .. current .. " -> " .. manifest.version) end
+    return
+end
+
+if current == manifest.version and mode ~= "force" then
+    if fs.exists(REQUESTED) then fs.delete(REQUESTED) end
+    print("[KIMI] up to date: " .. current)
+    return
+end
+
+print("[KIMI] updating " .. current .. " -> " .. manifest.version)
 clearDir(STAGE)
 
--- Phase 1: download EVERYTHING before touching the live install.
+-- Download and syntax-check every managed file before touching live files.
 for _, path in ipairs(manifest.managed) do
     write("Download " .. path .. " ... ")
     local body, err = fetch(path)
-    if not body then
-        print("FAILED")
-        fs.delete(STAGE)
-        error(tostring(err))
-    end
-    writeFile(fs.combine(STAGE, path), body)
+    if not body then fs.delete(STAGE); print("FAILED"); error(tostring(err)) end
+    local valid, syntaxErr = validateLua(path, body)
+    if not valid then fs.delete(STAGE); print("INVALID"); error(path .. ": " .. tostring(syntaxErr)) end
+    writeFile(STAGE .. "/" .. path, body)
     print("OK")
 end
 
--- Phase 2: snapshot currently installed managed files.
+local oldManifest = decodeManifest(readFile(INSTALLED_MANIFEST) or "")
+local affected = listUnion(oldManifest, manifest)
 clearDir(BACKUP)
-for _, path in ipairs(manifest.managed) do
-    if fs.exists(path) and not fs.isDir(path) then
-        copyFile(path, fs.combine(BACKUP, path))
-    end
-end
+fs.makeDir(BACKUP .. "/files")
+local backupState = { version = current, files = {} }
 
--- Phase 3: install staged files. If this fails, restore snapshot.
+for _, path in ipairs(affected) do
+    local existed = fs.exists(path) and not fs.isDir(path)
+    backupState.files[#backupState.files + 1] = { path = path, existed = existed }
+    if existed then copyFile(path, BACKUP .. "/files/" .. path) end
+end
+writeFile(BACKUP .. "/state", textutils.serialize(backupState))
+local oldManifestRaw = readFile(INSTALLED_MANIFEST)
+if oldManifestRaw then writeFile(BACKUP .. "/installed_manifest.json", oldManifestRaw) end
+
 local ok, installErr = pcall(function()
+    -- Remove previously-managed files which no longer exist in the new release.
+    local keep = {}; for _, p in ipairs(manifest.managed) do keep[p] = true end
+    for _, path in ipairs(affected) do
+        if not keep[path] and fs.exists(path) and not fs.isDir(path) then fs.delete(path) end
+    end
+
     for _, path in ipairs(manifest.managed) do
-        local staged = fs.combine(STAGE, path)
+        local staged = STAGE .. "/" .. path
         ensureParent(path)
         if fs.exists(path) then fs.delete(path) end
-        fs.move(staged, path)
+        fs.copy(staged, path)
     end
-    writeFile("version.txt", tostring(manifest.version) .. "\n")
+
+    writeFile(INSTALLED_MANIFEST, manifestRaw)
+    writeFile("version.txt", manifest.version .. "\n")
+    writeFile(PENDING, textutils.serialize({
+        from = current,
+        to = manifest.version,
+        installed = os.epoch("utc"),
+        crashes = 0
+    }))
 end)
 
 if not ok then
-    print("Update failed - restoring previous install...")
-    for _, path in ipairs(manifest.managed) do
-        local backup = fs.combine(BACKUP, path)
-        if fs.exists(backup) then
-            if fs.exists(path) then fs.delete(path) end
-            copyFile(backup, path)
-        end
-    end
-    error("Update rolled back: " .. tostring(installErr))
+    print("[KIMI] install failed; rolling back...")
+    rollback()
+    error("update rolled back: " .. tostring(installErr))
 end
 
 if fs.exists(STAGE) then fs.delete(STAGE) end
-print("KIMI updated successfully to " .. tostring(manifest.version))
+if fs.exists(REQUESTED) then fs.delete(REQUESTED) end
+print("[KIMI] update staged successfully; probation boot required")
