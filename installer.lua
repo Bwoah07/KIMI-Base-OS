@@ -2,6 +2,8 @@
 local RAW = "https://raw.githubusercontent.com/Bwoah07/KIMI-Base-OS/main/"
 
 local function get(url, path)
+    local sep = url:find("?", 1, true) and "&" or "?"
+    url = url .. sep .. "kimi_cb=" .. tostring(os.epoch("utc"))
     local r, err = http.get(url)
     if not r then return false, err end
     local body = r.readAll(); r.close()
