@@ -23,7 +23,8 @@ function M.localVersion()
 end
 
 function M.remoteVersion()
-    local r, err = http.get(MANIFEST_URL)
+    local url = MANIFEST_URL .. "?kimi_cb=" .. tostring(os.epoch("utc"))
+    local r, err = http.get(url)
     if not r then return nil, err end
     local body = r.readAll(); r.close()
     if not body or body == "" then return nil, "empty manifest response" end
