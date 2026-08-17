@@ -39,7 +39,9 @@ end
 local function directRollback()
     local stateRaw = readFile(BACKUP .. "/state")
     local state = stateRaw and textutils.unserialize(stateRaw) or nil
-    if type(state) ~= "table" or type(state.files) ~= "table" then return false end
+    if type(state) ~= "table" or type(state.files) ~= "table" or state.version == "not-installed" then
+        return false
+    end
 
     for _, item in ipairs(state.files) do
         if fs.exists(item.path) and not fs.isDir(item.path) then fs.delete(item.path) end
@@ -61,7 +63,6 @@ local function directRollback()
 end
 
 local function tryAutoUpdate()
-    -- Best effort: refresh the updater itself first. Failure never blocks boot.
     pcall(refreshUpdater)
     if not fs.exists("updater.lua") then return end
     local ok, result = pcall(function() return shell.run("updater", "auto") end)
@@ -88,15 +89,20 @@ while true do
 
         if pending.crashes >= 3 then
             term.setTextColor(colors.red)
-            print("[KIMI] new build failed probation 3 times; restoring last known-good OS...")
-            term.setTextColor(colors.white)
-            if directRollback() then
-                print("[KIMI] rollback restored; rebooting")
-                sleep(1)
-                os.reboot()
+            if tostring(pending.from) == "not-installed" then
+                print("[KIMI] first install failed probation; no older OS exists to restore")
             else
-                print("[KIMI] rollback snapshot unavailable; retrying installed build")
+                print("[KIMI] new build failed probation 3 times; restoring last known-good OS...")
+                term.setTextColor(colors.white)
+                if directRollback() then
+                    print("[KIMI] rollback restored; rebooting")
+                    sleep(1)
+                    os.reboot()
+                else
+                    print("[KIMI] rollback snapshot unavailable; retrying installed build")
+                end
             end
+            term.setTextColor(colors.white)
         end
     end
 
