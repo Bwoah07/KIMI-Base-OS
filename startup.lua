@@ -1,29 +1,73 @@
--- KIMI Base OS bootloader / recovery watchdog
+-- KIMI Base OS immutable recovery bootloader
+-- Intentionally kept outside normal OS updates.
 local ROOT = ".kimi"
 local PENDING = ROOT .. "/update_pending"
+local BACKUP = ROOT .. "/rollback"
+local UPDATER_URL = "https://raw.githubusercontent.com/Bwoah07/KIMI-Base-OS/main/updater.lua"
 
-local function readPending()
-    if not fs.exists(PENDING) then return nil end
-    local f = fs.open(PENDING, "r")
+local function readFile(path)
+    if not fs.exists(path) or fs.isDir(path) then return nil end
+    local f = fs.open(path, "r")
     if not f then return nil end
-    local raw = f.readAll(); f.close()
-    return textutils.unserialize(raw)
+    local data = f.readAll(); f.close(); return data
 end
 
-local function writePending(data)
-    local f = assert(fs.open(PENDING, "w"))
-    f.write(textutils.serialize(data))
-    f.close()
+local function writeFile(path, data)
+    local dir = fs.getDir(path)
+    if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
+    local f = assert(fs.open(path, "w")); f.write(data); f.close()
+end
+
+local function readPending()
+    local raw = readFile(PENDING)
+    return raw and textutils.unserialize(raw) or nil
+end
+
+local function refreshUpdater()
+    local r = http.get(UPDATER_URL)
+    if not r then return false end
+    local body = r.readAll(); r.close()
+    if not body or body == "" then return false end
+    local fn = load(body, "@updater.lua")
+    if not fn then return false end
+    writeFile("updater.lua.new", body)
+    if fs.exists("updater.lua") then fs.delete("updater.lua") end
+    fs.move("updater.lua.new", "updater.lua")
+    return true
+end
+
+local function directRollback()
+    local stateRaw = readFile(BACKUP .. "/state")
+    local state = stateRaw and textutils.unserialize(stateRaw) or nil
+    if type(state) ~= "table" or type(state.files) ~= "table" then return false end
+
+    for _, item in ipairs(state.files) do
+        if fs.exists(item.path) and not fs.isDir(item.path) then fs.delete(item.path) end
+        if item.existed then
+            local src = BACKUP .. "/files/" .. item.path
+            if fs.exists(src) then
+                local dir = fs.getDir(item.path)
+                if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
+                fs.copy(src, item.path)
+            end
+        end
+    end
+
+    local oldManifest = readFile(BACKUP .. "/installed_manifest.json")
+    if oldManifest then writeFile(ROOT .. "/installed_manifest.json", oldManifest) end
+    if fs.exists(PENDING) then fs.delete(PENDING) end
+    if fs.exists(ROOT .. "/update_requested") then fs.delete(ROOT .. "/update_requested") end
+    return true
 end
 
 local function tryAutoUpdate()
+    -- Best effort: refresh the updater itself first. Failure never blocks boot.
+    pcall(refreshUpdater)
     if not fs.exists("updater.lua") then return end
-    local ok, result = pcall(function()
-        return shell.run("updater", "auto")
-    end)
+    local ok, result = pcall(function() return shell.run("updater", "auto") end)
     if not ok or result == false then
         term.setTextColor(colors.yellow)
-        print("[KIMI] update check failed; booting installed version")
+        print("[KIMI] update unavailable/failed; booting installed version")
         term.setTextColor(colors.white)
     end
 end
@@ -35,36 +79,30 @@ while true do
     term.setBackgroundColor(colors.black)
     term.setTextColor(colors.white)
 
-    local ok, ran = pcall(function()
-        return shell.run("kimi")
-    end)
-    local success = ok and ran ~= false
-
-    -- KIMI is designed to be long-running. Any exit is treated as a fault.
+    local ok, ran = pcall(function() return shell.run("kimi") end)
     local pending = readPending()
+
     if pending then
         pending.crashes = (tonumber(pending.crashes) or 0) + 1
-        writePending(pending)
+        writeFile(PENDING, textutils.serialize(pending))
 
         if pending.crashes >= 3 then
             term.setTextColor(colors.red)
-            print("[KIMI] new update failed repeatedly; restoring last known-good build...")
+            print("[KIMI] new build failed probation 3 times; restoring last known-good OS...")
             term.setTextColor(colors.white)
-            local rbOk, rbResult = pcall(function()
-                return shell.run("updater", "rollback")
-            end)
-            if rbOk and rbResult ~= false then
+            if directRollback() then
+                print("[KIMI] rollback restored; rebooting")
                 sleep(1)
                 os.reboot()
             else
-                print("[KIMI] automatic rollback failed; leaving recovery files intact")
+                print("[KIMI] rollback snapshot unavailable; retrying installed build")
             end
         end
     end
 
     term.setTextColor(colors.red)
-    print("[KIMI] kernel stopped" .. (success and "" or " unexpectedly"))
+    print("[KIMI] kernel stopped" .. ((ok and ran ~= false) and "" or " unexpectedly"))
     term.setTextColor(colors.white)
-    print("[KIMI] restarting kernel in 3s...")
+    print("[KIMI] restarting in 3s...")
     sleep(3)
 end
