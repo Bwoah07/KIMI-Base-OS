@@ -10,7 +10,7 @@ The design goal is to avoid hard-coded limits. New integrations, client types an
 
 ## Roles
 
-- `server` - one central source of truth for telemetry and commands
+- `server` - one central source of truth for telemetry, commands and fleet update coordination
 - `client` + `wall` profile - wall/room displays and touch panels
 - `client` + `pocket` profile - mobile remote
 - future profiles can be added without changing the kernel
@@ -33,7 +33,10 @@ Update flow:
 6. The staged release is installed transactionally.
 7. A new release must survive a 15-second probation boot before it is marked healthy.
 8. Repeated probation failures trigger automatic restoration of the last known-good OS.
-9. While KIMI is running, it checks for new releases periodically (default: every 10 minutes). A detected update causes a controlled reboot; installation happens during boot rather than while the OS is live.
+9. The server checks GitHub periodically (default: every 10 minutes). When it sees a new release it broadcasts the target version to known KIMI clients, then performs its own controlled reboot/update.
+10. Online clients stagger their reboots by a few seconds, pull the release directly from GitHub, and use their own independent staging/rollback snapshot.
+11. Clients also perform their own periodic fallback check, so a missed broadcast cannot leave them permanently behind.
+12. Offline clients simply catch up through the normal boot-time update check when they next turn on.
 
 Local config/state under `.kimi/` and the recovery `startup.lua` are preserved across normal OS updates.
 
@@ -43,6 +46,6 @@ The network core opens every attached CC modem, allowing wired and wireless netw
 
 ## Current version
 
-`5.0.0-alpha.3`
+`5.0.0-alpha.4`
 
 The repository is public so CC:Tweaked can perform unauthenticated HTTPS downloads from `raw.githubusercontent.com`.
