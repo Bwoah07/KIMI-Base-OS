@@ -24,7 +24,8 @@ local function readPending()
 end
 
 local function refreshUpdater()
-    local r = http.get(UPDATER_URL)
+    local url = UPDATER_URL .. "?kimi_cb=" .. tostring(os.epoch("utc"))
+    local r = http.get(url)
     if not r then return false end
     local body = r.readAll(); r.close()
     if not body or body == "" then return false end
