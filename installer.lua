@@ -22,29 +22,46 @@ term.setTextColor(colors.red)
 print("KIMI BASE OS")
 term.setTextColor(colors.white)
 print("One-time bootstrap installer\n")
-print("1) Base server")
-print("2) Wall / room display")
-print("3) Pocket computer")
+print("1) Command Center (server + local UI)")
+print("2) Server only")
+print("3) Wall / room client")
+print("4) Pocket computer")
+print("5) Remote sensor / machine node")
 write("> ")
 local choice = read()
 
-local role, profile
-if choice == "1" then role, profile = "server", "terminal"
-elseif choice == "2" then role, profile = "client", "wall"
-elseif choice == "3" then role, profile = "client", "pocket"
-else error("Invalid choice") end
+local role, profile, localUI, nodeCfg
+if choice == "1" then
+    role, profile, localUI = "server", "wall", true
+elseif choice == "2" then
+    role, profile, localUI = "server", "terminal", false
+elseif choice == "3" then
+    role, profile, localUI = "client", "wall", false
+elseif choice == "4" then
+    role, profile, localUI = "client", "pocket", false
+elseif choice == "5" then
+    role, profile, localUI = "node", "node", false
+    nodeCfg = { publishInterval = 2 }
+else
+    error("Invalid choice")
+end
 
 if not fs.exists(".kimi") then fs.makeDir(".kimi") end
 local cfg = {
     role = role,
     profile = profile,
+    localUI = localUI,
     name = "KIMI-" .. tostring(os.getComputerID()),
     theme = { accent = "red" },
     network = { protocol = "kimi_base_os_v1", hostname = "kimi-base" },
-    update = { channel = "alpha", auto = true, checkOnBoot = true, interval = 600 }
+    update = { channel = "alpha", auto = true, checkOnBoot = true, interval = 600 },
+    node = nodeCfg
 }
 local f = assert(fs.open(".kimi/config", "w"))
 f.write(textutils.serialize(cfg)); f.close()
+
+print("\nRole: " .. role .. " / " .. profile)
+if localUI then print("Local UI: enabled") end
 
 print("\nInstalling recovery bootloader...")
 local ok, err = get(RAW .. "startup.lua", "startup.lua")
