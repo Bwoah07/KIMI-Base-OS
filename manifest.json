@@ -1,0 +1,26 @@
+{
+  "version": "5.0.0-alpha.1",
+  "channel": "alpha",
+  "entrypoint": "kimi.lua",
+  "managed": [
+    "startup.lua",
+    "updater.lua",
+    "installer.lua",
+    "kimi.lua",
+    "version.txt",
+    "core/config.lua",
+    "core/module_loader.lua",
+    "core/network.lua",
+    "core/watchdog.lua",
+    "roles/server.lua",
+    "roles/client.lua",
+    "modules/environment.lua",
+    "modules/system.lua"
+  ],
+  "preserve": [
+    ".kimi/config",
+    ".kimi/monitors",
+    ".kimi/state",
+    ".kimi/logs"
+  ]
+}
