@@ -14,7 +14,7 @@ end
 
 -- Newly installed builds get a probation boot. If the role cannot stay alive
 -- for 15 seconds, startup.lua will see update_pending and can roll back.
-if updates.isPending() then
+if updates.hasPendingProbation() then
     local winner = parallel.waitForAny(
         function()
             roleModule.run(cfg)
