@@ -8,7 +8,12 @@ local defaults = {
     name = "KIMI-" .. tostring(os.getComputerID()),
     theme = { accent = "red" },
     network = { protocol = "kimi_base_os_v1", hostname = "kimi-base" },
-    update = { channel = "alpha", auto = false }
+    update = {
+        channel = "alpha",
+        auto = true,
+        checkOnBoot = true,
+        interval = 600
+    }
 }
 
 local function merge(dst, src)
