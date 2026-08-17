@@ -1,1 +1,3 @@
-# KIMI-Base-OS
+# KIMI-Base-OS bwoah
+
+good enough?
