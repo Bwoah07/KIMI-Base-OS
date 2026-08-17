@@ -26,8 +26,10 @@ local function writeFile(path, data)
     local f = assert(fs.open(path, "w")); f.write(data); f.close()
 end
 
-local function fetch(path)
-    local r, err = http.get(BASE .. path)
+local function fetch(path, cacheKey)
+    local sep = path:find("?", 1, true) and "&" or "?"
+    local key = tostring(cacheKey or os.epoch("utc"))
+    local r, err = http.get(BASE .. path .. sep .. "kimi_cb=" .. textutils.urlEncode(key))
     if not r then return nil, err end
     local body = r.readAll(); r.close()
     if not body or body == "" then return nil, "empty response for " .. path end
@@ -107,7 +109,7 @@ if mode == "rollback" then
     if rollback() then return else error("rollback unavailable") end
 end
 
-local manifestRaw, manifestErr = fetch("manifest.json")
+local manifestRaw, manifestErr = fetch("manifest.json", "manifest-" .. tostring(os.epoch("utc")))
 if not manifestRaw then
     if mode == "auto" or mode == "check" then
         print("[KIMI] update check skipped: " .. tostring(manifestErr))
@@ -136,9 +138,11 @@ print("[KIMI] updating " .. current .. " -> " .. manifest.version)
 clearDir(STAGE)
 
 -- Download and syntax-check every managed file before touching live files.
+-- The release version is added to every URL so GitHub Raw cannot hand us a stale
+-- file from a previous commit after the manifest has already changed.
 for _, path in ipairs(manifest.managed) do
     write("Download " .. path .. " ... ")
-    local body, err = fetch(path)
+    local body, err = fetch(path, manifest.version .. "-" .. path)
     if not body then fs.delete(STAGE); print("FAILED"); error(tostring(err)) end
     local valid, syntaxErr = validateLua(path, body)
     if not valid then fs.delete(STAGE); print("INVALID"); error(path .. ": " .. tostring(syntaxErr)) end
@@ -162,7 +166,6 @@ local oldManifestRaw = readFile(INSTALLED_MANIFEST)
 if oldManifestRaw then writeFile(BACKUP .. "/installed_manifest.json", oldManifestRaw) end
 
 local ok, installErr = pcall(function()
-    -- Remove previously-managed files which no longer exist in the new release.
     local keep = {}; for _, p in ipairs(manifest.managed) do keep[p] = true end
     for _, path in ipairs(affected) do
         if not keep[path] and fs.exists(path) and not fs.isDir(path) then fs.delete(path) end
