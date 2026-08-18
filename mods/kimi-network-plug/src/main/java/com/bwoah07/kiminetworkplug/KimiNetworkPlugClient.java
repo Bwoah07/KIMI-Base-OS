@@ -13,5 +13,6 @@ public final class KimiNetworkPlugClient {
 
     private void registerScreens(RegisterMenuScreensEvent event) {
         event.register(KimiNetworkPlug.NETWORK_PLUG_MENU.get(), NetworkPlugScreen::new);
+        event.register(KimiNetworkPlug.WIRELESS_CHARGER_MENU.get(), WirelessChargerScreen::new);
     }
 }
