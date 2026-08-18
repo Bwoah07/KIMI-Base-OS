@@ -13,17 +13,6 @@ import java.util.List;
 import java.util.Locale;
 
 public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlugMenu> {
-    private static final int PANEL = 0xE00B0F13;
-    private static final int PANEL_INNER = 0xB611161C;
-    private static final int FIELD = 0xC90A0E12;
-    private static final int SILVER = 0xFFC8CDD2;
-    private static final int MUTED = 0xFF9AA3AB;
-    private static final int TEXT = 0xFFF1F3F5;
-    private static final int GREEN = 0xFF62E38D;
-    private static final int ORANGE = 0xFFFFA33C;
-    private static final int CYAN = 0xFF54CBD8;
-    private static final int WARN = 0xFFFFC15C;
-
     private static final int NETWORK_ROWS = 4;
     private static final int LIST_X = 16;
     private static final int LIST_Y = 82;
@@ -71,16 +60,16 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
         networkTab = addRenderableWidget(new KimiTabButton(x + 42, y + 18, 28, 22,
                 Component.literal("Networks"), KimiTabButton.Icon.NETWORK, b -> setTab(Tab.NETWORK)));
         statsTab = addRenderableWidget(new KimiTabButton(x + 74, y + 18, 28, 22,
-                Component.literal("Statistics"), KimiTabButton.Icon.STATS, b -> setTab(Tab.STATS)));
+                Component.literal("Power Path"), KimiTabButton.Icon.STATS, b -> setTab(Tab.STATS)));
         kimiTab = addRenderableWidget(new KimiTabButton(x + 106, y + 18, 28, 22,
                 Component.literal("KIMI / ComputerCraft"), KimiTabButton.Icon.KIMI, b -> setTab(Tab.KIMI)));
 
         offButton = addRenderableWidget(new KimiUiButton(x + 16, y + 82, 48, 16,
                 Component.literal("OFF"), false, b -> sendButton(0)));
         inputButton = addRenderableWidget(new KimiUiButton(x + 71, y + 82, 48, 16,
-                Component.literal("INPUT"), false, b -> sendButton(1)).accent(GREEN));
+                Component.literal("INPUT"), false, b -> sendButton(1)).accent(KimiUiTheme.GREEN));
         outputButton = addRenderableWidget(new KimiUiButton(x + 126, y + 82, 48, 16,
-                Component.literal("OUTPUT"), false, b -> sendButton(2)).accent(ORANGE));
+                Component.literal("OUTPUT"), false, b -> sendButton(2)).accent(KimiUiTheme.ORANGE));
 
         limitBox = new EditBox(font, x + 18, y + 120, 91, 14, Component.literal("Transfer limit"));
         limitBox.setBordered(false);
@@ -91,7 +80,7 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
         setButton = addRenderableWidget(new KimiUiButton(x + 113, y + 118, 32, 18,
                 Component.literal("SET"), false, b -> applyTypedLimit()));
         maxButton = addRenderableWidget(new KimiUiButton(x + 149, y + 118, 25, 18,
-                Component.literal("MAX"), false, b -> sendButton(13)).accent(ORANGE));
+                Component.literal("MAX"), false, b -> sendButton(13)).accent(KimiUiTheme.ORANGE));
 
         for (int row = 0; row < NETWORK_ROWS; row++) {
             final int slot = row;
@@ -103,7 +92,7 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
                     Component.empty(),
                     false,
                     b -> selectNetwork(slot)
-            ).accent(CYAN));
+            ).accent(KimiUiTheme.CYAN));
             networkRows.add(button);
         }
 
@@ -114,7 +103,7 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
         newNetworkBox.setHint(Component.literal("NEW NETWORK"));
         addRenderableWidget(newNetworkBox);
         createButton = addRenderableWidget(new KimiUiButton(x + 128, y + 162, 46, 18,
-                Component.literal("CREATE"), false, b -> createNetwork()).accent(CYAN));
+                Component.literal("CREATE"), false, b -> createNetwork()).accent(KimiUiTheme.CYAN));
 
         syncWidgets();
         updateVisibility();
@@ -220,87 +209,50 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
     protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
         int x = leftPos;
         int y = topPos;
-        floatingPanel(g, x + 5, y + 44, 180, 166);
-        g.fill(x + 17, y + 47, x + 55, y + 49, modeColor());
+        KimiUiTheme.panel(g, x + 5, y + 44, 180, 166);
+        KimiUiTheme.roundedRect(g, x + 17, y + 47, 38, 3, 2, modeColor());
 
         if (tab == Tab.GENERAL) {
-            drawField(g, x + 16, y + 117, 94, 20);
-            drawBar(g, x + 16, y + 188, 158, 3,
+            KimiUiTheme.field(g, x + 16, y + 117, 94, 20);
+            KimiUiTheme.bar(g, x + 16, y + 188, 158, 4,
                     menu.getLocalEnergy() / (double) NetworkPlugBlockEntity.LOCAL_BUFFER_CAPACITY, modeColor());
-            drawToggle(g, x + 147, y + 196, true, GREEN);
+            KimiUiTheme.toggle(g, x + 147, y + 195, true, KimiUiTheme.GREEN);
         } else if (tab == Tab.NETWORK) {
-            drawListPanel(g, x + LIST_X - 2, y + LIST_Y - 2, LIST_W + 10, 66);
+            KimiUiTheme.listPanel(g, x + LIST_X - 2, y + LIST_Y - 2, LIST_W + 10, 66);
             drawScrollbar(g, x, y, menu.getNetworkNames().size());
-            drawField(g, x + 16, y + 161, 109, 20);
+            KimiUiTheme.field(g, x + 16, y + 161, 109, 20);
         } else if (tab == Tab.STATS) {
-            drawBar(g, x + 16, y + 167, 158, 3,
+            KimiUiTheme.bar(g, x + 16, y + 167, 158, 4,
                     menu.getLocalEnergy() / (double) NetworkPlugBlockEntity.LOCAL_BUFFER_CAPACITY, modeColor());
-            drawBar(g, x + 16, y + 190, 158, 3,
-                    menu.getNetworkEnergy() / (double) PowerNetworkSavedData.NETWORK_CAPACITY, CYAN);
+            KimiUiTheme.bar(g, x + 16, y + 190, 158, 4,
+                    menu.getNetworkEnergy() / (double) PowerNetworkSavedData.NETWORK_CAPACITY, KimiUiTheme.CYAN);
         } else {
-            drawToggle(g, x + 147, y + 100, true, GREEN);
-            drawToggle(g, x + 147, y + 126, true, CYAN);
+            KimiUiTheme.toggle(g, x + 147, y + 100, true, KimiUiTheme.GREEN);
+            KimiUiTheme.toggle(g, x + 147, y + 126, true, KimiUiTheme.CYAN);
         }
     }
 
     private int modeColor() {
-        return menu.getMode() == PlugMode.INPUT ? GREEN : menu.getMode() == PlugMode.OUTPUT ? ORANGE : MUTED;
+        return menu.getMode() == PlugMode.INPUT ? KimiUiTheme.GREEN : menu.getMode() == PlugMode.OUTPUT ? KimiUiTheme.ORANGE : KimiUiTheme.MUTED;
     }
 
     private int bottleneckColor() {
-        return menu.getBottleneck() == PowerBottleneck.NONE ? GREEN : WARN;
-    }
-
-    private static void floatingPanel(GuiGraphics g, int x, int y, int w, int h) {
-        g.fill(x + 7, y, x + w - 7, y + h, PANEL);
-        g.fill(x + 2, y + 3, x + w - 2, y + h - 3, PANEL);
-        g.fill(x, y + 7, x + w, y + h - 7, PANEL);
-        g.fill(x + 4, y + 4, x + w - 4, y + h - 4, PANEL_INNER);
-        g.fill(x + 7, y, x + w - 7, y + 1, SILVER);
-        g.fill(x + 7, y + h - 1, x + w - 7, y + h, SILVER);
-        g.fill(x, y + 7, x + 1, y + h - 7, SILVER);
-        g.fill(x + w - 1, y + 7, x + w, y + h - 7, SILVER);
-    }
-
-    private static void drawField(GuiGraphics g, int x, int y, int w, int h) {
-        g.fill(x, y, x + w, y + h, FIELD);
-        g.fill(x, y, x + w, y + 1, 0xFF7E8790);
-        g.fill(x, y + h - 1, x + w, y + h, 0xFF7E8790);
-    }
-
-    private static void drawListPanel(GuiGraphics g, int x, int y, int w, int h) {
-        g.fill(x, y, x + w, y + h, 0x8F090D11);
-        g.fill(x, y, x + w, y + 1, 0xFF68717A);
-        g.fill(x, y + h - 1, x + w, y + h, 0xFF68717A);
+        return menu.getBottleneck() == PowerBottleneck.NONE ? KimiUiTheme.GREEN : KimiUiTheme.WARN;
     }
 
     private void drawScrollbar(GuiGraphics g, int x, int y, int total) {
         int trackX = x + SCROLL_X;
         int trackY = y + SCROLL_Y;
         int maxScroll = Math.max(0, total - NETWORK_ROWS);
-        g.fill(trackX, trackY, trackX + 3, trackY + SCROLL_H, 0xCC1B2025);
+        KimiUiTheme.roundedRect(g, trackX, trackY, 3, SCROLL_H, 2, 0xCC1B2025);
         if (total <= NETWORK_ROWS) {
-            g.fill(trackX, trackY, trackX + 3, trackY + SCROLL_H, 0xFF6F7780);
+            KimiUiTheme.roundedRect(g, trackX, trackY, 3, SCROLL_H, 2, 0xFF6F7780);
             return;
         }
         int thumbH = Math.max(12, (SCROLL_H * NETWORK_ROWS) / total);
         int travel = SCROLL_H - thumbH;
         int thumbY = trackY + (int) Math.round(travel * (networkScroll / (double) maxScroll));
-        g.fill(trackX, thumbY, trackX + 3, thumbY + thumbH, CYAN);
-    }
-
-    private static void drawToggle(GuiGraphics g, int x, int y, boolean enabled, int accent) {
-        g.fill(x, y + 2, x + 25, y + 8, 0xDD151A1F);
-        g.fill(x + 2, y, x + 23, y + 10, 0xDD151A1F);
-        int knobX = enabled ? x + 15 : x + 2;
-        g.fill(knobX, y + 2, knobX + 8, y + 8, enabled ? accent : 0xFF646B72);
-    }
-
-    private static void drawBar(GuiGraphics g, int x, int y, int w, int h, double fraction, int color) {
-        fraction = Math.max(0.0, Math.min(1.0, fraction));
-        g.fill(x, y, x + w, y + h, 0xAA343A40);
-        int filled = (int) Math.round(w * fraction);
-        if (filled > 0) g.fill(x, y, x + filled, y + h, color);
+        KimiUiTheme.roundedRect(g, trackX, thumbY, 3, thumbH, 2, KimiUiTheme.CYAN);
     }
 
     @Override
@@ -311,67 +263,64 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
             case STATS -> "Power Path";
             case KIMI -> "KIMI / ComputerCraft";
         };
-        g.drawString(font, pageTitle, 8, 3, TEXT, false);
-        g.drawString(font, "KIMI POWER PLUG", 16, 52, TEXT, false);
-        g.drawString(font, "•", 166, 52, modeColor(), false);
+        KimiUiTheme.text(g, font, pageTitle, 8, 3, KimiUiTheme.TEXT, 0.88f);
+        KimiUiTheme.text(g, font, "KIMI POWER PLUG", 16, 53, KimiUiTheme.TEXT, 0.88f);
+        KimiUiTheme.roundedRect(g, 166, 54, 3, 3, 2, modeColor());
 
         if (tab == Tab.GENERAL) {
-            g.drawString(font, "MODE", 16, 72, MUTED, false);
-            g.drawString(font, "TRANSFER LIMIT", 16, 104, MUTED, false);
-            drawRight(g, formatFe(menu.getTransferLimit()) + " FE/t", 174, 104, TEXT);
+            KimiUiTheme.text(g, font, "MODE", 16, 72, KimiUiTheme.MUTED, 0.78f);
+            KimiUiTheme.text(g, font, "TRANSFER LIMIT", 16, 104, KimiUiTheme.MUTED, 0.78f);
+            KimiUiTheme.rightText(g, font, formatFe(menu.getTransferLimit()) + " FE/t", 174, 104, KimiUiTheme.TEXT, 0.78f);
 
-            g.drawString(font, "STATUS", 16, 140, MUTED, false);
-            String relation = menu.getMode() == PlugMode.INPUT ? "FROM  " : menu.getMode() == PlugMode.OUTPUT ? "TO    " : "BLOCK ";
-            g.drawString(font, relation + trim(menu.getAttachedBlockName(), 22), 16, 152, TEXT, false);
+            String direction = menu.getMode() == PlugMode.INPUT ? "RECEIVING FROM" : menu.getMode() == PlugMode.OUTPUT ? "SENDING TO" : "ATTACHED BLOCK";
+            KimiUiTheme.text(g, font, direction, 16, 140, KimiUiTheme.MUTED, 0.78f);
+            KimiUiTheme.text(g, font, KimiUiTheme.fit(font, menu.getAttachedBlockName(), 158, 0.82f), 16, 152, KimiUiTheme.TEXT, 0.82f);
             String flow = menu.getMode() == PlugMode.INPUT
-                    ? formatFe(menu.getAttachedTransfer()) + " -> NET " + formatFe(menu.getNetworkTransfer())
+                    ? "BLOCK " + formatFe(menu.getAttachedTransfer()) + "  |  NET " + formatFe(menu.getNetworkTransfer())
                     : menu.getMode() == PlugMode.OUTPUT
-                    ? "NET " + formatFe(menu.getNetworkTransfer()) + " -> " + formatFe(menu.getAttachedTransfer())
+                    ? "NET " + formatFe(menu.getNetworkTransfer()) + "  |  BLOCK " + formatFe(menu.getAttachedTransfer())
                     : "IDLE";
-            g.drawString(font, flow + " FE/t", 16, 164, modeColor(), false);
+            KimiUiTheme.text(g, font, flow + " FE/t", 16, 164, modeColor(), 0.72f);
 
-            g.drawString(font, "LOCAL BUFFER", 16, 178, MUTED, false);
-            drawRight(g, formatFe(menu.getLocalEnergy()) + " / " + formatFe(NetworkPlugBlockEntity.LOCAL_BUFFER_CAPACITY), 174, 178, TEXT);
-            g.drawString(font, "CHUNK LOADING", 16, 197, MUTED, false);
+            KimiUiTheme.text(g, font, "LOCAL BUFFER", 16, 178, KimiUiTheme.MUTED, 0.78f);
+            KimiUiTheme.rightText(g, font, formatFe(menu.getLocalEnergy()) + " / " + formatFe(NetworkPlugBlockEntity.LOCAL_BUFFER_CAPACITY), 174, 178, KimiUiTheme.TEXT, 0.78f);
+            KimiUiTheme.text(g, font, "CHUNK LOADING", 16, 197, KimiUiTheme.MUTED, 0.78f);
         } else if (tab == Tab.NETWORK) {
-            g.drawString(font, "NETWORKS", 16, 71, MUTED, false);
-            g.drawString(font, "CREATE NETWORK", 16, 151, MUTED, false);
-            g.drawString(font, "PLUGS  " + menu.getPlugCount(), 16, 188, MUTED, false);
-            drawRight(g, "BUFFER  " + formatFe(menu.getNetworkEnergy()) + " / " + formatFe(PowerNetworkSavedData.NETWORK_CAPACITY), 174, 188, TEXT);
+            KimiUiTheme.text(g, font, "NETWORKS", 16, 71, KimiUiTheme.MUTED, 0.78f);
+            KimiUiTheme.text(g, font, "CREATE NETWORK", 16, 151, KimiUiTheme.MUTED, 0.78f);
+            KimiUiTheme.text(g, font, "PLUGS", 16, 188, KimiUiTheme.MUTED, 0.78f);
+            KimiUiTheme.text(g, font, Integer.toString(menu.getPlugCount()), 49, 188, KimiUiTheme.TEXT, 0.78f);
+            KimiUiTheme.rightText(g, font, formatFe(menu.getNetworkEnergy()) + " / " + formatFe(PowerNetworkSavedData.NETWORK_CAPACITY), 174, 188, KimiUiTheme.TEXT, 0.78f);
         } else if (tab == Tab.STATS) {
             String direction = menu.getMode() == PlugMode.INPUT ? "RECEIVING FROM" : menu.getMode() == PlugMode.OUTPUT ? "SENDING TO" : "ATTACHED BLOCK";
-            g.drawString(font, direction, 16, 72, MUTED, false);
-            g.drawString(font, trim(menu.getAttachedBlockName(), 28), 16, 85, TEXT, false);
+            KimiUiTheme.text(g, font, direction, 16, 72, KimiUiTheme.MUTED, 0.78f);
+            KimiUiTheme.text(g, font, KimiUiTheme.fit(font, menu.getAttachedBlockName(), 158, 0.84f), 16, 85, KimiUiTheme.TEXT, 0.84f);
 
-            g.drawString(font, "ATTACHED BLOCK", 16, 105, MUTED, false);
-            drawRight(g, formatFe(menu.getAttachedTransfer()) + " FE/t", 174, 105, modeColor());
-            g.drawString(font, "POWERNET", 16, 120, MUTED, false);
-            drawRight(g, formatFe(menu.getNetworkTransfer()) + " FE/t", 174, 120, CYAN);
-            g.drawString(font, "LIMITED BY", 16, 138, MUTED, false);
-            drawRight(g, bottleneckText(menu.getBottleneck()), 174, 138, bottleneckColor());
+            KimiUiTheme.text(g, font, "ATTACHED BLOCK", 16, 108, KimiUiTheme.MUTED, 0.78f);
+            KimiUiTheme.rightText(g, font, formatFe(menu.getAttachedTransfer()) + " FE/t", 174, 108, modeColor(), 0.78f);
+            KimiUiTheme.text(g, font, "POWERNET", 16, 123, KimiUiTheme.MUTED, 0.78f);
+            KimiUiTheme.rightText(g, font, formatFe(menu.getNetworkTransfer()) + " FE/t", 174, 123, KimiUiTheme.CYAN, 0.78f);
+            KimiUiTheme.text(g, font, "LIMITED BY", 16, 141, KimiUiTheme.MUTED, 0.78f);
+            KimiUiTheme.rightText(g, font, bottleneckText(menu.getBottleneck()), 174, 141, bottleneckColor(), 0.78f);
 
-            g.drawString(font, "LOCAL", 16, 156, MUTED, false);
-            drawRight(g, formatFe(menu.getLocalEnergy()) + " / " + formatFe(NetworkPlugBlockEntity.LOCAL_BUFFER_CAPACITY), 174, 156, TEXT);
-            g.drawString(font, "NETWORK", 16, 179, MUTED, false);
-            drawRight(g, formatFe(menu.getNetworkEnergy()) + " / " + formatFe(PowerNetworkSavedData.NETWORK_CAPACITY), 174, 179, TEXT);
+            KimiUiTheme.text(g, font, "LOCAL", 16, 157, KimiUiTheme.MUTED, 0.78f);
+            KimiUiTheme.rightText(g, font, formatFe(menu.getLocalEnergy()) + " / " + formatFe(NetworkPlugBlockEntity.LOCAL_BUFFER_CAPACITY), 174, 157, KimiUiTheme.TEXT, 0.78f);
+            KimiUiTheme.text(g, font, "NETWORK", 16, 180, KimiUiTheme.MUTED, 0.78f);
+            KimiUiTheme.rightText(g, font, formatFe(menu.getNetworkEnergy()) + " / " + formatFe(PowerNetworkSavedData.NETWORK_CAPACITY), 174, 180, KimiUiTheme.TEXT, 0.78f);
             BlockPos pos = menu.getBlockPos();
-            g.drawString(font, "X " + pos.getX() + "  Y " + pos.getY() + "  Z " + pos.getZ(), 16, 199, MUTED, false);
+            KimiUiTheme.text(g, font, "X " + pos.getX() + "  Y " + pos.getY() + "  Z " + pos.getZ(), 16, 199, KimiUiTheme.MUTED, 0.72f);
         } else {
-            g.drawString(font, "PERIPHERAL", 16, 75, MUTED, false);
-            g.drawString(font, "kimi_network_plug", 16, 88, TEXT, false);
-            g.drawString(font, "CC:TWEAKED API", 16, 101, MUTED, false);
-            drawRight(g, "READY", 174, 101, GREEN);
-            g.drawString(font, "SERVER REGISTRY", 16, 127, MUTED, false);
-            drawRight(g, "ACTIVE", 174, 127, CYAN);
-            g.drawString(font, "NETWORK", 16, 151, MUTED, false);
-            drawRight(g, menu.getNetworkName(), 174, 151, CYAN);
-            g.drawString(font, "ONE ATTACHED PLUG", 16, 177, TEXT, false);
-            g.drawString(font, "CAN LIST + CONTROL ALL POWERNET PLUGS", 16, 190, MUTED, false);
+            KimiUiTheme.text(g, font, "PERIPHERAL", 16, 75, KimiUiTheme.MUTED, 0.78f);
+            KimiUiTheme.text(g, font, "kimi_network_plug", 16, 89, KimiUiTheme.TEXT, 0.78f);
+            KimiUiTheme.text(g, font, "CC:TWEAKED", 16, 103, KimiUiTheme.MUTED, 0.78f);
+            KimiUiTheme.rightText(g, font, "READY", 174, 103, KimiUiTheme.GREEN, 0.78f);
+            KimiUiTheme.text(g, font, "SERVER REGISTRY", 16, 129, KimiUiTheme.MUTED, 0.78f);
+            KimiUiTheme.rightText(g, font, "ACTIVE", 174, 129, KimiUiTheme.CYAN, 0.78f);
+            KimiUiTheme.text(g, font, "NETWORK", 16, 153, KimiUiTheme.MUTED, 0.78f);
+            KimiUiTheme.rightText(g, font, menu.getNetworkName(), 174, 153, KimiUiTheme.CYAN, 0.78f);
+            KimiUiTheme.text(g, font, "ONE ATTACHED PLUG CAN", 16, 179, KimiUiTheme.TEXT, 0.74f);
+            KimiUiTheme.text(g, font, "LIST + CONTROL ALL POWERNET PLUGS", 16, 191, KimiUiTheme.MUTED, 0.70f);
         }
-    }
-
-    private void drawRight(GuiGraphics g, String text, int right, int y, int color) {
-        g.drawString(font, text, right - font.width(text), y, color, false);
     }
 
     private static String bottleneckText(PowerBottleneck bottleneck) {
@@ -382,11 +331,6 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
             case TARGET -> "TARGET";
             case NO_BLOCK -> "NO BLOCK";
         };
-    }
-
-    private static String trim(String value, int max) {
-        if (value == null || value.isBlank()) return "No block";
-        return value.length() <= max ? value : value.substring(0, Math.max(1, max - 1)) + "…";
     }
 
     @Override
