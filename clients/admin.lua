@@ -1,6 +1,7 @@
 local M = {}
 
 local monitors = {}
+local touchTargets = {}
 
 local function getMonitors()
     local out = {}
@@ -122,6 +123,22 @@ local function moduleNames(state)
     return table.concat(names,",")
 end
 
+local function button(mon,name,x1,y1,x2,y2,text,enabled)
+    local w,h=mon.getSize()
+    x1=math.max(1,x1); x2=math.min(w,x2); y1=math.max(1,y1); y2=math.min(h,y2)
+    if x2<x1 or y2<y1 then return end
+    local bg=enabled==false and colors.gray or colors.red
+    for y=y1,y2 do put(mon,x1,y,string.rep(" ",x2-x1+1),colors.white,bg) end
+    local tx=math.max(x1,math.floor((x1+x2-#text+1)/2))
+    local ty=math.floor((y1+y2)/2)
+    put(mon,tx,ty,text,colors.white,bg)
+    local peripheralName=peripheral.getName(mon)
+    if peripheralName then
+        touchTargets[peripheralName]=touchTargets[peripheralName] or {}
+        touchTargets[peripheralName][#touchTargets[peripheralName]+1]={name=name,x1=x1,y1=y1,x2=x2,y2=y2,enabled=enabled~=false}
+    end
+end
+
 local function drawComposite(mon,envelope,meta)
     prep(mon)
     local w,h=mon.getSize()
@@ -134,7 +151,6 @@ local function drawComposite(mon,envelope,meta)
 
     header(mon,"KIMI SERVER","#"..tostring(meta.serverId or "?"))
 
-    -- Top summary block.
     put(mon,2,3,"STATUS",colors.lightGray); put(mon,14,3,"RUNNING",colors.lime)
     put(mon,2,4,"VERSION",colors.lightGray); put(mon,14,4,version,colors.white)
     put(mon,2,5,"UPTIME",colors.lightGray); put(mon,14,5,uptime(meta.startedAt),colors.white)
@@ -153,7 +169,6 @@ local function drawComposite(mon,envelope,meta)
 
     hline(mon,8,2,w-1)
 
-    -- Update authority/status always visible.
     put(mon,2,9,"UPDATE CONTROL",colors.lime)
     put(mon,2,10,"AUTHORITY",colors.lightGray); put(mon,14,10,"THIS SERVER",colors.lime)
     put(mon,2,11,"REMOTE",colors.lightGray); put(mon,14,11,update.remoteVersion or "unknown")
@@ -161,10 +176,13 @@ local function drawComposite(mon,envelope,meta)
     put(mon,2,13,"RESULT",colors.lightGray); put(mon,14,13,update.lastResult or "not checked",colorFor(update.lastResult))
     put(mon,2,14,"TARGET",colors.lightGray); put(mon,14,14,update.targetVersion or "none")
 
+    local checking=tostring(update.lastResult or ""):lower()=="checking..."
+    local bx1=math.max(36,math.floor(w*0.58)); local bx2=w-3
+    if bx2-bx1>=20 then button(mon,"check_updates",bx1,10,bx2,13,checking and "CHECKING..." or "CHECK FOR UPDATES",not checking) end
+
     if h < 18 then return end
     hline(mon,16,2,w-1)
 
-    -- Fleet table.
     put(mon,2,17,"FLEET",colors.lime)
     put(mon,2,18,"ID",colors.gray)
     put(mon,9,18,"ROLE",colors.gray)
@@ -178,7 +196,6 @@ local function drawComposite(mon,envelope,meta)
     local ids=sortedIds(machines)
     if #ids==0 then
         put(mon,2,y,"No clients or nodes have checked in yet.",colors.yellow)
-        y=y+1
     else
         for _,id in ipairs(ids) do
             if y>fleetEnd then break end
@@ -192,10 +209,8 @@ local function drawComposite(mon,envelope,meta)
             if w>=72 then put(mon,65,y,tostring(m.updateStatus or "-"),colorFor(m.updateStatus)) end
             y=y+1
         end
-        if #ids > (fleetEnd-18) then put(mon,2,fleetEnd,"... "..(#ids-(fleetEnd-18)).." more machines",colors.gray) end
     end
 
-    -- Telemetry section in lower portion.
     local teleY=fleetEnd+2
     if teleY<=h-4 then
         hline(mon,teleY,2,w-1); teleY=teleY+1
@@ -216,7 +231,6 @@ local function drawComposite(mon,envelope,meta)
         end
     end
 
-    -- Footer alert line.
     if h>=3 then
         local problems={}
         if online<total then problems[#problems+1]=(total-online).." machine(s) offline" end
@@ -232,7 +246,6 @@ local function drawComposite(mon,envelope,meta)
     end
 end
 
--- Compact dedicated panels for extra/smaller admin monitors.
 local function panelFleet(mon,envelope,meta)
     prep(mon); header(mon,"FLEET")
     local machines=meta.machines or {}; local ids=sortedIds(machines)
@@ -258,6 +271,11 @@ local function panelUpdates(mon,envelope,meta)
     line(mon,6,"CHECKED",age(up.lastCheck))
     line(mon,8,"TARGET",up.targetVersion or "none")
     line(mon,9,"AUTHORITY",up.authority or meta.serverId or "?")
+    local w,h=mon.getSize()
+    if h>=13 and w>=28 then
+        local checking=tostring(up.lastResult or ""):lower()=="checking..."
+        button(mon,"check_updates",3,11,w-2,13,checking and "CHECKING..." or "CHECK FOR UPDATES",not checking)
+    end
 end
 
 local function panelSources(mon,envelope,meta)
@@ -284,7 +302,7 @@ function M.init()
 end
 
 function M.render(envelope,meta)
-    monitors=getMonitors(); meta=meta or {}
+    monitors=getMonitors(); meta=meta or {}; touchTargets={}
     for i,entry in ipairs(monitors) do
         local w,h=entry.mon.getSize()
         if i==1 and w>=50 and h>=20 then
@@ -295,6 +313,19 @@ function M.render(envelope,meta)
     end
 end
 
-function M.onPeripheralChange() monitors=getMonitors() end
-function M.handleEvent() end
+function M.onPeripheralChange() monitors=getMonitors(); touchTargets={} end
+
+function M.handleEvent(e,envelope,action)
+    if type(e)~="table" or e[1]~="monitor_touch" then return end
+    local name,x,y=e[2],e[3],e[4]
+    for _,target in ipairs(touchTargets[name] or {}) do
+        if target.enabled and x>=target.x1 and x<=target.x2 and y>=target.y1 and y<=target.y2 then
+            if target.name=="check_updates" and action then
+                action("server","check_updates",{})
+            end
+            return
+        end
+    end
+end
+
 return M
