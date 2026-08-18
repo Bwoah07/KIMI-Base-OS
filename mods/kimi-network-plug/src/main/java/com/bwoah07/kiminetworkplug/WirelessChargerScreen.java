@@ -1,7 +1,6 @@
 package com.bwoah07.kiminetworkplug;
 
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.BlockPos;
@@ -10,26 +9,37 @@ import net.minecraft.world.entity.player.Inventory;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 public final class WirelessChargerScreen extends AbstractContainerScreen<WirelessChargerMenu> {
-    private static final int BG = 0xE8050709;
-    private static final int FIELD = 0xD9111418;
-    private static final int BORDER = 0xFFD3D6DA;
-    private static final int TEXT = 0xFFF2F3F4;
-    private static final int MUTED = 0xFFA8ADB3;
-    private static final int GREEN = 0xFF64E889;
-    private static final int CYAN = 0xFF46C9D8;
+    private static final int PANEL = 0xD9080A0D;
+    private static final int INNER = 0xA60D1014;
+    private static final int SILVER = 0xFFD0D4D8;
+    private static final int TEXT = 0xFFF0F2F4;
+    private static final int MUTED = 0xFF9DA5AD;
+    private static final int GREEN = 0xFF66E394;
+    private static final int CYAN = 0xFF55D7E8;
 
     private enum Tab { GENERAL, TARGETS, STATS }
     private Tab tab = Tab.GENERAL;
 
-    private Button tabGeneral, tabTargets, tabStats;
-    private EditBox networkBox, rangeBox, rateBox;
-    private Button applyButton, inventoryButton, armorButton, offhandButton, curiosButton;
-    private boolean inventory, armor, offhand, curios;
+    private KimiUiButton generalTab;
+    private KimiUiButton targetsTab;
+    private KimiUiButton statsTab;
+    private KimiUiButton applyButton;
+    private KimiUiButton inventoryButton;
+    private KimiUiButton armorButton;
+    private KimiUiButton offhandButton;
+    private KimiUiButton curiosButton;
+    private EditBox networkBox;
+    private EditBox rangeBox;
+    private EditBox rateBox;
+    private boolean inventory;
+    private boolean armor;
+    private boolean offhand;
+    private boolean curios;
 
     public WirelessChargerScreen(WirelessChargerMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
-        imageWidth = 176;
-        imageHeight = 178;
+        imageWidth = 188;
+        imageHeight = 190;
         inventoryLabelY = 10_000;
         titleLabelY = 10_000;
     }
@@ -39,38 +49,38 @@ public final class WirelessChargerScreen extends AbstractContainerScreen<Wireles
         super.init();
         int x = leftPos;
         int y = topPos;
-        this.inventory = menu.inventory();
-        this.armor = menu.armor();
-        this.offhand = menu.offhand();
-        this.curios = menu.curios();
+        inventory = menu.inventory();
+        armor = menu.armor();
+        offhand = menu.offhand();
+        curios = menu.curios();
 
-        tabGeneral = addRenderableWidget(Button.builder(Component.literal("G"), b -> setTab(Tab.GENERAL)).bounds(x + 10, y + 7, 28, 20).build());
-        tabTargets = addRenderableWidget(Button.builder(Component.literal("T"), b -> setTab(Tab.TARGETS)).bounds(x + 42, y + 7, 28, 20).build());
-        tabStats = addRenderableWidget(Button.builder(Component.literal("S"), b -> setTab(Tab.STATS)).bounds(x + 74, y + 7, 28, 20).build());
+        generalTab = addRenderableWidget(new KimiUiButton(x + 12, y + 1, 34, 26, Component.literal("⌂"), true, b -> setTab(Tab.GENERAL)).accent(CYAN));
+        targetsTab = addRenderableWidget(new KimiUiButton(x + 51, y + 1, 34, 26, Component.literal("◎"), true, b -> setTab(Tab.TARGETS)).accent(CYAN));
+        statsTab = addRenderableWidget(new KimiUiButton(x + 90, y + 1, 34, 26, Component.literal("▥"), true, b -> setTab(Tab.STATS)).accent(CYAN));
 
-        networkBox = new EditBox(font, x + 16, y + 70, 144, 18, Component.literal("Network"));
+        networkBox = new EditBox(font, x + 18, y + 77, 152, 18, Component.literal("Network"));
         networkBox.setFilter(value -> value.matches("[A-Za-z0-9_-]*"));
         networkBox.setMaxLength(PowerNetworkSavedData.MAX_NETWORK_NAME_LENGTH);
         networkBox.setValue(menu.getNetworkName());
         addRenderableWidget(networkBox);
 
-        rangeBox = new EditBox(font, x + 16, y + 111, 52, 18, Component.literal("Range"));
+        rangeBox = new EditBox(font, x + 18, y + 119, 54, 18, Component.literal("Range"));
         rangeBox.setFilter(value -> value.matches("\\d*"));
         rangeBox.setValue(Integer.toString(menu.getRange()));
         addRenderableWidget(rangeBox);
 
-        rateBox = new EditBox(font, x + 74, y + 111, 86, 18, Component.literal("Rate"));
+        rateBox = new EditBox(font, x + 78, y + 119, 92, 18, Component.literal("Rate"));
         rateBox.setFilter(value -> value.matches("\\d*"));
         rateBox.setMaxLength(14);
         rateBox.setValue(Long.toString(menu.getChargeRate()));
         addRenderableWidget(rateBox);
 
-        applyButton = addRenderableWidget(Button.builder(Component.literal("APPLY"), b -> apply()).bounds(x + 108, y + 136, 52, 18).build());
+        applyButton = addRenderableWidget(new KimiUiButton(x + 118, y + 145, 52, 18, Component.literal("APPLY"), false, b -> apply()).accent(CYAN));
 
-        inventoryButton = addRenderableWidget(Button.builder(Component.empty(), b -> { inventory = !inventory; apply(); }).bounds(x + 16, y + 72, 144, 20).build());
-        armorButton = addRenderableWidget(Button.builder(Component.empty(), b -> { armor = !armor; apply(); }).bounds(x + 16, y + 97, 144, 20).build());
-        offhandButton = addRenderableWidget(Button.builder(Component.empty(), b -> { offhand = !offhand; apply(); }).bounds(x + 16, y + 122, 144, 20).build());
-        curiosButton = addRenderableWidget(Button.builder(Component.empty(), b -> { curios = !curios; apply(); }).bounds(x + 16, y + 147, 144, 20).build());
+        inventoryButton = addRenderableWidget(new KimiUiButton(x + 18, y + 78, 152, 20, Component.empty(), false, b -> { inventory = !inventory; apply(); }).accent(CYAN));
+        armorButton = addRenderableWidget(new KimiUiButton(x + 18, y + 103, 152, 20, Component.empty(), false, b -> { armor = !armor; apply(); }).accent(CYAN));
+        offhandButton = addRenderableWidget(new KimiUiButton(x + 18, y + 128, 152, 20, Component.empty(), false, b -> { offhand = !offhand; apply(); }).accent(CYAN));
+        curiosButton = addRenderableWidget(new KimiUiButton(x + 18, y + 153, 152, 20, Component.empty(), false, b -> { curios = !curios; apply(); }).accent(CYAN));
 
         syncButtons();
         updateVisibility();
@@ -79,9 +89,7 @@ public final class WirelessChargerScreen extends AbstractContainerScreen<Wireles
     private void setTab(Tab next) {
         tab = next;
         updateVisibility();
-        tabGeneral.active = tab != Tab.GENERAL;
-        tabTargets.active = tab != Tab.TARGETS;
-        tabStats.active = tab != Tab.STATS;
+        syncButtons();
     }
 
     private void updateVisibility() {
@@ -98,10 +106,17 @@ public final class WirelessChargerScreen extends AbstractContainerScreen<Wireles
     }
 
     private void syncButtons() {
-        if (inventoryButton != null) inventoryButton.setMessage(Component.literal("INVENTORY        " + (inventory ? "ON" : "OFF")));
-        if (armorButton != null) armorButton.setMessage(Component.literal("ARMOR            " + (armor ? "ON" : "OFF")));
-        if (offhandButton != null) offhandButton.setMessage(Component.literal("OFFHAND          " + (offhand ? "ON" : "OFF")));
-        if (curiosButton != null) curiosButton.setMessage(Component.literal("CURIOS           " + (curios ? "ON" : "OFF")));
+        if (generalTab != null) generalTab.setSelected(tab == Tab.GENERAL);
+        if (targetsTab != null) targetsTab.setSelected(tab == Tab.TARGETS);
+        if (statsTab != null) statsTab.setSelected(tab == Tab.STATS);
+        if (inventoryButton != null) inventoryButton.setMessage(Component.literal("INVENTORY            " + (inventory ? "ON" : "OFF")));
+        if (armorButton != null) armorButton.setMessage(Component.literal("ARMOR                " + (armor ? "ON" : "OFF")));
+        if (offhandButton != null) offhandButton.setMessage(Component.literal("OFFHAND              " + (offhand ? "ON" : "OFF")));
+        if (curiosButton != null) curiosButton.setMessage(Component.literal("CURIOS               " + (curios ? "ON" : "OFF")));
+        if (inventoryButton != null) inventoryButton.setSelected(inventory);
+        if (armorButton != null) armorButton.setSelected(armor);
+        if (offhandButton != null) offhandButton.setSelected(offhand);
+        if (curiosButton != null) curiosButton.setSelected(curios);
     }
 
     private void apply() {
@@ -134,54 +149,57 @@ public final class WirelessChargerScreen extends AbstractContainerScreen<Wireles
     protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
         int x = leftPos;
         int y = topPos;
-        g.fill(x + 4, y + 31, x + imageWidth - 4, y + imageHeight - 4, BG);
-        outline(g, x + 4, y + 31, imageWidth - 8, imageHeight - 35, CYAN);
-        g.fill(x + 12, y + 40, x + imageWidth - 12, y + 60, FIELD);
-        g.fill(x + 12, y + 63, x + imageWidth - 12, y + imageHeight - 12, 0xB006090C);
-
-        if (tab == Tab.GENERAL) {
-            outline(g, x + 15, y + 67, 146, 24, BORDER);
-            outline(g, x + 15, y + 108, 146, 24, BORDER);
-        } else if (tab == Tab.STATS) {
-            drawBar(g, x + 18, y + 128, 140, 5, menu.getNetworkEnergy() / (double) PowerNetworkSavedData.NETWORK_CAPACITY, CYAN);
+        floatingPanel(g, x + 5, y + 21, imageWidth - 10, imageHeight - 26, CYAN);
+        g.fill(x + 16, y + 49, x + imageWidth - 16, y + 50, 0x889AA1A8);
+        if (tab == Tab.STATS) {
+            drawBar(g, x + 18, y + 137, 152, 5, menu.getNetworkEnergy() / (double) PowerNetworkSavedData.NETWORK_CAPACITY, CYAN);
         }
     }
 
-    private static void outline(GuiGraphics g, int x, int y, int w, int h, int c) {
-        g.fill(x, y, x + w, y + 1, c); g.fill(x, y + h - 1, x + w, y + h, c);
-        g.fill(x, y, x + 1, y + h, c); g.fill(x + w - 1, y, x + w, y + h, c);
+    private static void floatingPanel(GuiGraphics g, int x, int y, int w, int h, int border) {
+        g.fill(x + 5, y, x + w - 5, y + h, PANEL);
+        g.fill(x, y + 5, x + w, y + h - 5, PANEL);
+        g.fill(x + 7, y + 7, x + w - 7, y + h - 7, INNER);
+        g.fill(x + 5, y, x + w - 5, y + 2, border);
+        g.fill(x + 5, y + h - 2, x + w - 5, y + h, border);
+        g.fill(x, y + 5, x + 2, y + h - 5, border);
+        g.fill(x + w - 2, y + 5, x + w, y + h - 5, border);
+        g.fill(x + 2, y + 2, x + 5, y + 5, border);
+        g.fill(x + w - 5, y + 2, x + w - 2, y + 5, border);
+        g.fill(x + 2, y + h - 5, x + 5, y + h - 2, border);
+        g.fill(x + w - 5, y + h - 5, x + w - 2, y + h - 2, border);
     }
 
     private static void drawBar(GuiGraphics g, int x, int y, int w, int h, double fraction, int color) {
         fraction = Math.max(0.0, Math.min(1.0, fraction));
-        g.fill(x, y, x + w, y + h, 0xFF252B31);
-        int filled = (int)Math.round(w * fraction);
+        g.fill(x, y, x + w, y + h, 0xAA343A40);
+        int filled = (int) Math.round(w * fraction);
         if (filled > 0) g.fill(x, y, x + filled, y + h, color);
     }
 
     @Override
     protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
-        g.drawString(font, "KIMI WIRELESS", 16, 46, TEXT, false);
-        g.drawString(font, "●", 149, 46, GREEN, false);
-
+        g.drawString(font, "KIMI WIRELESS CHARGER", 18, 34, TEXT, false);
+        g.drawString(font, "•", 161, 34, GREEN, false);
         if (tab == Tab.GENERAL) {
-            g.drawString(font, "NETWORK", 16, 62, MUTED, false);
-            g.drawString(font, "RANGE", 16, 103, MUTED, false);
-            g.drawString(font, "RATE", 74, 103, MUTED, false);
-            g.drawString(font, "LIVE " + formatFe(menu.getLastDraw()) + " FE/t", 16, 141, GREEN, false);
-            g.drawString(font, menu.getPlayers() + " PLAYER" + (menu.getPlayers() == 1 ? "" : "S") + " IN RANGE", 16, 157, MUTED, false);
+            g.drawString(font, "NETWORK", 18, 61, MUTED, false);
+            g.drawString(font, "RANGE", 18, 103, MUTED, false);
+            g.drawString(font, "RATE", 78, 103, MUTED, false);
+            g.drawString(font, "LIVE  " + formatFe(menu.getLastDraw()) + " FE/t", 18, 151, GREEN, false);
+            g.drawString(font, menu.getPlayers() + " PLAYER" + (menu.getPlayers() == 1 ? "" : "S") + " IN RANGE", 18, 168, MUTED, false);
         } else if (tab == Tab.TARGETS) {
-            g.drawString(font, "WIRELESS TARGETS", 16, 62, MUTED, false);
+            g.drawString(font, "WIRELESS TARGETS", 18, 61, MUTED, false);
+            g.drawString(font, "Toggle exactly what KIMI may charge.", 18, 178, MUTED, false);
         } else {
-            g.drawString(font, "KIMI LINK", 18, 72, MUTED, false);
-            g.drawString(font, "ONLINE", 120, 72, GREEN, false);
-            g.drawString(font, "LIVE DRAW", 18, 91, MUTED, false);
-            g.drawString(font, formatFe(menu.getLastDraw()) + " FE/t", 98, 91, GREEN, false);
-            g.drawString(font, "PLAYERS", 18, 108, MUTED, false);
-            g.drawString(font, Integer.toString(menu.getPlayers()), 120, 108, TEXT, false);
-            g.drawString(font, "BUFFER", 18, 122, MUTED, false);
-            g.drawString(font, formatFe(menu.getNetworkEnergy()) + " / " + formatFe(PowerNetworkSavedData.NETWORK_CAPACITY), 18, 139, TEXT, false);
-            g.drawString(font, "NETWORK " + menu.getNetworkName(), 18, 155, MUTED, false);
+            g.drawString(font, "COMPUTERCRAFT", 18, 61, MUTED, false);
+            g.drawString(font, "kimi_wireless_charger", 18, 76, TEXT, false);
+            g.drawString(font, "LIVE DRAW", 18, 100, MUTED, false);
+            g.drawString(font, formatFe(menu.getLastDraw()) + " FE/t", 100, 100, GREEN, false);
+            g.drawString(font, "PLAYERS", 18, 117, MUTED, false);
+            g.drawString(font, Integer.toString(menu.getPlayers()), 151, 117, TEXT, false);
+            g.drawString(font, "NETWORK BUFFER", 18, 129, MUTED, false);
+            g.drawString(font, formatFe(menu.getNetworkEnergy()) + " / " + formatFe(PowerNetworkSavedData.NETWORK_CAPACITY), 18, 147, TEXT, false);
+            g.drawString(font, "NETWORK  " + menu.getNetworkName(), 18, 165, MUTED, false);
         }
     }
 
@@ -195,7 +213,6 @@ public final class WirelessChargerScreen extends AbstractContainerScreen<Wireles
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        renderBackground(g, mouseX, mouseY, partialTick);
         super.render(g, mouseX, mouseY, partialTick);
         renderTooltip(g, mouseX, mouseY);
     }
