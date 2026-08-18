@@ -57,6 +57,6 @@ The network core opens every attached CC modem, allowing wired and wireless netw
 
 ## Current version
 
-`5.0.0-alpha.25`
+`5.0.0-alpha.26`
 
 The repository is public so CC:Tweaked can perform unauthenticated HTTPS downloads from GitHub.
