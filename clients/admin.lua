@@ -22,28 +22,51 @@ local function prep(mon)
     mon.setCursorPos(1,1)
 end
 
+local function put(mon,x,y,text,color,bg)
+    local w,h = mon.getSize()
+    if y < 1 or y > h or x > w then return end
+    text = tostring(text or "")
+    if x < 1 then x = 1 end
+    mon.setCursorPos(x,y)
+    mon.setTextColor(color or colors.white)
+    if bg then mon.setBackgroundColor(bg) end
+    mon.write(text:sub(1, math.max(0,w-x+1)))
+    if bg then mon.setBackgroundColor(colors.black) end
+end
+
 local function header(mon,title,right)
     local w = select(1,mon.getSize())
     mon.setBackgroundColor(colors.red)
     mon.setTextColor(colors.white)
     mon.setCursorPos(1,1)
     mon.write(string.rep(" ",w))
-    mon.setCursorPos(math.max(1,math.floor((w-#title)/2)+1),1)
+    local tx = math.max(1,math.floor((w-#title)/2)+1)
+    mon.setCursorPos(tx,1)
     mon.write(title:sub(1,w))
-    if right and #right+1<w then mon.setCursorPos(w-#right,1); mon.write(right) end
+    if right and #right+1 < w then
+        mon.setCursorPos(math.max(1,w-#right),1)
+        mon.write(right)
+    end
     mon.setBackgroundColor(colors.black)
 end
 
 local function line(mon,y,label,value,color)
-    local w,h=mon.getSize(); if y>h then return end
     label=tostring(label or ""); value=tostring(value or "")
     local text = label=="" and value or (label .. string.rep(" ",math.max(1,12-#label)) .. value)
-    mon.setCursorPos(2,y); mon.setTextColor(color or colors.white); mon.write(text:sub(1,math.max(0,w-2)))
+    put(mon,2,y,text,color)
 end
 
-local function divider(mon,y)
-    local w,h=mon.getSize(); if y>h then return end
-    mon.setCursorPos(2,y); mon.setTextColor(colors.gray); mon.write(string.rep("-",math.max(1,w-3)))
+local function hline(mon,y,x1,x2,color)
+    local w,h=mon.getSize(); if y<1 or y>h then return end
+    x1=math.max(1,x1 or 1); x2=math.min(w,x2 or w)
+    if x2<x1 then return end
+    put(mon,x1,y,string.rep("-",x2-x1+1),color or colors.gray)
+end
+
+local function vline(mon,x,y1,y2,color)
+    local w,h=mon.getSize(); if x<1 or x>w then return end
+    y1=math.max(1,y1 or 1); y2=math.min(h,y2 or h)
+    for y=y1,y2 do put(mon,x,y,"|",color or colors.gray) end
 end
 
 local function count(t) local n=0 for _ in pairs(t or {}) do n=n+1 end return n end
@@ -55,61 +78,175 @@ end
 
 local function age(ms)
     if not ms then return "never" end
-    local d=math.max(0,math.floor((os.epoch("utc")-tonumber(ms))/1000))
+    local n=tonumber(ms); if not n then return "?" end
+    local d=math.max(0,math.floor((os.epoch("utc")-n)/1000))
     if d<60 then return d.."s ago" end
     if d<3600 then return math.floor(d/60).."m ago" end
-    return math.floor(d/3600).."h ago"
+    if d<86400 then return math.floor(d/3600).."h ago" end
+    return math.floor(d/86400).."d ago"
 end
 
 local function uptime(startedAt)
     if not startedAt then return "?" end
     local d=math.max(0,math.floor((os.epoch("utc")-startedAt)/1000))
+    local days=math.floor(d/86400); d=d%86400
     local h=math.floor(d/3600); local m=math.floor((d%3600)/60); local s=d%60
-    if h>0 then return string.format("%dh %02dm",h,m) end
+    if days>0 then return string.format("%dd %02dh %02dm",days,h,m) end
+    if h>0 then return string.format("%dh %02dm %02ds",h,m,s) end
     if m>0 then return string.format("%dm %02ds",m,s) end
     return s.."s"
 end
 
 local function colorFor(v)
     v=tostring(v or ""):lower()
-    if v=="online" or v=="up to date" or v=="ok" or v=="running" then return colors.lime end
-    if v=="offline" or v:find("failed",1,true) then return colors.red end
+    if v=="online" or v=="up to date" or v=="ok" or v=="running" or v=="accepted" then return colors.lime end
+    if v=="offline" or v:find("failed",1,true) or v:find("error",1,true) then return colors.red end
     return colors.yellow
 end
 
-local function panelServer(mon,envelope,meta)
-    prep(mon); header(mon,"KIMI SERVER","#"..tostring(meta.serverId or "?"))
-    local machines=meta.machines or {}; local sources=meta.sources or {}; local on,total=countOnline(machines)
-    line(mon,3,"STATUS","RUNNING",colors.lime)
-    line(mon,4,"VERSION",envelope and envelope.version or "?")
-    line(mon,5,"UPTIME",uptime(meta.startedAt))
-    divider(mon,6)
-    line(mon,7,"FLEET",on.."/"..total.." online")
-    line(mon,8,"SOURCES",count(sources))
-    line(mon,9,"MONITORS",#monitors)
-    line(mon,10,"SCHEMA",envelope and envelope.schema or "?")
-    divider(mon,11)
-    line(mon,12,"UPDATE AUTH","THIS SERVER",colors.lime)
-    line(mon,13,"COMPUTER",os.getComputerID())
+local function sortedIds(t)
+    local ids={}
+    for id in pairs(t or {}) do ids[#ids+1]=id end
+    table.sort(ids,function(a,b)
+        local na,nb=tonumber(a),tonumber(b)
+        if na and nb then return na<nb end
+        return tostring(a)<tostring(b)
+    end)
+    return ids
 end
 
+local function moduleNames(state)
+    local names={}
+    for k in pairs(state or {}) do names[#names+1]=k end
+    table.sort(names)
+    return table.concat(names,",")
+end
+
+local function drawComposite(mon,envelope,meta)
+    prep(mon)
+    local w,h=mon.getSize()
+    local machines=meta.machines or {}
+    local sources=meta.sources or {}
+    local update=meta.update or {}
+    local online,total=countOnline(machines)
+    local srcCount=count(sources)
+    local version=envelope and envelope.version or "?"
+
+    header(mon,"KIMI SERVER","#"..tostring(meta.serverId or "?"))
+
+    -- Top summary block.
+    put(mon,2,3,"STATUS",colors.lightGray); put(mon,14,3,"RUNNING",colors.lime)
+    put(mon,2,4,"VERSION",colors.lightGray); put(mon,14,4,version,colors.white)
+    put(mon,2,5,"UPTIME",colors.lightGray); put(mon,14,5,uptime(meta.startedAt),colors.white)
+
+    local mid=math.max(34,math.floor(w*0.52))
+    if mid < w-18 then
+        vline(mon,mid,3,7,colors.gray)
+        put(mon,mid+2,3,"FLEET",colors.lightGray); put(mon,mid+13,3,online.."/"..total.." online",online==total and colors.lime or colors.yellow)
+        put(mon,mid+2,4,"SOURCES",colors.lightGray); put(mon,mid+13,4,srcCount,srcCount>0 and colors.lime or colors.yellow)
+        put(mon,mid+2,5,"MONITORS",colors.lightGray); put(mon,mid+13,5,#monitors)
+        put(mon,mid+2,6,"SCHEMA",colors.lightGray); put(mon,mid+13,6,envelope and envelope.schema or "?")
+    else
+        put(mon,2,6,"FLEET",colors.lightGray); put(mon,14,6,online.."/"..total.." online")
+        put(mon,2,7,"SOURCES",colors.lightGray); put(mon,14,7,srcCount)
+    end
+
+    hline(mon,8,2,w-1)
+
+    -- Update authority/status always visible.
+    put(mon,2,9,"UPDATE CONTROL",colors.lime)
+    put(mon,2,10,"AUTHORITY",colors.lightGray); put(mon,14,10,"THIS SERVER",colors.lime)
+    put(mon,2,11,"REMOTE",colors.lightGray); put(mon,14,11,update.remoteVersion or "unknown")
+    put(mon,2,12,"LAST CHECK",colors.lightGray); put(mon,14,12,age(update.lastCheck))
+    put(mon,2,13,"RESULT",colors.lightGray); put(mon,14,13,update.lastResult or "not checked",colorFor(update.lastResult))
+    put(mon,2,14,"TARGET",colors.lightGray); put(mon,14,14,update.targetVersion or "none")
+
+    if h < 18 then return end
+    hline(mon,16,2,w-1)
+
+    -- Fleet table.
+    put(mon,2,17,"FLEET",colors.lime)
+    put(mon,2,18,"ID",colors.gray)
+    put(mon,9,18,"ROLE",colors.gray)
+    put(mon,21,18,"VERSION",colors.gray)
+    put(mon,42,18,"STATE",colors.gray)
+    put(mon,51,18,"LAST SEEN",colors.gray)
+    if w>=72 then put(mon,65,18,"UPDATE",colors.gray) end
+
+    local y=19
+    local fleetEnd=math.min(h-8,math.max(22,math.floor(h*0.68)))
+    local ids=sortedIds(machines)
+    if #ids==0 then
+        put(mon,2,y,"No clients or nodes have checked in yet.",colors.yellow)
+        y=y+1
+    else
+        for _,id in ipairs(ids) do
+            if y>fleetEnd then break end
+            local m=machines[id]
+            local isOn=m.online~=false
+            put(mon,2,y,"#"..tostring(id),isOn and colors.lime or colors.red)
+            put(mon,9,y,tostring(m.role or "?"),colors.white)
+            put(mon,21,y,tostring(m.version or "?"),colors.white)
+            put(mon,42,y,isOn and "ONLINE" or "OFFLINE",isOn and colors.lime or colors.red)
+            put(mon,51,y,age(m.lastSeen),colors.lightGray)
+            if w>=72 then put(mon,65,y,tostring(m.updateStatus or "-"),colorFor(m.updateStatus)) end
+            y=y+1
+        end
+        if #ids > (fleetEnd-18) then put(mon,2,fleetEnd,"... "..(#ids-(fleetEnd-18)).." more machines",colors.gray) end
+    end
+
+    -- Telemetry section in lower portion.
+    local teleY=fleetEnd+2
+    if teleY<=h-4 then
+        hline(mon,teleY,2,w-1); teleY=teleY+1
+        put(mon,2,teleY,"TELEMETRY SOURCES",colors.lime); teleY=teleY+1
+        local srcIds=sortedIds(sources)
+        if #srcIds==0 then
+            put(mon,2,teleY,"No remote telemetry sources online.",colors.yellow)
+        else
+            for _,id in ipairs(srcIds) do
+                if teleY>h-2 then break end
+                local s=sources[id]
+                local isOn=s.online~=false
+                put(mon,2,teleY,(isOn and "ON  " or "OFF ").."#"..tostring(id),isOn and colors.lime or colors.red)
+                put(mon,14,teleY,tostring(s.role or "?").."  "..tostring(s.name or ""),colors.white)
+                put(mon,36,teleY,moduleNames(s.state),colors.lightGray)
+                teleY=teleY+1
+            end
+        end
+    end
+
+    -- Footer alert line.
+    if h>=3 then
+        local problems={}
+        if online<total then problems[#problems+1]=(total-online).." machine(s) offline" end
+        if tostring(update.lastResult or ""):lower():find("failed",1,true) then problems[#problems+1]="update check failed" end
+        local footerY=h
+        mon.setBackgroundColor(#problems==0 and colors.black or colors.red)
+        mon.setTextColor(#problems==0 and colors.gray or colors.white)
+        mon.setCursorPos(1,footerY)
+        mon.write(string.rep(" ",w))
+        mon.setCursorPos(2,footerY)
+        if #problems==0 then mon.write("KIMI HEALTH: NOMINAL") else mon.write("ALERT: "..table.concat(problems," | ")) end
+        mon.setBackgroundColor(colors.black)
+    end
+end
+
+-- Compact dedicated panels for extra/smaller admin monitors.
 local function panelFleet(mon,envelope,meta)
     prep(mon); header(mon,"FLEET")
-    local machines=meta.machines or {}; local ids={}
-    for id in pairs(machines) do ids[#ids+1]=id end
-    table.sort(ids,function(a,b) return (tonumber(a) or 0)<(tonumber(b) or 0) end)
+    local machines=meta.machines or {}; local ids=sortedIds(machines)
     local on,total=countOnline(machines)
     line(mon,3,"ONLINE",on.."/"..total,on==total and colors.lime or colors.yellow)
-    divider(mon,4)
-    if #ids==0 then line(mon,6,"","No clients/nodes seen",colors.yellow); return end
+    hline(mon,4,2,select(1,mon.getSize())-1)
     local y=5; local _,h=mon.getSize()
     for _,id in ipairs(ids) do
         if y>h then break end
         local m=machines[id]; local st=m.online~=false and "ON" or "OFF"
         line(mon,y,"",st.." #"..id.." "..tostring(m.role or "?").." "..tostring(m.version or "?"),m.online~=false and colors.lime or colors.red)
         y=y+1
-        if y<=h then line(mon,y,"","  last "..age(m.lastSeen).."  "..tostring(m.updateStatus or ""),colors.lightGray); y=y+1 end
     end
+    if #ids==0 then line(mon,6,"","No clients/nodes seen",colors.yellow) end
 end
 
 local function panelUpdates(mon,envelope,meta)
@@ -119,68 +256,25 @@ local function panelUpdates(mon,envelope,meta)
     line(mon,4,"REMOTE",up.remoteVersion or "?")
     line(mon,5,"RESULT",up.lastResult or "not checked",colorFor(up.lastResult))
     line(mon,6,"CHECKED",age(up.lastCheck))
-    divider(mon,7)
     line(mon,8,"TARGET",up.targetVersion or "none")
     line(mon,9,"AUTHORITY",up.authority or meta.serverId or "?")
-    divider(mon,10)
-    line(mon,12,"","Server checks GitHub",colors.lightGray)
-    line(mon,13,"","Fleet follows automatically",colors.lightGray)
-end
-
-local function panelNetwork(mon,envelope,meta)
-    prep(mon); header(mon,"NETWORK")
-    local machines=meta.machines or {}; local on,total=countOnline(machines)
-    line(mon,3,"PROTOCOL","kimi_base_os_v1")
-    line(mon,4,"SERVER",meta.serverId or "?")
-    line(mon,5,"HOST","kimi-base")
-    divider(mon,6)
-    line(mon,7,"KNOWN",total)
-    line(mon,8,"ONLINE",on,on==total and colors.lime or colors.yellow)
-    line(mon,9,"SOURCES",count(meta.sources))
-    line(mon,10,"STATE AGE",envelope and age(envelope.generated) or "never")
-    divider(mon,11)
-    line(mon,12,"","Rednet fleet coordination",colors.lightGray)
 end
 
 local function panelSources(mon,envelope,meta)
-    prep(mon); header(mon,"TELEMETRY SOURCES")
-    local srcs=meta.sources or {}; local ids={}
-    for id in pairs(srcs) do ids[#ids+1]=id end
-    table.sort(ids)
+    prep(mon); header(mon,"TELEMETRY")
+    local srcs=meta.sources or {}; local ids=sortedIds(srcs)
     line(mon,3,"SOURCES",#ids)
-    divider(mon,4)
-    if #ids==0 then line(mon,6,"","No remote telemetry yet",colors.yellow); return end
     local y=5; local _,h=mon.getSize()
     for _,id in ipairs(ids) do
         if y>h then break end
         local s=srcs[id]; local st=s.online==false and "OFF" or "ON"
-        line(mon,y,"",st.." #"..id.." "..tostring(s.role or "?").." / "..count(s.state).." modules",s.online==false and colors.red or colors.lime)
+        line(mon,y,"",st.." #"..id.." "..moduleNames(s.state),s.online==false and colors.red or colors.lime)
         y=y+1
-        if y<=h then
-            local names={}; for k in pairs(s.state or {}) do names[#names+1]=k end; table.sort(names)
-            line(mon,y,"","  "..table.concat(names,", "),colors.lightGray); y=y+1
-        end
     end
+    if #ids==0 then line(mon,6,"","No remote telemetry",colors.yellow) end
 end
 
-local function panelHealth(mon,envelope,meta)
-    prep(mon); header(mon,"HEALTH")
-    local on,total=countOnline(meta.machines)
-    local up=meta.update or {}
-    line(mon,3,"KIMI OS","RUNNING",colors.lime)
-    line(mon,4,"UPDATE AUTH","OK",colors.lime)
-    line(mon,5,"NETWORK",on==total and "OK" or "DEGRADED",on==total and colors.lime or colors.yellow)
-    divider(mon,6)
-    line(mon,7,"FLEET",on.."/"..total)
-    line(mon,8,"SOURCES",count(meta.sources))
-    line(mon,9,"LAST CHECK",age(up.lastCheck))
-    line(mon,10,"CHECK",up.lastResult or "not checked",colorFor(up.lastResult))
-    divider(mon,11)
-    line(mon,12,"SERVER ID",meta.serverId or "?")
-    line(mon,13,"UPTIME",uptime(meta.startedAt))
-end
-
-local panels={panelServer,panelFleet,panelUpdates,panelNetwork,panelSources,panelHealth}
+local extraPanels={panelFleet,panelUpdates,panelSources}
 
 function M.init()
     monitors=getMonitors()
@@ -191,7 +285,14 @@ end
 
 function M.render(envelope,meta)
     monitors=getMonitors(); meta=meta or {}
-    for i,entry in ipairs(monitors) do panels[((i-1)%#panels)+1](entry.mon,envelope,meta) end
+    for i,entry in ipairs(monitors) do
+        local w,h=entry.mon.getSize()
+        if i==1 and w>=50 and h>=20 then
+            drawComposite(entry.mon,envelope,meta)
+        else
+            extraPanels[((i-2)%#extraPanels)+1](entry.mon,envelope,meta)
+        end
+    end
 end
 
 function M.onPeripheralChange() monitors=getMonitors() end
