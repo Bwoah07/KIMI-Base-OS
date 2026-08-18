@@ -12,17 +12,39 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.energy.IEnergyStorage;
 
+import java.util.UUID;
+
 public final class NetworkPlugBlockEntity extends BlockEntity {
     public static final int DEFAULT_TRANSFER_LIMIT = 16_000_000;
     public static final int MIN_TRANSFER_LIMIT = 100_000;
     public static final int MAX_TRANSFER_LIMIT = 2_000_000_000;
+    public static final long LOCAL_BUFFER_CAPACITY = 64_000_000L;
 
+    private UUID plugId = UUID.randomUUID();
+    private String networkName = PowerNetworkSavedData.DEFAULT_NETWORK;
+    private long localEnergy;
     private long lastTransfer;
     private int transferLimit = DEFAULT_TRANSFER_LIMIT;
     private final IEnergyStorage energyCapability = new PlugEnergyStorage();
 
     public NetworkPlugBlockEntity(BlockPos pos, BlockState state) {
         super(KimiNetworkPlug.NETWORK_PLUG_BLOCK_ENTITY.get(), pos, state);
+    }
+
+    public UUID getPlugId() {
+        return plugId;
+    }
+
+    public String getNetworkName() {
+        return networkName;
+    }
+
+    public long getLocalEnergy() {
+        return localEnergy;
+    }
+
+    public long getLocalSpace() {
+        return LOCAL_BUFFER_CAPACITY - localEnergy;
     }
 
     public long getLastTransfer() {
@@ -33,17 +55,55 @@ public final class NetworkPlugBlockEntity extends BlockEntity {
         return transferLimit;
     }
 
+    public PlugMode getMode() {
+        BlockState state = getBlockState();
+        return state.hasProperty(NetworkPlugBlock.MODE) ? state.getValue(NetworkPlugBlock.MODE) : PlugMode.DISABLED;
+    }
+
+    public Direction getFacing() {
+        BlockState state = getBlockState();
+        return state.hasProperty(NetworkPlugBlock.FACING) ? state.getValue(NetworkPlugBlock.FACING) : Direction.NORTH;
+    }
+
     public void setTransferLimit(int transferLimit) {
         this.transferLimit = Math.max(MIN_TRANSFER_LIMIT, Math.min(MAX_TRANSFER_LIMIT, transferLimit));
-        setChanged();
-        if (level != null) {
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), Block.UPDATE_CLIENTS);
+        setChangedAndSync();
+    }
+
+    public void setNetworkName(String networkName) {
+        this.networkName = PowerNetworkSavedData.normalizeNetworkName(networkName);
+        if (level instanceof ServerLevel serverLevel) {
+            PowerNetworkSavedData.get(serverLevel).createNetwork(this.networkName);
         }
+        setChangedAndSync();
+    }
+
+    public void cycleNetwork(int direction) {
+        if (!(level instanceof ServerLevel serverLevel)) return;
+        PowerNetworkSavedData data = PowerNetworkSavedData.get(serverLevel);
+        setNetworkName(data.cycleNetwork(networkName, direction));
     }
 
     public void setMode(PlugMode mode) {
         if (level == null || !getBlockState().hasProperty(NetworkPlugBlock.MODE)) return;
-        level.setBlock(worldPosition, getBlockState().setValue(NetworkPlugBlock.MODE, mode), Block.UPDATE_ALL);
+        BlockState oldState = getBlockState();
+        level.setBlock(worldPosition, oldState.setValue(NetworkPlugBlock.MODE, mode), Block.UPDATE_ALL);
+        level.invalidateCapabilities(worldPosition);
+        setChangedAndSync();
+    }
+
+    private void setChangedAndSync() {
+        setChanged();
+        if (level != null) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), Block.UPDATE_CLIENTS);
+        }
+        syncRegistry();
+    }
+
+    private void syncRegistry() {
+        if (level instanceof ServerLevel serverLevel) {
+            PowerNetworkSavedData.get(serverLevel).updatePlug(this, serverLevel);
+        }
     }
 
     public IEnergyStorage getEnergyCapability() {
@@ -53,12 +113,28 @@ public final class NetworkPlugBlockEntity extends BlockEntity {
     @Override
     protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.saveAdditional(tag, registries);
+        tag.putString("PlugId", plugId.toString());
+        tag.putString("Network", networkName);
+        tag.putLong("LocalEnergy", localEnergy);
         tag.putInt("TransferLimit", transferLimit);
     }
 
     @Override
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         super.loadAdditional(tag, registries);
+
+        if (tag.contains("PlugId")) {
+            try {
+                plugId = UUID.fromString(tag.getString("PlugId"));
+            } catch (IllegalArgumentException ignored) {
+                plugId = UUID.randomUUID();
+            }
+        }
+
+        networkName = tag.contains("Network")
+                ? PowerNetworkSavedData.normalizeNetworkName(tag.getString("Network"))
+                : PowerNetworkSavedData.DEFAULT_NETWORK;
+        localEnergy = Math.max(0L, Math.min(LOCAL_BUFFER_CAPACITY, tag.getLong("LocalEnergy")));
         transferLimit = Math.max(MIN_TRANSFER_LIMIT,
                 Math.min(MAX_TRANSFER_LIMIT, tag.contains("TransferLimit") ? tag.getInt("TransferLimit") : DEFAULT_TRANSFER_LIMIT));
     }
@@ -66,136 +142,167 @@ public final class NetworkPlugBlockEntity extends BlockEntity {
     public static void serverTick(Level level, BlockPos pos, BlockState state, NetworkPlugBlockEntity blockEntity) {
         if (!(level instanceof ServerLevel serverLevel)) return;
 
+        blockEntity.networkName = PowerNetworkSavedData.normalizeNetworkName(blockEntity.networkName);
+        PowerNetworkSavedData network = PowerNetworkSavedData.get(serverLevel);
+        network.createNetwork(blockEntity.networkName);
+
         PlugMode mode = state.getValue(NetworkPlugBlock.MODE);
-        long moved = switch (mode) {
-            case INPUT -> pullIntoNetwork(serverLevel, pos, blockEntity.transferLimit);
-            case OUTPUT -> pushFromNetwork(serverLevel, pos, blockEntity.transferLimit);
-            case DISABLED -> 0L;
-        };
+        long moved;
+
+        if (mode == PlugMode.INPUT) {
+            pullAttachedBlockIntoLocal(serverLevel, pos, state, blockEntity);
+            moved = flushLocalIntoNetwork(serverLevel, blockEntity);
+        } else if (mode == PlugMode.OUTPUT) {
+            fillLocalFromNetwork(serverLevel, blockEntity);
+            moved = pushLocalIntoAttachedBlock(serverLevel, pos, state, blockEntity);
+        } else {
+            moved = 0L;
+        }
 
         blockEntity.lastTransfer = moved;
+        network.updatePlug(blockEntity, serverLevel);
     }
 
-    private static long pullIntoNetwork(ServerLevel level, BlockPos pos, int transferLimit) {
-        PowerNetworkSavedData network = PowerNetworkSavedData.get(level);
-        int budget = transferLimit;
-        long total = 0L;
+    private static void pullAttachedBlockIntoLocal(
+            ServerLevel level,
+            BlockPos pos,
+            BlockState state,
+            NetworkPlugBlockEntity blockEntity
+    ) {
+        if (blockEntity.getLocalSpace() <= 0) return;
 
-        for (Direction direction : Direction.values()) {
-            if (budget <= 0 || network.getSpace() <= 0) break;
+        Direction facing = state.getValue(NetworkPlugBlock.FACING);
+        Direction towardAttached = facing.getOpposite();
+        IEnergyStorage storage = level.getCapability(
+                Capabilities.EnergyStorage.BLOCK,
+                pos.relative(towardAttached),
+                facing
+        );
 
-            IEnergyStorage storage = level.getCapability(
-                    Capabilities.EnergyStorage.BLOCK,
-                    pos.relative(direction),
-                    direction.getOpposite()
-            );
+        if (storage == null || !storage.canExtract()) return;
 
-            if (storage == null || !storage.canExtract()) continue;
+        int requested = (int) Math.min(
+                (long) blockEntity.transferLimit,
+                blockEntity.getLocalSpace()
+        );
+        if (requested <= 0) return;
 
-            int requested = (int) Math.min((long) budget, network.getSpace());
-            if (requested <= 0) break;
+        int simulated = storage.extractEnergy(requested, true);
+        if (simulated <= 0) return;
 
-            int simulated = storage.extractEnergy(requested, true);
-            if (simulated <= 0) continue;
-
-            int extracted = storage.extractEnergy(simulated, false);
-            if (extracted <= 0) continue;
-
-            long accepted = network.addEnergy(extracted);
-            budget -= (int) accepted;
-            total += accepted;
+        int extracted = storage.extractEnergy(simulated, false);
+        if (extracted > 0) {
+            blockEntity.localEnergy = Math.min(LOCAL_BUFFER_CAPACITY, blockEntity.localEnergy + extracted);
+            blockEntity.setChanged();
         }
-
-        return total;
     }
 
-    private static long pushFromNetwork(ServerLevel level, BlockPos pos, int transferLimit) {
+    private static long flushLocalIntoNetwork(ServerLevel level, NetworkPlugBlockEntity blockEntity) {
+        if (blockEntity.localEnergy <= 0) return 0L;
+
         PowerNetworkSavedData network = PowerNetworkSavedData.get(level);
-        int budget = transferLimit;
-        long total = 0L;
-
-        for (Direction direction : Direction.values()) {
-            if (budget <= 0 || network.getEnergy() <= 0) break;
-
-            IEnergyStorage storage = level.getCapability(
-                    Capabilities.EnergyStorage.BLOCK,
-                    pos.relative(direction),
-                    direction.getOpposite()
-            );
-
-            if (storage == null || !storage.canReceive()) continue;
-
-            int offered = (int) Math.min((long) budget, network.getEnergy());
-            if (offered <= 0) break;
-
-            int received = storage.receiveEnergy(offered, false);
-            if (received <= 0) continue;
-
-            network.removeEnergy(received);
-            budget -= received;
-            total += received;
+        long offered = Math.min((long) blockEntity.transferLimit, blockEntity.localEnergy);
+        long accepted = network.addEnergy(blockEntity.networkName, offered, level.getGameTime());
+        if (accepted > 0) {
+            blockEntity.localEnergy -= accepted;
+            blockEntity.setChanged();
         }
+        return accepted;
+    }
 
-        return total;
+    private static void fillLocalFromNetwork(ServerLevel level, NetworkPlugBlockEntity blockEntity) {
+        if (blockEntity.getLocalSpace() <= 0) return;
+
+        PowerNetworkSavedData network = PowerNetworkSavedData.get(level);
+        long requested = Math.min((long) blockEntity.transferLimit, blockEntity.getLocalSpace());
+        long removed = network.removeEnergy(blockEntity.networkName, requested, level.getGameTime());
+        if (removed > 0) {
+            blockEntity.localEnergy += removed;
+            blockEntity.setChanged();
+        }
+    }
+
+    private static long pushLocalIntoAttachedBlock(
+            ServerLevel level,
+            BlockPos pos,
+            BlockState state,
+            NetworkPlugBlockEntity blockEntity
+    ) {
+        if (blockEntity.localEnergy <= 0) return 0L;
+
+        Direction facing = state.getValue(NetworkPlugBlock.FACING);
+        Direction towardAttached = facing.getOpposite();
+        IEnergyStorage storage = level.getCapability(
+                Capabilities.EnergyStorage.BLOCK,
+                pos.relative(towardAttached),
+                facing
+        );
+
+        if (storage == null || !storage.canReceive()) return 0L;
+
+        int offered = (int) Math.min(
+                Math.min((long) blockEntity.transferLimit, blockEntity.localEnergy),
+                (long) Integer.MAX_VALUE
+        );
+        if (offered <= 0) return 0L;
+
+        int received = storage.receiveEnergy(offered, false);
+        if (received > 0) {
+            blockEntity.localEnergy -= received;
+            blockEntity.setChanged();
+        }
+        return received;
     }
 
     private final class PlugEnergyStorage implements IEnergyStorage {
-        private PowerNetworkSavedData network() {
-            return level instanceof ServerLevel serverLevel ? PowerNetworkSavedData.get(serverLevel) : null;
-        }
-
-        private PlugMode mode() {
-            BlockState state = getBlockState();
-            return state.hasProperty(NetworkPlugBlock.MODE) ? state.getValue(NetworkPlugBlock.MODE) : PlugMode.DISABLED;
-        }
-
         @Override
         public int receiveEnergy(int maxReceive, boolean simulate) {
-            if (maxReceive <= 0 || mode() != PlugMode.INPUT) return 0;
-            PowerNetworkSavedData network = network();
-            if (network == null) return 0;
+            if (maxReceive <= 0 || getMode() != PlugMode.INPUT) return 0;
 
             int accepted = (int) Math.min(
                     Math.min((long) maxReceive, (long) transferLimit),
-                    network.getSpace()
+                    getLocalSpace()
             );
-            if (!simulate && accepted > 0) network.addEnergy(accepted);
+            if (!simulate && accepted > 0) {
+                localEnergy += accepted;
+                setChangedAndSync();
+            }
             return accepted;
         }
 
         @Override
         public int extractEnergy(int maxExtract, boolean simulate) {
-            if (maxExtract <= 0 || mode() != PlugMode.OUTPUT) return 0;
-            PowerNetworkSavedData network = network();
-            if (network == null) return 0;
+            if (maxExtract <= 0 || getMode() != PlugMode.OUTPUT) return 0;
 
             int extracted = (int) Math.min(
                     Math.min((long) maxExtract, (long) transferLimit),
-                    network.getEnergy()
+                    localEnergy
             );
-            if (!simulate && extracted > 0) network.removeEnergy(extracted);
+            if (!simulate && extracted > 0) {
+                localEnergy -= extracted;
+                setChangedAndSync();
+            }
             return extracted;
         }
 
         @Override
         public int getEnergyStored() {
-            PowerNetworkSavedData network = network();
-            return network == null ? 0 : (int) Math.min((long) Integer.MAX_VALUE, network.getEnergy());
+            return (int) Math.min((long) Integer.MAX_VALUE, localEnergy);
         }
 
         @Override
         public int getMaxEnergyStored() {
-            return (int) Math.min((long) Integer.MAX_VALUE, PowerNetworkSavedData.CAPACITY);
+            return (int) Math.min((long) Integer.MAX_VALUE, LOCAL_BUFFER_CAPACITY);
         }
 
         @Override
         public boolean canExtract() {
-            return mode() == PlugMode.OUTPUT;
+            return getMode() == PlugMode.OUTPUT;
         }
 
         @Override
         public boolean canReceive() {
-            return mode() == PlugMode.INPUT;
+            return getMode() == PlugMode.INPUT;
         }
     }
 }
