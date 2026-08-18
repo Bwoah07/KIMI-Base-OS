@@ -12,14 +12,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlugMenu> {
-    private static final int PANEL = 0xD9080A0D;
-    private static final int PANEL_INNER = 0xA60D1014;
+    private static final int PANEL = 0xD9050709;
+    private static final int PANEL_INNER = 0xA4080B0E;
+    private static final int FIELD = 0xC8080B0F;
     private static final int SILVER = 0xFFD0D4D8;
-    private static final int MUTED = 0xFF9DA5AD;
-    private static final int TEXT = 0xFFF0F2F4;
-    private static final int GREEN = 0xFF66E394;
-    private static final int ORANGE = 0xFFFFA329;
-    private static final int CYAN = 0xFF55D7E8;
+    private static final int MUTED = 0xFFA1A7AE;
+    private static final int TEXT = 0xFFF1F3F5;
+    private static final int GREEN = 0xFF64E58F;
+    private static final int ORANGE = 0xFFFF9F2F;
+    private static final int CYAN = 0xFF50D1E0;
 
     private enum Tab { GENERAL, NETWORK, STATS, KIMI }
     private Tab tab = Tab.GENERAL;
@@ -33,9 +34,7 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
     private KimiUiButton outputButton;
     private KimiUiButton networkSelector;
     private KimiUiButton createButton;
-    private KimiUiButton minusButton;
     private KimiUiButton setButton;
-    private KimiUiButton plusButton;
     private KimiUiButton maxButton;
     private final List<KimiUiButton> networkOptions = new ArrayList<>();
     private EditBox limitBox;
@@ -44,8 +43,8 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
 
     public NetworkPlugScreen(NetworkPlugMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
-        imageWidth = 204;
-        imageHeight = 196;
+        imageWidth = 190;
+        imageHeight = 214;
         inventoryLabelY = 10_000;
         titleLabelY = 10_000;
     }
@@ -56,39 +55,51 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
         int x = leftPos;
         int y = topPos;
 
-        generalTab = addRenderableWidget(new KimiUiButton(x + 12, y + 1, 34, 26, Component.literal("⌂"), true, b -> setTab(Tab.GENERAL)));
-        networkTab = addRenderableWidget(new KimiUiButton(x + 51, y + 1, 34, 26, Component.literal("≡"), true, b -> setTab(Tab.NETWORK)));
-        statsTab = addRenderableWidget(new KimiUiButton(x + 90, y + 1, 34, 26, Component.literal("▥"), true, b -> setTab(Tab.STATS)));
-        kimiTab = addRenderableWidget(new KimiUiButton(x + 129, y + 1, 34, 26, Component.literal("K"), true, b -> setTab(Tab.KIMI)));
+        // Tabs deliberately hover above the panel, matching the compact tech-card
+        // layout the user preferred from Flux Networks without copying its assets.
+        generalTab = addRenderableWidget(new KimiUiButton(x + 10, y + 18, 30, 24, Component.literal("⌂"), true, b -> setTab(Tab.GENERAL)));
+        networkTab = addRenderableWidget(new KimiUiButton(x + 44, y + 18, 30, 24, Component.literal("≡"), true, b -> setTab(Tab.NETWORK)));
+        statsTab = addRenderableWidget(new KimiUiButton(x + 78, y + 18, 30, 24, Component.literal("▥"), true, b -> setTab(Tab.STATS)));
+        kimiTab = addRenderableWidget(new KimiUiButton(x + 112, y + 18, 30, 24, Component.literal("K"), true, b -> setTab(Tab.KIMI)));
 
-        offButton = addRenderableWidget(new KimiUiButton(x + 18, y + 75, 48, 18, Component.literal("OFF"), false, b -> sendButton(0)));
-        inputButton = addRenderableWidget(new KimiUiButton(x + 78, y + 75, 48, 18, Component.literal("IN"), false, b -> sendButton(1)).accent(GREEN));
-        outputButton = addRenderableWidget(new KimiUiButton(x + 138, y + 75, 48, 18, Component.literal("OUT"), false, b -> sendButton(2)).accent(ORANGE));
+        networkSelector = addRenderableWidget(new KimiUiButton(x + 16, y + 64, 158, 20,
+                Component.literal(menu.getNetworkName() + "  v"), false, b -> toggleDropdown()).accent(CYAN));
 
-        minusButton = addRenderableWidget(new KimiUiButton(x + 18, y + 121, 22, 18, Component.literal("-"), false, b -> sendButton(10)));
-        limitBox = new EditBox(font, x + 45, y + 121, 82, 18, Component.literal("Transfer limit"));
+        offButton = addRenderableWidget(new KimiUiButton(x + 16, y + 94, 48, 18, Component.literal("OFF"), false, b -> sendButton(0)));
+        inputButton = addRenderableWidget(new KimiUiButton(x + 71, y + 94, 48, 18, Component.literal("INPUT"), false, b -> sendButton(1)).accent(GREEN));
+        outputButton = addRenderableWidget(new KimiUiButton(x + 126, y + 94, 48, 18, Component.literal("OUTPUT"), false, b -> sendButton(2)).accent(ORANGE));
+
+        limitBox = new EditBox(font, x + 18, y + 134, 91, 16, Component.literal("Transfer limit"));
+        limitBox.setBordered(false);
         limitBox.setFilter(value -> value.matches("\\d*"));
         limitBox.setMaxLength(14);
         limitBox.setValue(Long.toString(Math.max(NetworkPlugBlockEntity.MIN_TRANSFER_LIMIT, menu.getTransferLimit())));
         addRenderableWidget(limitBox);
-        setButton = addRenderableWidget(new KimiUiButton(x + 132, y + 121, 28, 18, Component.literal("SET"), false, b -> applyTypedLimit()));
-        plusButton = addRenderableWidget(new KimiUiButton(x + 165, y + 121, 21, 18, Component.literal("+"), false, b -> sendButton(11)));
-        maxButton = addRenderableWidget(new KimiUiButton(x + 138, y + 146, 48, 18, Component.literal("MAX"), false, b -> sendButton(13)).accent(ORANGE));
+        setButton = addRenderableWidget(new KimiUiButton(x + 113, y + 132, 32, 20, Component.literal("SET"), false, b -> applyTypedLimit()));
+        maxButton = addRenderableWidget(new KimiUiButton(x + 149, y + 132, 25, 20, Component.literal("MAX"), false, b -> sendButton(13)).accent(ORANGE));
 
-        networkSelector = addRenderableWidget(new KimiUiButton(x + 18, y + 76, 168, 20, Component.literal(menu.getNetworkName() + "  v"), false, b -> toggleDropdown()).accent(CYAN));
-        newNetworkBox = new EditBox(font, x + 18, y + 119, 114, 18, Component.literal("New network"));
+        newNetworkBox = new EditBox(font, x + 18, y + 108, 105, 16, Component.literal("New network"));
+        newNetworkBox.setBordered(false);
         newNetworkBox.setFilter(value -> value.matches("[A-Za-z0-9_-]*"));
         newNetworkBox.setMaxLength(PowerNetworkSavedData.MAX_NETWORK_NAME_LENGTH);
         newNetworkBox.setHint(Component.literal("NEW NETWORK"));
         addRenderableWidget(newNetworkBox);
-        createButton = addRenderableWidget(new KimiUiButton(x + 138, y + 119, 48, 18, Component.literal("CREATE"), false, b -> createNetwork()).accent(CYAN));
+        createButton = addRenderableWidget(new KimiUiButton(x + 128, y + 106, 46, 20,
+                Component.literal("CREATE"), false, b -> createNetwork()).accent(CYAN));
 
         for (int i = 0; i < NetworkPlugMenu.MAX_VISIBLE_NETWORKS; i++) {
             final int index = i;
             int col = i / 6;
             int row = i % 6;
-            KimiUiButton option = addRenderableWidget(new KimiUiButton(x + 18 + col * 85, y + 101 + row * 17, 80, 16,
-                    Component.empty(), false, b -> selectNetwork(index)).accent(CYAN));
+            KimiUiButton option = addRenderableWidget(new KimiUiButton(
+                    x + 16 + col * 80,
+                    y + 88 + row * 18,
+                    76,
+                    17,
+                    Component.empty(),
+                    false,
+                    b -> selectNetwork(index)
+            ).accent(CYAN));
             option.visible = false;
             networkOptions.add(option);
         }
@@ -118,6 +129,7 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
         sendButton(100 + index);
         dropdownOpen = false;
         updateVisibility();
+        syncDropdown();
     }
 
     private void createNetwork() {
@@ -157,15 +169,16 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
     private void updateVisibility() {
         boolean general = tab == Tab.GENERAL;
         boolean network = tab == Tab.NETWORK;
-        offButton.visible = general;
-        inputButton.visible = general;
-        outputButton.visible = general;
-        minusButton.visible = general;
-        limitBox.visible = general;
-        setButton.visible = general;
-        plusButton.visible = general;
-        maxButton.visible = general;
-        networkSelector.visible = network;
+        boolean selectorPage = general || network;
+
+        networkSelector.visible = selectorPage;
+        offButton.visible = general && !dropdownOpen;
+        inputButton.visible = general && !dropdownOpen;
+        outputButton.visible = general && !dropdownOpen;
+        limitBox.visible = general && !dropdownOpen;
+        setButton.visible = general && !dropdownOpen;
+        maxButton.visible = general && !dropdownOpen;
+
         newNetworkBox.visible = network && !dropdownOpen;
         createButton.visible = network && !dropdownOpen;
         syncDropdown();
@@ -173,9 +186,10 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
 
     private void syncDropdown() {
         List<String> names = menu.getNetworkNames();
+        boolean show = dropdownOpen && (tab == Tab.GENERAL || tab == Tab.NETWORK);
         for (int i = 0; i < networkOptions.size(); i++) {
             KimiUiButton button = networkOptions.get(i);
-            button.visible = tab == Tab.NETWORK && dropdownOpen && i < names.size();
+            button.visible = show && i < names.size();
             if (i < names.size()) button.setMessage(Component.literal(names.get(i)));
         }
         if (newNetworkBox != null) newNetworkBox.visible = tab == Tab.NETWORK && !dropdownOpen;
@@ -196,81 +210,137 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
     protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
         int x = leftPos;
         int y = topPos;
-        int accent = menu.getMode() == PlugMode.INPUT ? GREEN : menu.getMode() == PlugMode.OUTPUT ? ORANGE : SILVER;
-        floatingPanel(g, x + 5, y + 21, imageWidth - 10, imageHeight - 26, accent);
-        g.fill(x + 16, y + 49, x + imageWidth - 16, y + 50, 0x889AA1A8);
+        int accent = modeColor();
+
+        floatingPanel(g, x + 5, y + 46, 180, 163, accent);
+
+        if (dropdownOpen && (tab == Tab.GENERAL || tab == Tab.NETWORK)) {
+            return;
+        }
+
         if (tab == Tab.GENERAL) {
-            drawBar(g, x + 18, y + 171, 168, 5, menu.getLocalEnergy() / (double) NetworkPlugBlockEntity.LOCAL_BUFFER_CAPACITY, accent);
-        } else if (tab == Tab.NETWORK && !dropdownOpen) {
-            drawBar(g, x + 18, y + 161, 168, 5, menu.getNetworkEnergy() / (double) PowerNetworkSavedData.NETWORK_CAPACITY, CYAN);
+            drawField(g, x + 16, y + 131, 94, 22, SILVER);
+            drawBar(g, x + 16, y + 181, 158, 4,
+                    menu.getLocalEnergy() / (double) NetworkPlugBlockEntity.LOCAL_BUFFER_CAPACITY, accent);
+            drawToggle(g, x + 147, y + 193, true, GREEN);
+        } else if (tab == Tab.NETWORK) {
+            drawField(g, x + 16, y + 105, 109, 22, SILVER);
+            drawBar(g, x + 16, y + 163, 158, 4,
+                    menu.getNetworkEnergy() / (double) PowerNetworkSavedData.NETWORK_CAPACITY, CYAN);
         } else if (tab == Tab.STATS) {
-            drawBar(g, x + 18, y + 112, 168, 5, menu.getLocalEnergy() / (double) NetworkPlugBlockEntity.LOCAL_BUFFER_CAPACITY, accent);
-            drawBar(g, x + 18, y + 143, 168, 5, menu.getNetworkEnergy() / (double) PowerNetworkSavedData.NETWORK_CAPACITY, CYAN);
+            drawBar(g, x + 16, y + 104, 158, 4,
+                    menu.getLocalEnergy() / (double) NetworkPlugBlockEntity.LOCAL_BUFFER_CAPACITY, accent);
+            drawBar(g, x + 16, y + 141, 158, 4,
+                    menu.getNetworkEnergy() / (double) PowerNetworkSavedData.NETWORK_CAPACITY, CYAN);
+        } else {
+            drawToggle(g, x + 147, y + 99, true, GREEN);
+            drawToggle(g, x + 147, y + 127, true, CYAN);
         }
     }
 
+    private int modeColor() {
+        return menu.getMode() == PlugMode.INPUT ? GREEN : menu.getMode() == PlugMode.OUTPUT ? ORANGE : SILVER;
+    }
+
     private static void floatingPanel(GuiGraphics g, int x, int y, int w, int h, int border) {
-        g.fill(x + 5, y, x + w - 5, y + h, PANEL);
-        g.fill(x, y + 5, x + w, y + h - 5, PANEL);
-        g.fill(x + 7, y + 7, x + w - 7, y + h - 7, PANEL_INNER);
-        g.fill(x + 5, y, x + w - 5, y + 2, border);
-        g.fill(x + 5, y + h - 2, x + w - 5, y + h, border);
-        g.fill(x, y + 5, x + 2, y + h - 5, border);
-        g.fill(x + w - 2, y + 5, x + w, y + h - 5, border);
-        g.fill(x + 2, y + 2, x + 5, y + 5, border);
-        g.fill(x + w - 5, y + 2, x + w - 2, y + 5, border);
-        g.fill(x + 2, y + h - 5, x + 5, y + h - 2, border);
-        g.fill(x + w - 5, y + h - 5, x + w - 2, y + h - 2, border);
+        g.fill(x + 6, y, x + w - 6, y + h, PANEL);
+        g.fill(x, y + 6, x + w, y + h - 6, PANEL);
+        g.fill(x + 3, y + 3, x + w - 3, y + h - 3, PANEL_INNER);
+
+        g.fill(x + 6, y, x + w - 6, y + 2, border);
+        g.fill(x + 6, y + h - 2, x + w - 6, y + h, border);
+        g.fill(x, y + 6, x + 2, y + h - 6, border);
+        g.fill(x + w - 2, y + 6, x + w, y + h - 6, border);
+        g.fill(x + 2, y + 2, x + 6, y + 4, border);
+        g.fill(x + w - 6, y + 2, x + w - 2, y + 4, border);
+        g.fill(x + 2, y + h - 4, x + 6, y + h - 2, border);
+        g.fill(x + w - 6, y + h - 4, x + w - 2, y + h - 2, border);
+    }
+
+    private static void drawField(GuiGraphics g, int x, int y, int w, int h, int border) {
+        g.fill(x + 2, y, x + w - 2, y + h, FIELD);
+        g.fill(x, y + 2, x + w, y + h - 2, FIELD);
+        g.fill(x + 2, y, x + w - 2, y + 1, border);
+        g.fill(x + 2, y + h - 1, x + w - 2, y + h, border);
+        g.fill(x, y + 2, x + 1, y + h - 2, border);
+        g.fill(x + w - 1, y + 2, x + w, y + h - 2, border);
+    }
+
+    private static void drawToggle(GuiGraphics g, int x, int y, boolean enabled, int accent) {
+        int bg = enabled ? accent : 0xFF666C72;
+        g.fill(x + 2, y, x + 23, y + 10, 0xD0161A1E);
+        g.fill(x, y + 2, x + 25, y + 8, 0xD0161A1E);
+        g.fill(x + 2, y, x + 23, y + 1, 0xFFA8AEB4);
+        g.fill(x + 2, y + 9, x + 23, y + 10, 0xFFA8AEB4);
+        g.fill(x, y + 2, x + 1, y + 8, 0xFFA8AEB4);
+        g.fill(x + 24, y + 2, x + 25, y + 8, 0xFFA8AEB4);
+        int knobX = enabled ? x + 15 : x + 2;
+        g.fill(knobX, y + 2, knobX + 8, y + 8, bg);
     }
 
     private static void drawBar(GuiGraphics g, int x, int y, int w, int h, double fraction, int color) {
         fraction = Math.max(0.0, Math.min(1.0, fraction));
-        g.fill(x, y, x + w, y + h, 0xAA343A40);
+        g.fill(x, y, x + w, y + h, 0xAA333940);
         int filled = (int) Math.round(w * fraction);
         if (filled > 0) g.fill(x, y, x + filled, y + h, color);
     }
 
     @Override
     protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
-        int modeColor = menu.getMode() == PlugMode.INPUT ? GREEN : menu.getMode() == PlugMode.OUTPUT ? ORANGE : MUTED;
-        g.drawString(font, "KIMI POWER PLUG", 18, 34, TEXT, false);
-        g.drawString(font, "•", 177, 34, modeColor, false);
+        int accent = modeColor();
+
+        // Like Flux's screens, the page title lives above the floating tab row.
+        String pageTitle = switch (tab) {
+            case GENERAL -> "Power Plug";
+            case NETWORK -> "Network Selection";
+            case STATS -> "Power Statistics";
+            case KIMI -> "KIMI / ComputerCraft";
+        };
+        g.drawString(font, pageTitle, 8, 3, TEXT, false);
+
+        g.drawString(font, "KIMI POWER PLUG", 16, 53, TEXT, false);
+        g.drawString(font, "•", 166, 53, accent, false);
+
+        if (dropdownOpen && (tab == Tab.GENERAL || tab == Tab.NETWORK)) {
+            g.drawString(font, "SELECT NETWORK", 16, 86, MUTED, false);
+            return;
+        }
 
         if (tab == Tab.GENERAL) {
-            g.drawString(font, "MODE", 18, 59, MUTED, false);
-            g.drawString(font, "TRANSFER LIMIT", 18, 104, MUTED, false);
-            g.drawString(font, formatFe(menu.getTransferLimit()) + " FE/t", 111, 104, TEXT, false);
-            g.drawString(font, "LIVE", 18, 147, MUTED, false);
-            g.drawString(font, formatFe(menu.getLastTransfer()) + " FE/t", 55, 147, modeColor, false);
-            g.drawString(font, "BUFFER  " + formatFe(menu.getLocalEnergy()) + " / " + formatFe(NetworkPlugBlockEntity.LOCAL_BUFFER_CAPACITY), 18, 160, MUTED, false);
-            g.drawString(font, "CHUNK LOADING", 18, 180, MUTED, false);
-            g.drawString(font, "ON", 169, 180, GREEN, false);
+            g.drawString(font, "NETWORK", 16, 85, MUTED, false);
+            g.drawString(font, "MODE", 16, 86, 0x00000000, false); // spacing placeholder; widgets own this row
+            g.drawString(font, "TRANSFER LIMIT", 16, 117, MUTED, false);
+            g.drawString(font, formatFe(menu.getTransferLimit()) + " FE/t", 98, 117, TEXT, false);
+            g.drawString(font, "LIVE", 16, 158, MUTED, false);
+            g.drawString(font, formatFe(menu.getLastTransfer()) + " FE/t", 50, 158, accent, false);
+            g.drawString(font, "BUFFER", 16, 171, MUTED, false);
+            g.drawString(font, formatFe(menu.getLocalEnergy()) + " / " + formatFe(NetworkPlugBlockEntity.LOCAL_BUFFER_CAPACITY), 62, 171, TEXT, false);
+            g.drawString(font, "CHUNK LOADING", 16, 193, MUTED, false);
         } else if (tab == Tab.NETWORK) {
-            g.drawString(font, "NETWORK SELECTION", 18, 59, MUTED, false);
-            if (!dropdownOpen) {
-                g.drawString(font, "CREATE NETWORK", 18, 103, MUTED, false);
-                g.drawString(font, "PLUGS", 18, 145, MUTED, false);
-                g.drawString(font, Integer.toString(menu.getPlugCount()), 169, 145, TEXT, false);
-                g.drawString(font, "BUFFER  " + formatFe(menu.getNetworkEnergy()) + " / " + formatFe(PowerNetworkSavedData.NETWORK_CAPACITY), 18, 171, MUTED, false);
-            }
+            g.drawString(font, "SELECT NETWORK", 16, 86, MUTED, false);
+            g.drawString(font, "CREATE NETWORK", 16, 96, MUTED, false);
+            g.drawString(font, "PLUGS", 16, 137, MUTED, false);
+            g.drawString(font, Integer.toString(menu.getPlugCount()), 164, 137, TEXT, false);
+            g.drawString(font, "BUFFER", 16, 150, MUTED, false);
+            g.drawString(font, formatFe(menu.getNetworkEnergy()) + " / " + formatFe(PowerNetworkSavedData.NETWORK_CAPACITY), 62, 150, TEXT, false);
+            g.drawString(font, "SERVER-WIDE NETWORK", 16, 180, CYAN, false);
         } else if (tab == Tab.STATS) {
-            g.drawString(font, "LIVE FLOW", 18, 60, MUTED, false);
-            g.drawString(font, "+" + formatFe(menu.getNetworkInput()) + "  /  -" + formatFe(menu.getNetworkOutput()) + " FE/t", 18, 77, TEXT, false);
-            g.drawString(font, "LOCAL BUFFER", 18, 99, MUTED, false);
-            g.drawString(font, formatFe(menu.getLocalEnergy()) + " / " + formatFe(NetworkPlugBlockEntity.LOCAL_BUFFER_CAPACITY), 18, 119, TEXT, false);
-            g.drawString(font, "NETWORK BUFFER", 18, 130, MUTED, false);
-            g.drawString(font, formatFe(menu.getNetworkEnergy()) + " / " + formatFe(PowerNetworkSavedData.NETWORK_CAPACITY), 18, 150, TEXT, false);
+            g.drawString(font, "LIVE FLOW", 16, 72, MUTED, false);
+            g.drawString(font, "+" + formatFe(menu.getNetworkInput()) + " / -" + formatFe(menu.getNetworkOutput()) + " FE/t", 16, 85, TEXT, false);
+            g.drawString(font, "LOCAL BUFFER", 16, 95, MUTED, false);
+            g.drawString(font, formatFe(menu.getLocalEnergy()) + " / " + formatFe(NetworkPlugBlockEntity.LOCAL_BUFFER_CAPACITY), 16, 111, TEXT, false);
+            g.drawString(font, "NETWORK BUFFER", 16, 132, MUTED, false);
+            g.drawString(font, formatFe(menu.getNetworkEnergy()) + " / " + formatFe(PowerNetworkSavedData.NETWORK_CAPACITY), 16, 149, TEXT, false);
             BlockPos pos = menu.getBlockPos();
-            g.drawString(font, "X " + pos.getX() + "  Y " + pos.getY() + "  Z " + pos.getZ(), 18, 173, MUTED, false);
+            g.drawString(font, "X " + pos.getX() + "  Y " + pos.getY() + "  Z " + pos.getZ(), 16, 178, MUTED, false);
         } else {
-            g.drawString(font, "KIMI / COMPUTERCRAFT", 18, 61, MUTED, false);
-            g.drawString(font, "Peripheral", 18, 84, MUTED, false);
-            g.drawString(font, "kimi_network_plug", 18, 98, TEXT, false);
-            g.drawString(font, "CC API", 18, 122, MUTED, false);
-            g.drawString(font, "READY", 157, 122, GREEN, false);
-            g.drawString(font, "PowerNet control", 18, 145, MUTED, false);
-            g.drawString(font, "SERVER-WIDE", 118, 145, CYAN, false);
-            g.drawString(font, "Network  " + menu.getNetworkName(), 18, 169, MUTED, false);
+            g.drawString(font, "PERIPHERAL", 16, 77, MUTED, false);
+            g.drawString(font, "kimi_network_plug", 16, 90, TEXT, false);
+            g.drawString(font, "CC:TWEAKED API", 16, 101, MUTED, false);
+            g.drawString(font, "SERVER-WIDE REGISTRY", 16, 129, MUTED, false);
+            g.drawString(font, "NETWORK", 16, 153, MUTED, false);
+            g.drawString(font, menu.getNetworkName(), 74, 153, CYAN, false);
+            g.drawString(font, "One attached plug can list/control all registered plugs.", 16, 181, MUTED, false);
         }
     }
 
@@ -284,7 +354,7 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        // Intentionally do not call renderBackground(): the control card floats over the live world.
+        // No renderBackground(): the PowerNet card floats over the live world.
         super.render(g, mouseX, mouseY, partialTick);
         renderTooltip(g, mouseX, mouseY);
     }
