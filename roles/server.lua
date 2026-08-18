@@ -109,6 +109,56 @@ function M.run(cfg)
         return m
     end
 
+    local function checkForUpdates(reason)
+        if not updates.autoEnabled(cfg) then
+            updateInfo.lastCheck = os.epoch("utc")
+            updateInfo.lastResult = "updates disabled"
+            renderLocal()
+            return false
+        end
+
+        updateInfo.lastCheck = os.epoch("utc")
+        updateInfo.lastResult = "checking..."
+        renderLocal()
+
+        local result, err = updates.check()
+        if not result then
+            updateInfo.lastResult = "check failed: " .. tostring(err)
+            renderLocal()
+            print("[KIMI] update check skipped: " .. tostring(err))
+            return false
+        end
+
+        updateInfo.remoteVersion = result.remote
+        updateInfo.lastResult = result.available and "update available" or "up to date"
+        updateInfo.targetVersion = result.available and result.remote or nil
+        renderLocal()
+
+        if not result.available then
+            print("[KIMI] manual/periodic update check: up to date " .. tostring(result.current))
+            return false
+        end
+
+        term.setTextColor(colors.yellow)
+        print("[KIMI] fleet update available: " .. result.current .. " -> " .. result.remote)
+        print("[KIMI] notifying " .. tostring(countTable(machines)) .. " connected/known machines...")
+        term.setTextColor(colors.white)
+
+        for id, machine in pairs(machines) do
+            if machine.online ~= false then
+                network.send(id, cfg, "update.available", {
+                    version = result.remote,
+                    issuedBy = os.getComputerID(),
+                    reason = reason or "server-check"
+                })
+            end
+        end
+
+        sleep(2)
+        updates.rebootForUpdate(result.remote, reason or "server-check")
+        return true
+    end
+
     print("KIMI Base Server online - ID " .. os.getComputerID())
     print("Version: " .. updates.localVersion())
     print("Modules: " .. tostring(countTable(modules)))
@@ -134,29 +184,7 @@ function M.run(cfg)
             probationTimer = nil
 
         elseif e[1] == "timer" and e[2] == updateTimer then
-            if updates.autoEnabled(cfg) then
-                updateInfo.lastCheck = os.epoch("utc")
-                local result, err = updates.check()
-                if result then
-                    updateInfo.remoteVersion = result.remote
-                    updateInfo.lastResult = result.available and "update available" or "up to date"
-                    if result.available then
-                        updateInfo.targetVersion = result.remote
-                        term.setTextColor(colors.yellow)
-                        print("[KIMI] fleet update available: " .. result.current .. " -> " .. result.remote)
-                        print("[KIMI] notifying " .. tostring(countTable(machines)) .. " connected/known machines...")
-                        term.setTextColor(colors.white)
-                        for id, machine in pairs(machines) do
-                            if machine.online ~= false then network.send(id, cfg, "update.available", { version = result.remote, issuedBy = os.getComputerID() }) end
-                        end
-                        sleep(2)
-                        updates.rebootForUpdate(result.remote, "server-periodic-check")
-                    end
-                else
-                    updateInfo.lastResult = "check failed: " .. tostring(err)
-                    print("[KIMI] update check skipped: " .. tostring(err))
-                end
-            end
+            checkForUpdates("server-periodic-check")
             updateTimer = os.startTimer(updates.interval(cfg))
 
         elseif e[1] == "rednet_message" then
@@ -191,7 +219,12 @@ function M.run(cfg)
             renderLocal()
 
         elseif profile and profile.handleEvent then
-            profile.handleEvent(e, env(), function(moduleId, action, args) return executeCommand(moduleId, action, args) end)
+            profile.handleEvent(e, env(), function(moduleId, action, args)
+                if moduleId == "server" and action == "check_updates" then
+                    return checkForUpdates("server-manual-check")
+                end
+                return executeCommand(moduleId, action, args)
+            end)
         end
     end
 end
