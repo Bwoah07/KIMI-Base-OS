@@ -90,4 +90,23 @@ function M.rebootForUpdate(targetVersion, reason)
     os.reboot()
 end
 
+-- Long-running fallback checker used by kimi.lua. Role-specific server/client
+-- update workers may also check independently; this generic worker is deliberately
+-- conservative and simply reboots into the recovery updater when a release appears.
+function M.periodic(updateCfg)
+    updateCfg = updateCfg or {}
+    if updateCfg.auto == false then
+        while true do sleep(3600) end
+    end
+
+    local interval = math.max(60, tonumber(updateCfg.interval) or 600)
+    while true do
+        sleep(interval)
+        local result = M.check()
+        if result and result.available then
+            M.rebootForUpdate(result.remote, "kernel-periodic-check")
+        end
+    end
+end
+
 return M
