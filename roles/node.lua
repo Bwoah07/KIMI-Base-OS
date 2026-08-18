@@ -23,6 +23,8 @@ function M.run(cfg)
     print("Modules: " .. tostring(countTable(modules)))
 
     local timer = os.startTimer(0.1)
+    local probationTimer = updates.hasPendingProbation() and os.startTimer(15) or nil
+
     while true do
         local e = { os.pullEvent() }
 
@@ -37,16 +39,21 @@ function M.run(cfg)
             end
 
             if serverId then
-                network.send(serverId, cfg, "node.state", {
-                    nodeId = os.getComputerID(),
+                network.send(serverId, cfg, "telemetry.state", {
+                    sourceId = os.getComputerID(),
+                    role = "node",
                     name = cfg.name,
-                    version = updates.localVersion(),
                     profile = "node",
+                    version = updates.localVersion(),
                     generated = now,
                     state = state
                 })
             end
             timer = os.startTimer(publishInterval)
+
+        elseif e[1] == "timer" and e[2] == probationTimer then
+            if updates.markHealthy() then print("[KIMI] update probation passed; version marked healthy") end
+            probationTimer = nil
 
         elseif e[1] == "rednet_message" then
             local sender, msg, protocol = e[2], e[3], e[4]
@@ -56,6 +63,7 @@ function M.run(cfg)
                     local target = tostring(msg.payload.version or "")
                     if updates.autoEnabled(cfg) and target ~= "" and target ~= updates.localVersion() then
                         network.send(serverId, cfg, "update.status", {
+                            role = "node",
                             version = updates.localVersion(),
                             target = target,
                             status = "accepted"
@@ -65,6 +73,7 @@ function M.run(cfg)
                     end
                 elseif sender == serverId and msg.kind == "ping" then
                     network.send(serverId, cfg, "pong", {
+                        role = "node",
                         nodeId = os.getComputerID(),
                         version = updates.localVersion()
                     })
