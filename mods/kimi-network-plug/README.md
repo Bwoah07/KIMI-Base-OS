@@ -2,20 +2,29 @@
 
 NeoForge 1.21.1 power networking + chunk loading for FTB Evolution.
 
-## alpha.4
+## alpha.5
 
-Two blocks:
+Alpha.5 is the visual cleanup pass on top of the alpha.4 PowerNet backend.
 
-- **Network Plug** — a small face-mounted connector for cross-dimensional FE transport.
+Two blocks remain:
+
+- **Network Plug** — a compact face-mounted connector for cross-dimensional FE transport.
 - **Chunk Loader** — a standalone one-chunk loader for machine areas that do not need a power plug.
 
 Every Network Plug force-loads its own containing chunk. Multiple KIMI loaders in the same chunk are reference-tracked so the chunk is only released when the final KIMI loader is removed.
 
-### Face-mounted plug
+### Compact Flux-style plug
 
-Network Plugs now mount to the exact face clicked when placed and support all six directions. The model is a compact Flux-style connector rather than the old pedestal/fire-hydrant shape.
+The Network Plug now uses the intended connector silhouette rather than a pedestal/machine shape:
 
-Mode accents:
+- small mounting plate flush to the clicked machine face
+- short connector neck
+- compact floating cube head
+- centered on the clicked face
+- supports all six directions
+- never rests on the floor unless it was actually mounted to the floor face
+
+Mode accents remain:
 
 - Gray = `DISABLED`
 - Lime = `INPUT`
@@ -23,9 +32,22 @@ Mode accents:
 
 The plug only transfers with the block it is physically mounted against. Its exposed sides still provide the standard NeoForge energy capability so cables can interact with it too.
 
+### Clean GUI
+
+Right-clicking opens a deliberately compact configuration card inspired by the clarity of Flux Networks without cloning its interface.
+
+The alpha.5 screen has four non-overlapping bands:
+
+- mode: `DISABLED`, `INPUT`, `OUTPUT`
+- network: `<`, editable network name, `>`, `APPLY`
+- transfer limit: `-`, exact numeric entry, `SET`, `+`, `16M`
+- live status: live FE/t, network input/output, local buffer, network buffer, plug count, chunk-loaded state, and coordinates
+
+The noisy helper text and overlapping controls from alpha.4 are removed.
+
 ### Named networks
 
-Power is isolated by named networks. `BASE_POWER` is created automatically and additional networks can be created simply by typing a name in the Network Plug GUI and pressing **SET / CREATE**.
+Power is isolated by named networks. `BASE_POWER` is created automatically and additional networks can be created by typing a name in the Network Plug GUI and pressing **APPLY**.
 
 Examples:
 
@@ -39,7 +61,7 @@ Each named network has its own **64,000,000 FE shared transit buffer**. Energy n
 
 ### Per-plug buffer
 
-Every Network Plug also has its own **64,000,000 FE local buffer**.
+Every Network Plug has its own **64,000,000 FE local buffer**.
 
 INPUT path:
 
@@ -51,23 +73,7 @@ OUTPUT path:
 
 The local buffer is persisted in the block entity and retained across restarts. Both local and shared buffers are bounded so a blocked destination eventually back-pressures the source instead of behaving like infinite storage.
 
-### GUI
-
-Right-clicking a Network Plug opens the configuration screen. It includes:
-
-- `DISABLED`, `INPUT`, and `OUTPUT` mode buttons
-- editable named network field with **SET / CREATE**
-- `<` / `>` cycling through existing networks
-- exact transfer-limit entry
-- transfer-limit preset stepping
-- default `16M FE/t` shortcut
-- live FE/t transfer
-- local plug buffer bar
-- selected network buffer bar
-- selected network input/output rate
-- plug count on the selected network
-- chunk-loaded status
-- block coordinates
+### Transfer limits
 
 Transfer limits are persisted per plug:
 
@@ -93,14 +99,15 @@ Peripheral operations include:
 
 KIMI Base OS includes `modules/powernet.lua`, which automatically detects the peripheral, publishes all PowerNet telemetry to KIMI, and exposes the remote control operations through a KIMI node.
 
-## First alpha.4 test
+## Alpha.5 test
 
-1. Remove the older Network Plug JAR and install alpha.4.
-2. Place a powered Energy Cube.
-3. Place a Network Plug directly onto its configured output face and set the plug to `INPUT` / `BASE_POWER`.
-4. Place a second Network Plug directly onto an empty Energy Cube input face and set it to `OUTPUT` / `BASE_POWER`.
-5. Confirm both the local buffers and the shared network buffer move FE correctly.
-6. Create a second named network and confirm the two networks are isolated.
-7. Move one endpoint to another dimension and confirm transport continues while the self-loaded chunks stay active.
-8. Connect a CC:Tweaked computer to a Network Plug and run `peripheral.find("kimi_network_plug")` to confirm the KIMI API is visible.
-9. Only after the harmless Energy Cube test passes, connect the turbine and Induction Matrix.
+1. Remove the older Network Plug JAR and install alpha.5.
+2. Confirm the plug appears as a small plate + neck + cube head attached to the clicked machine face.
+3. Open the GUI and confirm there is no overlapping text or controls.
+4. Powered Energy Cube -> INPUT Plug on `BASE_POWER`.
+5. OUTPUT Plug on `BASE_POWER` -> empty Energy Cube.
+6. Confirm local and network buffers transfer correctly.
+7. Create a second named network and confirm isolation.
+8. Move one endpoint to another dimension and confirm transport continues while chunks stay loaded.
+9. Connect a CC:Tweaked computer and confirm `peripheral.find("kimi_network_plug")` sees the PowerNet API.
+10. Only after the harmless Energy Cube test passes, connect the turbine and Induction Matrix.
