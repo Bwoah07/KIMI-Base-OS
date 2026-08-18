@@ -1,47 +1,64 @@
 # KIMI Network Plug
 
-Proof-of-concept NeoForge 1.21.1 mod for FTB Evolution.
+NeoForge 1.21.1 power transport + chunk loading mod for FTB Evolution.
 
-## V0.1 alpha.2 behavior
+## alpha.3
 
 Two blocks:
 
-- **Network Plug** — wireless/cross-dimensional FE transport. Empty-hand right-click cycles `DISABLED -> INPUT -> OUTPUT -> DISABLED`.
+- **Network Plug** — wireless/cross-dimensional FE transport with a proper right-click configuration GUI.
 - **Chunk Loader** — keeps its containing chunk loaded while the block exists.
 
-Every **Network Plug also chunk-loads its own containing chunk automatically**, so the power link does not depend on a player standing nearby. The standalone Chunk Loader gives the same chunk-loading behavior anywhere else in the base without needing a power plug. Both loader types intentionally load exactly one chunk in alpha.2.
+Every Network Plug also force-loads its own containing chunk automatically. The standalone Chunk Loader gives the same one-chunk loading behavior anywhere else in the base. Multiple KIMI loaders in the same chunk are reference-tracked so removing one does not unload a chunk still owned by another loader.
 
-Network Plug colors:
+### Network Plug GUI
+
+Right-clicking a Network Plug now opens a menu instead of cycling the mode directly.
+
+The menu provides:
+
+- Mode: `DISABLED`, `INPUT`, or `OUTPUT`
+- Transfer limit in FE/t
+- Typed custom transfer limit
+- `+` / `-` preset stepping
+- Default `16M FE/t` shortcut
+- Maximum `2G FE/t` shortcut
+- Live transfer rate
+- Shared network buffer percentage
+
+Transfer limits are stored per plug and persist across restarts.
+
+### Appearance
+
+The Network Plug is no longer rendered as a full cube. It uses a compact pedestal/socket-style model with a matching smaller collision/selection shape.
+
+Mode accent colors remain:
 
 - Gray = disabled
 - Lime = input
 - Orange = output
 
-INPUT plugs pull FE from any adjacent NeoForge-compatible energy capability into a world-global transit buffer. OUTPUT plugs push FE from that same buffer into adjacent consumers.
+### Energy behavior
 
-Current limits:
+INPUT plugs can receive FE through the standard NeoForge energy capability and also pull from adjacent FE-capable blocks. OUTPUT plugs expose extract capability and also push into adjacent FE consumers.
 
-- 16,000,000 FE/t per Network Plug
-- 64,000,000 FE shared transit buffer
-- One global power network/channel in V0.1
-- Network Plug auto-loads its own chunk
-- Standalone Chunk Loader loads its own chunk
-- Multiple loaders in the same chunk are reference-tracked so removing one does not unload a chunk still owned by another loader
-- No GUI yet
+The network uses one world-global 64,000,000 FE transit buffer in alpha.3. Because the buffer is bounded, a missing/full destination eventually stops the source rather than behaving like an infinite hidden battery.
 
-Chunk loading uses Minecraft's persistent forced-chunk mechanism. Loader positions are also stored per dimension so removing the final KIMI loader in a chunk releases that forced chunk again.
+Current transfer range per plug:
 
-The deliberately bounded FE buffer means a missing/full destination stops the source instead of silently creating an infinite hidden battery.
+- Minimum: 100,000 FE/t
+- Default: 16,000,000 FE/t
+- Maximum: 2,000,000,000 FE/t
 
-## First test
+One global channel is still used for now; named networks come after the transport/UI path is proven reliable in-game.
 
-1. Place an Energy Cube or other harmless FE source next to Plug A.
-2. Empty-hand right-click Plug A until it is lime / INPUT.
-3. Place Plug B in another location or dimension next to an empty Energy Cube.
-4. Empty-hand right-click Plug B until it is orange / OUTPUT.
-5. Leave both areas and confirm the destination continues filling while their chunks remain force-loaded.
-6. Break Plug B and confirm its chunk can unload again when no other KIMI loader remains there.
-7. Test the standalone Chunk Loader on a separate machine area.
-8. Only after this passes, test Turbine -> INPUT Plug -> OUTPUT Plug -> green Induction Matrix port.
+## Test path
+
+1. Powered Energy Cube -> INPUT Network Plug.
+2. OUTPUT Network Plug -> empty Energy Cube.
+3. Confirm power transfer.
+4. Leave the area / change dimension and confirm both Network Plug chunks remain loaded.
+5. Open each plug GUI and change mode + transfer limit.
+6. Only after that passes, test Turbine -> INPUT Plug -> OUTPUT Plug -> green Induction Matrix port.
 
 Do not use a fission reactor as the first test load. Reactor Mk I already handled that QA pass for us.
