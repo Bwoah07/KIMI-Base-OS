@@ -1,11 +1,11 @@
 {
   "ambientocclusion": false,
   "textures": {
-    "body": "kimi_network_plug:block/graphite_dark",
-    "trim": "kimi_network_plug:block/metal",
+    "body": "kimi_network_plug:block/graphite_shell",
+    "trim": "kimi_network_plug:block/metal_brushed",
     "accent": "kimi_network_plug:block/status_cyan",
-    "panel": "kimi_network_plug:block/panel",
-    "particle": "kimi_network_plug:block/graphite_dark"
+    "panel": "kimi_network_plug:block/tech_panel",
+    "particle": "kimi_network_plug:block/graphite_shell"
   },
   "elements": [
     {
