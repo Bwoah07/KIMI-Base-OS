@@ -9,7 +9,7 @@ Two blocks:
 - **Network Plug** — wireless/cross-dimensional FE transport. Empty-hand right-click cycles `DISABLED -> INPUT -> OUTPUT -> DISABLED`.
 - **Chunk Loader** — keeps its containing chunk loaded while the block exists.
 
-Every **Network Plug also chunk-loads its own containing chunk automatically**, so the power link does not depend on a player standing nearby. The standalone Chunk Loader gives the same chunk-loading behavior anywhere else in the base without needing a power plug.
+Every **Network Plug also chunk-loads its own containing chunk automatically**, so the power link does not depend on a player standing nearby. The standalone Chunk Loader gives the same chunk-loading behavior anywhere else in the base without needing a power plug. Both loader types intentionally load exactly one chunk in alpha.2.
 
 Network Plug colors:
 
