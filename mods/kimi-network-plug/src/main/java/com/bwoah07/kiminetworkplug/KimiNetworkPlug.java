@@ -27,42 +27,30 @@ public final class KimiNetworkPlug {
 
     public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(MODID);
     public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(MODID);
-    public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITY_TYPES =
-            DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, MODID);
-    public static final DeferredRegister<MenuType<?>> MENUS =
-            DeferredRegister.create(Registries.MENU, MODID);
+    public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITY_TYPES = DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, MODID);
+    public static final DeferredRegister<MenuType<?>> MENUS = DeferredRegister.create(Registries.MENU, MODID);
 
-    public static final Supplier<NetworkPlugBlock> NETWORK_PLUG = BLOCKS.register(
-            "network_plug",
-            () -> new NetworkPlugBlock(BlockBehaviour.Properties.of()
-                    .mapColor(MapColor.METAL)
-                    .strength(3.0F, 6.0F)
-                    .requiresCorrectToolForDrops()
-                    .noOcclusion())
-    );
+    public static final Supplier<NetworkPlugBlock> NETWORK_PLUG = BLOCKS.register("network_plug",
+            () -> new NetworkPlugBlock(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(3.0F, 6.0F).requiresCorrectToolForDrops().noOcclusion()));
+    public static final Supplier<BlockItem> NETWORK_PLUG_ITEM = ITEMS.registerSimpleBlockItem("network_plug", NETWORK_PLUG);
 
-    public static final Supplier<BlockItem> NETWORK_PLUG_ITEM =
-            ITEMS.registerSimpleBlockItem("network_plug", NETWORK_PLUG);
+    public static final Supplier<ChunkLoaderBlock> CHUNK_LOADER = BLOCKS.register("chunk_loader",
+            () -> new ChunkLoaderBlock(BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_PURPLE).strength(3.0F, 6.0F).requiresCorrectToolForDrops()));
+    public static final Supplier<BlockItem> CHUNK_LOADER_ITEM = ITEMS.registerSimpleBlockItem("chunk_loader", CHUNK_LOADER);
 
-    public static final Supplier<ChunkLoaderBlock> CHUNK_LOADER = BLOCKS.register(
-            "chunk_loader",
-            () -> new ChunkLoaderBlock(BlockBehaviour.Properties.of()
-                    .mapColor(MapColor.COLOR_PURPLE)
-                    .strength(3.0F, 6.0F)
-                    .requiresCorrectToolForDrops())
-    );
+    public static final Supplier<WirelessChargerBlock> WIRELESS_CHARGER = BLOCKS.register("wireless_charger",
+            () -> new WirelessChargerBlock(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(3.0F, 6.0F).requiresCorrectToolForDrops().lightLevel(state -> 4)));
+    public static final Supplier<BlockItem> WIRELESS_CHARGER_ITEM = ITEMS.registerSimpleBlockItem("wireless_charger", WIRELESS_CHARGER);
 
-    public static final Supplier<BlockItem> CHUNK_LOADER_ITEM =
-            ITEMS.registerSimpleBlockItem("chunk_loader", CHUNK_LOADER);
+    public static final Supplier<BlockEntityType<NetworkPlugBlockEntity>> NETWORK_PLUG_BLOCK_ENTITY = BLOCK_ENTITY_TYPES.register(
+            "network_plug", () -> BlockEntityType.Builder.of(NetworkPlugBlockEntity::new, NETWORK_PLUG.get()).build(null));
+    public static final Supplier<BlockEntityType<WirelessChargerBlockEntity>> WIRELESS_CHARGER_BLOCK_ENTITY = BLOCK_ENTITY_TYPES.register(
+            "wireless_charger", () -> BlockEntityType.Builder.of(WirelessChargerBlockEntity::new, WIRELESS_CHARGER.get()).build(null));
 
-    public static final Supplier<BlockEntityType<NetworkPlugBlockEntity>> NETWORK_PLUG_BLOCK_ENTITY =
-            BLOCK_ENTITY_TYPES.register(
-                    "network_plug",
-                    () -> BlockEntityType.Builder.of(NetworkPlugBlockEntity::new, NETWORK_PLUG.get()).build(null)
-            );
-
-    public static final Supplier<MenuType<NetworkPlugMenu>> NETWORK_PLUG_MENU =
-            MENUS.register("network_plug", () -> new MenuType<>(NetworkPlugMenu::new, FeatureFlags.DEFAULT_FLAGS));
+    public static final Supplier<MenuType<NetworkPlugMenu>> NETWORK_PLUG_MENU = MENUS.register(
+            "network_plug", () -> new MenuType<>(NetworkPlugMenu::new, FeatureFlags.DEFAULT_FLAGS));
+    public static final Supplier<MenuType<WirelessChargerMenu>> WIRELESS_CHARGER_MENU = MENUS.register(
+            "wireless_charger", () -> new MenuType<>(WirelessChargerMenu::new, FeatureFlags.DEFAULT_FLAGS));
 
     public KimiNetworkPlug(IEventBus modEventBus) {
         BLOCKS.register(modEventBus);
@@ -75,21 +63,16 @@ public final class KimiNetworkPlug {
     }
 
     private void registerCapabilities(RegisterCapabilitiesEvent event) {
-        event.registerBlockEntity(
-                Capabilities.EnergyStorage.BLOCK,
-                NETWORK_PLUG_BLOCK_ENTITY.get(),
-                (blockEntity, side) -> blockEntity.getEnergyCapability()
-        );
-
-        if (ModList.get().isLoaded("computercraft")) {
-            KimiComputerCraftIntegration.registerCapabilities(event);
-        }
+        event.registerBlockEntity(Capabilities.EnergyStorage.BLOCK, NETWORK_PLUG_BLOCK_ENTITY.get(),
+                (blockEntity, side) -> blockEntity.getEnergyCapability());
+        if (ModList.get().isLoaded("computercraft")) KimiComputerCraftIntegration.registerCapabilities(event);
     }
 
     private void addCreativeTabContents(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == CreativeModeTabs.REDSTONE_BLOCKS) {
             event.accept(NETWORK_PLUG_ITEM.get());
             event.accept(CHUNK_LOADER_ITEM.get());
+            event.accept(WIRELESS_CHARGER_ITEM.get());
         }
     }
 }
