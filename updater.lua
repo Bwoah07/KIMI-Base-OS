@@ -1,6 +1,7 @@
 -- KIMI Base OS transactional updater / recovery tool
 local OWNER, REPO, BRANCH = "Bwoah07", "KIMI-Base-OS", "main"
 local RAW_ROOT = "https://raw.githubusercontent.com/" .. OWNER .. "/" .. REPO .. "/"
+local API_HEAD = "https://api.github.com/repos/" .. OWNER .. "/" .. REPO .. "/commits/" .. BRANCH
 local ROOT = ".kimi"
 local STAGE = ROOT .. "/staging"
 local BACKUP = ROOT .. "/rollback"
@@ -28,6 +29,19 @@ end
 
 local function nonce()
     return tostring(os.epoch("utc")) .. "-" .. tostring(math.random(100000, 999999))
+end
+
+local function getHeadSha()
+    local url = API_HEAD .. "?kimi_cb=" .. textutils.urlEncode(nonce())
+    local headers = { ["User-Agent"] = "KIMI-Base-OS", ["Accept"] = "application/vnd.github+json" }
+    local r, err = http.get(url, headers)
+    if not r then return nil, err end
+    local body = r.readAll(); r.close()
+    local obj = body and textutils.unserializeJSON(body) or nil
+    if type(obj) ~= "table" or type(obj.sha) ~= "string" or obj.sha == "" then
+        return nil, "invalid GitHub head response"
+    end
+    return obj.sha
 end
 
 local function fetchFrom(ref, path)
@@ -89,7 +103,6 @@ local function rollback()
         print("[KIMI] no rollback snapshot available")
         return false
     end
-
     print("[KIMI] restoring " .. tostring(state.version or "previous version") .. "...")
     for _, item in ipairs(state.files) do
         if fs.exists(item.path) then fs.delete(item.path) end
@@ -98,7 +111,6 @@ local function rollback()
             if fs.exists(backupPath) then copyFile(backupPath, item.path) end
         end
     end
-
     local oldManifest = readFile(BACKUP .. "/installed_manifest.json")
     if oldManifest then writeFile(INSTALLED_MANIFEST, oldManifest) end
     if fs.exists(PENDING) then fs.delete(PENDING) end
@@ -114,7 +126,16 @@ end
 
 if mode == "auto" then print("[KIMI] checking GitHub for updates...") end
 
-local manifestRaw, manifestErr = fetchFrom(BRANCH, "manifest.json")
+local headSha, headErr = getHeadSha()
+if not headSha then
+    if mode == "auto" or mode == "check" then
+        print("[KIMI] update check skipped: " .. tostring(headErr))
+        return
+    end
+    error("GitHub head lookup failed: " .. tostring(headErr))
+end
+
+local manifestRaw, manifestErr = fetchFrom(headSha, "manifest.json")
 if not manifestRaw then
     if mode == "auto" or mode == "check" then
         print("[KIMI] update check skipped: " .. tostring(manifestErr))
@@ -126,9 +147,10 @@ end
 local manifest, manifestDecodeErr = decodeManifest(manifestRaw)
 if not manifest then error(manifestDecodeErr) end
 local current = localVersion()
-local releaseRef = manifest.ref or BRANCH
+local releaseRef = manifest.ref or headSha
 
 print("[KIMI] local " .. current .. " / remote " .. tostring(manifest.version))
+print("[KIMI] discovery head: " .. tostring(headSha))
 
 if mode == "check" then
     if current == manifest.version then print("KIMI is up to date: " .. current)
@@ -146,7 +168,6 @@ print("[KIMI] updating " .. current .. " -> " .. manifest.version)
 print("[KIMI] release ref: " .. tostring(releaseRef))
 clearDir(STAGE)
 
--- Every managed file is fetched from the immutable release commit when manifest.ref exists.
 for _, path in ipairs(manifest.managed) do
     write("Download " .. path .. " ... ")
     local body, err = fetchFrom(releaseRef, path)
@@ -177,20 +198,19 @@ local ok, installErr = pcall(function()
     for _, path in ipairs(affected) do
         if not keep[path] and fs.exists(path) and not fs.isDir(path) then fs.delete(path) end
     end
-
     for _, path in ipairs(manifest.managed) do
         local staged = STAGE .. "/" .. path
         ensureParent(path)
         if fs.exists(path) then fs.delete(path) end
         fs.copy(staged, path)
     end
-
     writeFile(INSTALLED_MANIFEST, manifestRaw)
     writeFile("version.txt", manifest.version .. "\n")
     writeFile(PENDING, textutils.serialize({
         from = current,
         to = manifest.version,
         ref = releaseRef,
+        discoveryHead = headSha,
         installed = os.epoch("utc"),
         crashes = 0
     }))
