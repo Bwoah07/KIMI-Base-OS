@@ -1,7 +1,24 @@
 {
   "variants": {
-    "mode=disabled": { "model": "kimi_network_plug:block/network_plug_disabled" },
-    "mode=input": { "model": "kimi_network_plug:block/network_plug_input" },
-    "mode=output": { "model": "kimi_network_plug:block/network_plug_output" }
+    "facing=north,mode=disabled": { "model": "kimi_network_plug:block/network_plug_disabled" },
+    "facing=east,mode=disabled": { "model": "kimi_network_plug:block/network_plug_disabled", "y": 90 },
+    "facing=south,mode=disabled": { "model": "kimi_network_plug:block/network_plug_disabled", "y": 180 },
+    "facing=west,mode=disabled": { "model": "kimi_network_plug:block/network_plug_disabled", "y": 270 },
+    "facing=up,mode=disabled": { "model": "kimi_network_plug:block/network_plug_disabled", "x": 270 },
+    "facing=down,mode=disabled": { "model": "kimi_network_plug:block/network_plug_disabled", "x": 90 },
+
+    "facing=north,mode=input": { "model": "kimi_network_plug:block/network_plug_input" },
+    "facing=east,mode=input": { "model": "kimi_network_plug:block/network_plug_input", "y": 90 },
+    "facing=south,mode=input": { "model": "kimi_network_plug:block/network_plug_input", "y": 180 },
+    "facing=west,mode=input": { "model": "kimi_network_plug:block/network_plug_input", "y": 270 },
+    "facing=up,mode=input": { "model": "kimi_network_plug:block/network_plug_input", "x": 270 },
+    "facing=down,mode=input": { "model": "kimi_network_plug:block/network_plug_input", "x": 90 },
+
+    "facing=north,mode=output": { "model": "kimi_network_plug:block/network_plug_output" },
+    "facing=east,mode=output": { "model": "kimi_network_plug:block/network_plug_output", "y": 90 },
+    "facing=south,mode=output": { "model": "kimi_network_plug:block/network_plug_output", "y": 180 },
+    "facing=west,mode=output": { "model": "kimi_network_plug:block/network_plug_output", "y": 270 },
+    "facing=up,mode=output": { "model": "kimi_network_plug:block/network_plug_output", "x": 270 },
+    "facing=down,mode=output": { "model": "kimi_network_plug:block/network_plug_output", "x": 90 }
   }
 }
