@@ -24,9 +24,9 @@ term.setTextColor(colors.red)
 print("KIMI BASE OS")
 term.setTextColor(colors.white)
 print("One-time bootstrap installer\n")
-print("1) Command Center (server + local UI)")
-print("2) Server only")
-print("3) Wall / room client")
+print("1) Server + Command Center monitors")
+print("2) Server only (headless)")
+print("3) Client (auto monitor layout)")
 print("4) Pocket computer")
 print("5) Remote sensor / machine node")
 write("> ")
@@ -34,7 +34,7 @@ local choice = read()
 
 local role, profile, localUI, nodeCfg
 if choice == "1" then
-    role, profile, localUI = "server", "wall", true
+    role, profile, localUI = "server", "admin", true
 elseif choice == "2" then
     role, profile, localUI = "server", "terminal", false
 elseif choice == "3" then
@@ -63,7 +63,8 @@ local f = assert(fs.open(".kimi/config", "w"))
 f.write(textutils.serialize(cfg)); f.close()
 
 print("\nRole: " .. role .. " / " .. profile)
-if localUI then print("Local UI: enabled") end
+if localUI then print("Local command-center admin UI: enabled") end
+if role == "server" then print("This machine is the fleet update authority.") end
 
 print("\nInstalling recovery bootloader...")
 local ok, err = get(RAW .. "startup.lua", "startup.lua")
