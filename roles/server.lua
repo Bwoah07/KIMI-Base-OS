@@ -125,7 +125,40 @@ function M.run(cfg)
         end
     end
 
+    local function requestScadaUpdates(reason)
+        local requested = 0
+        local skipped = 0
+        for sourceId, source in pairs(sources) do
+            if source.online ~= false and source.role == "scada" then
+                local needsUpdate = false
+                for _, value in pairs(source.state or {}) do
+                    if type(value) == "table" and value.updateAvailable == true then
+                        needsUpdate = true
+                        break
+                    end
+                end
+
+                if needsUpdate then
+                    local target = tonumber(sourceId) or tonumber(source.sourceId)
+                    if target and network.send(target, cfg, "scada.update.request", {
+                        issuedBy = os.getComputerID(),
+                        reason = reason or "command-center",
+                        requested = os.epoch("utc")
+                    }) then
+                        requested = requested + 1
+                    end
+                else
+                    skipped = skipped + 1
+                end
+            end
+        end
+
+        print("[KIMI] SCADA update request sent to " .. tostring(requested) .. " node(s); " .. tostring(skipped) .. " already current")
+        return { requested = requested, current = skipped }
+    end
+
     local function offerCatchup(sender, machine)
+        if machine and machine.role == "scada" then return end
         local serverVersion = updates.localVersion()
         local sr, mr = versionRank(serverVersion), versionRank(machine and machine.version)
         if sr and mr and mr < sr then
@@ -182,7 +215,7 @@ function M.run(cfg)
         term.setTextColor(colors.white)
 
         for id, machine in pairs(machines) do
-            if machine.online ~= false then
+            if machine.online ~= false and machine.role ~= "scada" then
                 network.send(id, cfg, "update.available", {
                     version = result.remote,
                     issuedBy = os.getComputerID(),
@@ -239,7 +272,13 @@ function M.run(cfg)
                     network.send(sender, cfg, "pong", { serverId = os.getComputerID(), version = updates.localVersion() })
                 elseif msg.kind == "command" then
                     touchMachine(sender, payload, "client")
-                    network.send(sender, cfg, "command.result", executeCommand(payload.module, payload.action, payload.args))
+                    local result
+                    if payload.module == "server" and payload.action == "scada_update" then
+                        result = { ok = true, result = requestScadaUpdates("remote-command"), module = "server" }
+                    else
+                        result = executeCommand(payload.module, payload.action, payload.args)
+                    end
+                    network.send(sender, cfg, "command.result", result)
                 elseif msg.kind == "update.status" then
                     local m = touchMachine(sender, payload, payload.role or "client")
                     m.version = payload.version or m.version
@@ -259,6 +298,8 @@ function M.run(cfg)
             profile.handleEvent(e, env(), function(moduleId, action, args)
                 if moduleId == "server" and action == "check_updates" then
                     return checkForUpdates("server-manual-check")
+                elseif moduleId == "server" and action == "scada_update" then
+                    return requestScadaUpdates("command-center")
                 end
                 return executeCommand(moduleId, action, args)
             end)
