@@ -35,7 +35,7 @@ public final class KimiNetworkPlug {
     public static final Supplier<BlockItem> NETWORK_PLUG_ITEM = ITEMS.registerSimpleBlockItem("network_plug", NETWORK_PLUG);
 
     public static final Supplier<ChunkLoaderBlock> CHUNK_LOADER = BLOCKS.register("chunk_loader",
-            () -> new ChunkLoaderBlock(BlockBehaviour.Properties.of().mapColor(MapColor.COLOR_PURPLE).strength(3.0F, 6.0F).requiresCorrectToolForDrops()));
+            () -> new ChunkLoaderBlock(BlockBehaviour.Properties.of().mapColor(MapColor.METAL).strength(3.0F, 6.0F).requiresCorrectToolForDrops().noOcclusion().lightLevel(state -> 2)));
     public static final Supplier<BlockItem> CHUNK_LOADER_ITEM = ITEMS.registerSimpleBlockItem("chunk_loader", CHUNK_LOADER);
 
     public static final Supplier<WirelessChargerBlock> WIRELESS_CHARGER = BLOCKS.register("wireless_charger",
