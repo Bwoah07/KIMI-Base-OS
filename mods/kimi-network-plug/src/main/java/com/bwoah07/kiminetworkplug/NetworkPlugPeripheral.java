@@ -22,7 +22,7 @@ public final class NetworkPlugPeripheral implements IPeripheral {
     @Override public boolean equals(@Nullable IPeripheral other) { return other instanceof NetworkPlugPeripheral p && p.plug == plug; }
 
     @LuaFunction(mainThread = true)
-    public final String getVersion() { return "0.1.0-alpha.10"; }
+    public final String getVersion() { return "0.1.0-alpha.11"; }
 
     @LuaFunction(mainThread = true)
     public final Map<String, Object> getInfo() {
