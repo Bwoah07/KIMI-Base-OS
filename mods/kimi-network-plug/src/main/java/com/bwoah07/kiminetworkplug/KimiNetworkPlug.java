@@ -36,6 +36,17 @@ public final class KimiNetworkPlug {
     public static final Supplier<BlockItem> NETWORK_PLUG_ITEM =
             ITEMS.registerSimpleBlockItem("network_plug", NETWORK_PLUG);
 
+    public static final Supplier<ChunkLoaderBlock> CHUNK_LOADER = BLOCKS.register(
+            "chunk_loader",
+            () -> new ChunkLoaderBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_PURPLE)
+                    .strength(3.0F, 6.0F)
+                    .requiresCorrectToolForDrops())
+    );
+
+    public static final Supplier<BlockItem> CHUNK_LOADER_ITEM =
+            ITEMS.registerSimpleBlockItem("chunk_loader", CHUNK_LOADER);
+
     public static final Supplier<BlockEntityType<NetworkPlugBlockEntity>> NETWORK_PLUG_BLOCK_ENTITY =
             BLOCK_ENTITY_TYPES.register(
                     "network_plug",
@@ -52,6 +63,7 @@ public final class KimiNetworkPlug {
     private void addCreativeTabContents(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == CreativeModeTabs.REDSTONE_BLOCKS) {
             event.accept(NETWORK_PLUG_ITEM.get());
+            event.accept(CHUNK_LOADER_ITEM.get());
         }
     }
 }
