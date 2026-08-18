@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "redstone",
+  "pattern": [
+    "OGO",
+    "GEG",
+    "OGO"
+  ],
+  "key": {
+    "O": { "item": "minecraft:obsidian" },
+    "G": { "item": "minecraft:gold_ingot" },
+    "E": { "item": "minecraft:ender_pearl" }
+  },
+  "result": {
+    "id": "kimi_network_plug:chunk_loader",
+    "count": 1
+  }
+}
