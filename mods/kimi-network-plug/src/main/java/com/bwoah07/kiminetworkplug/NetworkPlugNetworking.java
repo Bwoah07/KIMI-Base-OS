@@ -75,18 +75,37 @@ public final class NetworkPlugNetworking {
     public record ChargerConfigPayload(int x, int y, int z, String network, int range, long rate,
                                        boolean inventory, boolean armor, boolean offhand, boolean curios) implements CustomPacketPayload {
         public static final Type<ChargerConfigPayload> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(KimiNetworkPlug.MODID, "charger_config"));
-        public static final StreamCodec<ByteBuf, ChargerConfigPayload> STREAM_CODEC = StreamCodec.composite(
-                ByteBufCodecs.VAR_INT, ChargerConfigPayload::x,
-                ByteBufCodecs.VAR_INT, ChargerConfigPayload::y,
-                ByteBufCodecs.VAR_INT, ChargerConfigPayload::z,
-                ByteBufCodecs.STRING_UTF8, ChargerConfigPayload::network,
-                ByteBufCodecs.VAR_INT, ChargerConfigPayload::range,
-                ByteBufCodecs.VAR_LONG, ChargerConfigPayload::rate,
-                ByteBufCodecs.BOOL, ChargerConfigPayload::inventory,
-                ByteBufCodecs.BOOL, ChargerConfigPayload::armor,
-                ByteBufCodecs.BOOL, ChargerConfigPayload::offhand,
-                ByteBufCodecs.BOOL, ChargerConfigPayload::curios,
-                ChargerConfigPayload::new);
+        public static final StreamCodec<ByteBuf, ChargerConfigPayload> STREAM_CODEC = new StreamCodec<>() {
+            @Override
+            public ChargerConfigPayload decode(ByteBuf buf) {
+                return new ChargerConfigPayload(
+                        ByteBufCodecs.VAR_INT.decode(buf),
+                        ByteBufCodecs.VAR_INT.decode(buf),
+                        ByteBufCodecs.VAR_INT.decode(buf),
+                        ByteBufCodecs.STRING_UTF8.decode(buf),
+                        ByteBufCodecs.VAR_INT.decode(buf),
+                        ByteBufCodecs.VAR_LONG.decode(buf),
+                        ByteBufCodecs.BOOL.decode(buf),
+                        ByteBufCodecs.BOOL.decode(buf),
+                        ByteBufCodecs.BOOL.decode(buf),
+                        ByteBufCodecs.BOOL.decode(buf)
+                );
+            }
+
+            @Override
+            public void encode(ByteBuf buf, ChargerConfigPayload value) {
+                ByteBufCodecs.VAR_INT.encode(buf, value.x());
+                ByteBufCodecs.VAR_INT.encode(buf, value.y());
+                ByteBufCodecs.VAR_INT.encode(buf, value.z());
+                ByteBufCodecs.STRING_UTF8.encode(buf, value.network());
+                ByteBufCodecs.VAR_INT.encode(buf, value.range());
+                ByteBufCodecs.VAR_LONG.encode(buf, value.rate());
+                ByteBufCodecs.BOOL.encode(buf, value.inventory());
+                ByteBufCodecs.BOOL.encode(buf, value.armor());
+                ByteBufCodecs.BOOL.encode(buf, value.offhand());
+                ByteBufCodecs.BOOL.encode(buf, value.curios());
+            }
+        };
         @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
     }
 }
