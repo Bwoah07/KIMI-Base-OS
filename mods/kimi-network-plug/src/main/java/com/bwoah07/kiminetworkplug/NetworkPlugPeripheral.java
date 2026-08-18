@@ -22,7 +22,7 @@ public final class NetworkPlugPeripheral implements IPeripheral {
     @Override public boolean equals(@Nullable IPeripheral other) { return other instanceof NetworkPlugPeripheral p && p.plug == plug; }
 
     @LuaFunction(mainThread = true)
-    public final String getVersion() { return "0.1.0-alpha.12"; }
+    public final String getVersion() { return "0.1.0-alpha.13"; }
 
     @LuaFunction(mainThread = true)
     public final Map<String, Object> getInfo() {
@@ -32,7 +32,9 @@ public final class NetworkPlugPeripheral implements IPeripheral {
         PowerNetworkSavedData.NetworkSnapshot network = data.snapshot(plug.getNetworkName(), level.getGameTime());
         Map<String, Object> out = plugMap(new PowerNetworkSavedData.PlugRecord(
                 plug.getPlugId(), level.dimension(), plug.getBlockPos().immutable(), plug.getNetworkName(), plug.getMode(),
-                plug.getTransferLimit(), plug.getLocalEnergy(), plug.getLastTransfer(), true));
+                plug.getTransferLimit(), plug.getLocalEnergy(), plug.getLastTransfer(),
+                plug.getAttachedBlockId(), plug.getAttachedBlockName(), plug.getLastAttachedTransfer(),
+                plug.getLastNetworkTransfer(), plug.getBottleneck(), true));
         out.put("networkStored", network.energy());
         out.put("networkCapacity", network.capacity());
         out.put("networkInput", network.input());
@@ -152,6 +154,12 @@ public final class NetworkPlugPeripheral implements IPeripheral {
         out.put("localStored", record.localEnergy());
         out.put("localCapacity", NetworkPlugBlockEntity.LOCAL_BUFFER_CAPACITY);
         out.put("lastTransfer", record.lastTransfer());
+        out.put("attachedBlockId", record.attachedBlockId());
+        out.put("attachedBlockName", record.attachedBlockName());
+        out.put("attachedTransfer", record.attachedTransfer());
+        out.put("networkTransfer", record.networkTransfer());
+        out.put("bottleneck", record.bottleneck().name());
+        out.put("direction", record.mode() == PlugMode.INPUT ? "RECEIVING_FROM" : record.mode() == PlugMode.OUTPUT ? "SENDING_TO" : "DISABLED");
         out.put("chunkLoaded", record.chunkLoaded());
         return out;
     }
