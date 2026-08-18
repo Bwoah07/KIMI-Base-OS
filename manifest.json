@@ -1,9 +1,10 @@
 {
-  "version": "5.0.0-alpha.11",
+  "version": "5.0.0-alpha.12",
   "channel": "alpha",
-  "ref": "9b062dd199a3ccbca1efa356e5c826e3ab3c3192",
+  "ref": "af85abc7e8bcf1f44abb4a4ad71ed13e25076a9f",
   "entrypoint": "kimi.lua",
   "managed": [
+    "startup.lua",
     "updater.lua",
     "installer.lua",
     "kimi.lua",
@@ -17,6 +18,7 @@
     "roles/client.lua",
     "roles/node.lua",
     "clients/terminal.lua",
+    "clients/admin.lua",
     "clients/wall.lua",
     "modules/environment.lua",
     "modules/system.lua"
@@ -28,7 +30,6 @@
     "lib/network.lua"
   ],
   "preserve": [
-    "startup.lua",
     ".kimi/config",
     ".kimi/monitors",
     ".kimi/state",
