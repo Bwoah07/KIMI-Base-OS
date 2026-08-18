@@ -75,34 +75,31 @@ local function batteryColor(pct)
     return colors.red
 end
 
-local function batteryBar(mon,y,pct)
-    local w,h=mon.getSize(); if y>h then return end
+local function verticalBattery(mon,x1,y1,width,height,pct)
+    local w,h=mon.getSize()
+    if width<5 or height<5 or x1<1 or y1<1 or x1+width-1>w or y1+height-1>h then return end
     pct=math.max(0,math.min(100,tonumber(pct) or 0))
-    local x1=3
-    local x2=w-2
-    if x2-x1<12 then return end
-    local inner=x2-x1-1
-    local fill=math.floor(inner*pct/100+0.5)
-    if pct>0 and fill<1 then fill=1 end
     local c=batteryColor(pct)
+    local innerW=width-2
+    local innerH=height-2
+    local fill=math.floor(innerH*pct/100+0.5)
+    if pct>0 and fill<1 then fill=1 end
 
     mon.setBackgroundColor(colors.black); mon.setTextColor(colors.lightGray)
-    mon.setCursorPos(x1-1,y); mon.write("[")
-    for i=1,inner do
-        mon.setCursorPos(x1+i-1,y)
-        mon.setBackgroundColor(i<=fill and c or colors.gray)
-        mon.write(" ")
+    mon.setCursorPos(x1,y1); mon.write("+"..string.rep("-",innerW).."+")
+    for row=1,innerH do
+        local yy=y1+row
+        local fromBottom=innerH-row+1
+        mon.setCursorPos(x1,yy); mon.setBackgroundColor(colors.black); mon.setTextColor(colors.lightGray); mon.write("|")
+        mon.setBackgroundColor(fromBottom<=fill and c or colors.gray); mon.write(string.rep(" ",innerW))
+        mon.setBackgroundColor(colors.black); mon.setTextColor(colors.lightGray); mon.write("|")
     end
-    mon.setBackgroundColor(colors.black); mon.setTextColor(colors.lightGray)
-    mon.setCursorPos(x2,y); mon.write("]")
+    mon.setCursorPos(x1,y1+height-1); mon.setBackgroundColor(colors.black); mon.setTextColor(colors.lightGray); mon.write("+"..string.rep("-",innerW).."+")
 
-    local label=string.format(" %.2f%% ",pct)
-    local lx=math.max(x1,math.floor((w-#label)/2)+1)
-    mon.setCursorPos(lx,y)
-    mon.setBackgroundColor(colors.black)
-    mon.setTextColor(c)
-    mon.write(label)
-    mon.setBackgroundColor(colors.black)
+    local label=string.format("%.2f%%",pct)
+    local lx=x1+math.max(0,math.floor((width-#label)/2))
+    local ly=math.max(2,y1-1)
+    mon.setCursorPos(lx,ly); mon.setBackgroundColor(colors.black); mon.setTextColor(c); mon.write(label)
 end
 
 local function batteryStatus(p)
@@ -110,18 +107,14 @@ local function batteryStatus(p)
     local capacity=tonumber(p and p.capacity)
     local net=tonumber(p and p.net)
     if not stored or not capacity or capacity<=0 or not net then return "STATUS UNKNOWN",colors.yellow end
-
     local epsilon=0.5
     if stored>=capacity*0.999999 and net>=-epsilon then return "FULL - holding",colors.lime end
     if stored<=0 and net<=epsilon then return "EMPTY - holding",colors.red end
     if math.abs(net)<=epsilon then return "STABLE - holding",colors.lightGray end
-
     if net>0 then
-        local remaining=math.max(0,capacity-stored)
-        local seconds=remaining/(net*20)
+        local seconds=math.max(0,capacity-stored)/(net*20)
         return "CHARGING - full in "..fmtDuration(seconds),colors.lime
     end
-
     local seconds=stored/(math.abs(net)*20)
     return "DRAINING - empty in "..fmtDuration(seconds),colors.orange
 end
@@ -149,37 +142,54 @@ end
 local function panelOperations(mon,envelope)
     prep(mon); header(mon,"POWER + STORAGE")
     local s=stateOf(envelope); local p=s.power; local ae=s.ae2 or s.storage
+    local w,h=mon.getSize()
 
     if p and (p.status=="ONLINE" or p._status=="online") then
         local pct=percentOf(p.filledPercentage)
         if not pct and tonumber(p.stored) and tonumber(p.capacity) and tonumber(p.capacity)>0 then pct=tonumber(p.stored)/tonumber(p.capacity)*100 end
         line(mon,3,"POWER","ONLINE",colors.lime)
-        batteryBar(mon,5,pct or 0)
+
+        local gaugeX=3
+        local gaugeY=6
+        local gaugeW=12
+        local gaugeH=math.min(12,math.max(7,h-14))
+        verticalBattery(mon,gaugeX,gaugeY,gaugeW,gaugeH,pct or 0)
+
         local statusText,statusCol=batteryStatus(p)
-        line(mon,6,"",statusText,statusCol)
-        line(mon,8,"STORED",fmtFE(p.stored,false).." / "..fmtFE(p.capacity,false))
-        line(mon,9,"INPUT",fmtFE(p.input,true),colors.lime)
-        line(mon,10,"OUTPUT",fmtFE(p.output,true),colors.orange)
-        line(mon,11,"TRANSFER",fmtFE(p.transferCap,true))
-        line(mon,12,"CELLS",p.installedCells or "?")
-        line(mon,13,"MODE",p.mode or "?")
-        line(mon,14,"SOURCE",p._source or p.peripheral or "server",colors.lightGray)
+        local infoX=17
+        local function info(y,label,value,color)
+            if y>h then return end
+            mon.setCursorPos(infoX,y); mon.setBackgroundColor(colors.black); mon.setTextColor(color or colors.white)
+            local txt=tostring(label)..string.rep(" ",math.max(1,10-#tostring(label)))..tostring(value)
+            mon.write(txt:sub(1,math.max(0,w-infoX+1)))
+        end
+        info(4,"STATUS",statusText,statusCol)
+        info(6,"STORED",fmtFE(p.stored,false))
+        info(7,"CAPACITY",fmtFE(p.capacity,false))
+        info(8,"INPUT",fmtFE(p.input,true),colors.lime)
+        info(9,"OUTPUT",fmtFE(p.output,true),colors.orange)
+        info(10,"TRANSFER",fmtFE(p.transferCap,true))
+        info(11,"CELLS",p.installedCells or "?")
+        info(12,"MODE",p.mode or "?")
+        info(13,"SOURCE",p._source or p.peripheral or "server",colors.lightGray)
     else
         line(mon,3,"POWER","OFFLINE",colors.red)
         line(mon,5,"","Waiting for Induction Port",colors.lightGray)
     end
 
-    divider(mon,16)
+    local divY=math.min(h-7,20)
+    if divY>=15 then divider(mon,divY) end
     if ae and ae._status=="online" then
-        line(mon,17,"AE2","ONLINE",colors.lime)
-        line(mon,18,"ITEMS",fmtNumber(ae.items))
-        line(mon,19,"TYPES",ae.itemTypes or "?")
-        line(mon,20,"CRAFTING",ae.craftingJobs or 0)
-        line(mon,21,"STORAGE",ae.usedItemStorage and (fmtNumber(ae.usedItemStorage).." / "..fmtNumber(ae.totalItemStorage)) or "?")
-        line(mon,22,"POWER",fmtFE(ae.storedEnergy,false))
-        line(mon,23,"SOURCE",ae._source or "server",colors.lightGray)
+        local y=divY+1
+        line(mon,y,"AE2","ONLINE",colors.lime)
+        line(mon,y+1,"ITEMS",fmtNumber(ae.items))
+        line(mon,y+2,"TYPES",ae.itemTypes or "?")
+        line(mon,y+3,"CRAFTING",ae.craftingJobs or 0)
+        line(mon,y+4,"STORAGE",ae.usedItemStorage and (fmtNumber(ae.usedItemStorage).." / "..fmtNumber(ae.totalItemStorage)) or "?")
+        line(mon,y+5,"POWER",fmtFE(ae.storedEnergy,false))
+        line(mon,y+6,"SOURCE",ae._source or "server",colors.lightGray)
     else
-        line(mon,17,"AE2",ae and tostring(ae._status or "offline") or "WAITING",colors.yellow)
+        line(mon,divY+1,"AE2",ae and tostring(ae._status or "offline") or "WAITING",colors.yellow)
     end
 end
 
