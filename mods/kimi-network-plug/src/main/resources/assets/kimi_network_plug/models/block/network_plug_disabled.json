@@ -1,10 +1,10 @@
 {
   "parent": "kimi_network_plug:block/network_plug_base",
   "textures": {
-    "particle": "minecraft:block/black_concrete",
-    "base": "minecraft:block/black_concrete",
-    "body": "minecraft:block/black_concrete",
-    "accent": "minecraft:block/gray_concrete",
-    "metal": "minecraft:block/light_gray_concrete"
+    "particle": "minecraft:block/gray_concrete",
+    "base": "minecraft:block/gray_concrete",
+    "body": "minecraft:block/gray_concrete",
+    "accent": "minecraft:block/light_gray_concrete",
+    "metal": "minecraft:block/iron_block"
   }
 }
