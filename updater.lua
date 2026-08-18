@@ -1,6 +1,6 @@
 -- KIMI Base OS transactional updater / recovery tool
 local OWNER, REPO, BRANCH = "Bwoah07", "KIMI-Base-OS", "main"
-local BASE = "https://raw.githubusercontent.com/" .. OWNER .. "/" .. REPO .. "/" .. BRANCH .. "/"
+local RAW_ROOT = "https://raw.githubusercontent.com/" .. OWNER .. "/" .. REPO .. "/"
 local ROOT = ".kimi"
 local STAGE = ROOT .. "/staging"
 local BACKUP = ROOT .. "/rollback"
@@ -26,10 +26,13 @@ local function writeFile(path, data)
     local f = assert(fs.open(path, "w")); f.write(data); f.close()
 end
 
-local function fetch(path, cacheKey)
-    local sep = path:find("?", 1, true) and "&" or "?"
-    local key = tostring(cacheKey or os.epoch("utc"))
-    local r, err = http.get(BASE .. path .. sep .. "kimi_cb=" .. textutils.urlEncode(key))
+local function nonce()
+    return tostring(os.epoch("utc")) .. "-" .. tostring(math.random(100000, 999999))
+end
+
+local function fetchFrom(ref, path)
+    local url = RAW_ROOT .. tostring(ref) .. "/" .. path .. "?kimi_cb=" .. textutils.urlEncode(nonce())
+    local r, err = http.get(url)
     if not r then return nil, err end
     local body = r.readAll(); r.close()
     if not body or body == "" then return nil, "empty response for " .. path end
@@ -109,7 +112,9 @@ if mode == "rollback" then
     if rollback() then return else error("rollback unavailable") end
 end
 
-local manifestRaw, manifestErr = fetch("manifest.json", "manifest-" .. tostring(os.epoch("utc")))
+if mode == "auto" then print("[KIMI] checking GitHub for updates...") end
+
+local manifestRaw, manifestErr = fetchFrom(BRANCH, "manifest.json")
 if not manifestRaw then
     if mode == "auto" or mode == "check" then
         print("[KIMI] update check skipped: " .. tostring(manifestErr))
@@ -121,6 +126,9 @@ end
 local manifest, manifestDecodeErr = decodeManifest(manifestRaw)
 if not manifest then error(manifestDecodeErr) end
 local current = localVersion()
+local releaseRef = manifest.ref or BRANCH
+
+print("[KIMI] local " .. current .. " / remote " .. tostring(manifest.version))
 
 if mode == "check" then
     if current == manifest.version then print("KIMI is up to date: " .. current)
@@ -135,14 +143,13 @@ if current == manifest.version and mode ~= "force" then
 end
 
 print("[KIMI] updating " .. current .. " -> " .. manifest.version)
+print("[KIMI] release ref: " .. tostring(releaseRef))
 clearDir(STAGE)
 
--- Download and syntax-check every managed file before touching live files.
--- The release version is added to every URL so GitHub Raw cannot hand us a stale
--- file from a previous commit after the manifest has already changed.
+-- Every managed file is fetched from the immutable release commit when manifest.ref exists.
 for _, path in ipairs(manifest.managed) do
     write("Download " .. path .. " ... ")
-    local body, err = fetch(path, manifest.version .. "-" .. path)
+    local body, err = fetchFrom(releaseRef, path)
     if not body then fs.delete(STAGE); print("FAILED"); error(tostring(err)) end
     local valid, syntaxErr = validateLua(path, body)
     if not valid then fs.delete(STAGE); print("INVALID"); error(path .. ": " .. tostring(syntaxErr)) end
@@ -183,6 +190,7 @@ local ok, installErr = pcall(function()
     writeFile(PENDING, textutils.serialize({
         from = current,
         to = manifest.version,
+        ref = releaseRef,
         installed = os.epoch("utc"),
         crashes = 0
     }))
