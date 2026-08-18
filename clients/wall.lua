@@ -71,12 +71,15 @@ end
 
 local function bar(mon,y,pct)
     local w,h=mon.getSize(); if y>h then return end
-    local width=math.max(10,w-4)
+    local inner=math.max(8,w-6)
     pct=math.max(0,math.min(100,tonumber(pct) or 0))
-    local fill=math.floor(width*pct/100+0.5)
-    mon.setCursorPos(2,y)
-    mon.setTextColor(colors.lime); mon.write(string.rep("=",fill))
-    mon.setTextColor(colors.gray); mon.write(string.rep("-",width-fill))
+    local fill=math.floor(inner*pct/100+0.5)
+    if pct>0 and fill<1 then fill=1 end
+    local c = pct >= 60 and colors.lime or (pct >= 25 and colors.yellow or colors.red)
+    mon.setCursorPos(2,y); mon.setTextColor(colors.lightGray); mon.write("[")
+    mon.setTextColor(c); mon.write(string.rep("#",fill))
+    mon.setTextColor(colors.gray); mon.write(string.rep(".",inner-fill))
+    mon.setTextColor(colors.lightGray); mon.write("]")
 end
 
 local function panelOverview(mon,envelope,meta)
@@ -107,7 +110,7 @@ local function panelOperations(mon,envelope)
         local pct=percentOf(p.filledPercentage)
         if not pct and tonumber(p.stored) and tonumber(p.capacity) and tonumber(p.capacity)>0 then pct=tonumber(p.stored)/tonumber(p.capacity)*100 end
         line(mon,3,"POWER","ONLINE",colors.lime)
-        line(mon,4,"CHARGE",pct and string.format("%.1f%%",pct) or "?")
+        line(mon,4,"CHARGE",pct and string.format("%.2f%%",pct) or "?")
         bar(mon,5,pct or 0)
         line(mon,7,"STORED",fmtFE(p.stored,false).." / "..fmtFE(p.capacity,false))
         line(mon,8,"INPUT",fmtFE(p.input,true),colors.lime)
