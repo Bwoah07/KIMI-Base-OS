@@ -87,6 +87,12 @@ public final class NetworkPlugMenu extends AbstractContainerMenu {
     public boolean clickMenuButton(Player player, int id) {
         if (blockEntity == null) return false;
 
+        if (id < 0) {
+            long requested = -(long) id;
+            blockEntity.setTransferLimit((int) Math.min(NetworkPlugBlockEntity.MAX_TRANSFER_LIMIT, requested));
+            return true;
+        }
+
         if (id >= 0 && id <= 2) {
             blockEntity.setMode(PlugMode.values()[id]);
             return true;
