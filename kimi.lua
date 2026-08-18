@@ -35,13 +35,8 @@ if updates.hasPendingProbation() then
     term.setTextColor(colors.white)
 end
 
-parallel.waitForAny(
-    function()
-        watchdog.run("role:" .. role, function()
-            roleModule.run(cfg)
-        end)
-    end,
-    function()
-        updates.periodic(cfg.update)
-    end
-)
+-- Roles own their background work. In particular, ONLY roles.server checks
+-- GitHub periodically and coordinates fleet updates.
+watchdog.run("role:" .. role, function()
+    roleModule.run(cfg)
+end)
