@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public final class NetworkPlugMenu extends AbstractContainerMenu {
-    public static final int MAX_VISIBLE_NETWORKS = 12;
+    public static final int MAX_VISIBLE_NETWORKS = 32;
     private static final int NAME_INTS = 6;
     private static final int CURRENT_NAME_START = 18;
     private static final int NETWORK_LIST_START = 24;
