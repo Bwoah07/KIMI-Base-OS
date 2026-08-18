@@ -24,7 +24,7 @@ import org.jetbrains.annotations.Nullable;
 
 public final class WirelessChargerBlock extends Block implements EntityBlock {
     public static final MapCodec<WirelessChargerBlock> CODEC = simpleCodec(WirelessChargerBlock::new);
-    private static final VoxelShape SHAPE = Block.box(2, 0, 2, 14, 12, 14);
+    private static final VoxelShape SHAPE = Block.box(2, 0, 2, 14, 4.75, 14);
 
     public WirelessChargerBlock(BlockBehaviour.Properties properties) { super(properties); }
     @Override protected MapCodec<? extends Block> codec() { return CODEC; }
