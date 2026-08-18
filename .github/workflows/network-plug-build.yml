@@ -1,0 +1,45 @@
+name: Build KIMI Network Plug
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - feature/network-plug-mod
+    paths:
+      - 'mods/kimi-network-plug/**'
+      - '.github/workflows/network-plug-build.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'mods/kimi-network-plug/**'
+      - '.github/workflows/network-plug-build.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Build
+        run: gradle -p mods/kimi-network-plug build --stacktrace
+
+      - name: Upload JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: kimi-network-plug
+          path: mods/kimi-network-plug/build/libs/*.jar
+          if-no-files-found: error
