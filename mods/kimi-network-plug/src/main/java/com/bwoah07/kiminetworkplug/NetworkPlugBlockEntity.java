@@ -2,17 +2,23 @@ package com.bwoah07.kiminetworkplug;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.energy.IEnergyStorage;
 
 public final class NetworkPlugBlockEntity extends BlockEntity {
-    public static final int TRANSFER_LIMIT_PER_TICK = 16_000_000;
+    public static final int DEFAULT_TRANSFER_LIMIT = 16_000_000;
+    public static final int MIN_TRANSFER_LIMIT = 100_000;
+    public static final int MAX_TRANSFER_LIMIT = 2_000_000_000;
 
     private long lastTransfer;
+    private int transferLimit = DEFAULT_TRANSFER_LIMIT;
     private final IEnergyStorage energyCapability = new PlugEnergyStorage();
 
     public NetworkPlugBlockEntity(BlockPos pos, BlockState state) {
@@ -23,8 +29,38 @@ public final class NetworkPlugBlockEntity extends BlockEntity {
         return lastTransfer;
     }
 
+    public int getTransferLimit() {
+        return transferLimit;
+    }
+
+    public void setTransferLimit(int transferLimit) {
+        this.transferLimit = Math.max(MIN_TRANSFER_LIMIT, Math.min(MAX_TRANSFER_LIMIT, transferLimit));
+        setChanged();
+        if (level != null) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), Block.UPDATE_CLIENTS);
+        }
+    }
+
+    public void setMode(PlugMode mode) {
+        if (level == null || !getBlockState().hasProperty(NetworkPlugBlock.MODE)) return;
+        level.setBlock(worldPosition, getBlockState().setValue(NetworkPlugBlock.MODE, mode), Block.UPDATE_ALL);
+    }
+
     public IEnergyStorage getEnergyCapability() {
         return energyCapability;
+    }
+
+    @Override
+    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.saveAdditional(tag, registries);
+        tag.putInt("TransferLimit", transferLimit);
+    }
+
+    @Override
+    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.loadAdditional(tag, registries);
+        transferLimit = Math.max(MIN_TRANSFER_LIMIT,
+                Math.min(MAX_TRANSFER_LIMIT, tag.contains("TransferLimit") ? tag.getInt("TransferLimit") : DEFAULT_TRANSFER_LIMIT));
     }
 
     public static void serverTick(Level level, BlockPos pos, BlockState state, NetworkPlugBlockEntity blockEntity) {
@@ -32,17 +68,17 @@ public final class NetworkPlugBlockEntity extends BlockEntity {
 
         PlugMode mode = state.getValue(NetworkPlugBlock.MODE);
         long moved = switch (mode) {
-            case INPUT -> pullIntoNetwork(serverLevel, pos);
-            case OUTPUT -> pushFromNetwork(serverLevel, pos);
+            case INPUT -> pullIntoNetwork(serverLevel, pos, blockEntity.transferLimit);
+            case OUTPUT -> pushFromNetwork(serverLevel, pos, blockEntity.transferLimit);
             case DISABLED -> 0L;
         };
 
         blockEntity.lastTransfer = moved;
     }
 
-    private static long pullIntoNetwork(ServerLevel level, BlockPos pos) {
+    private static long pullIntoNetwork(ServerLevel level, BlockPos pos, int transferLimit) {
         PowerNetworkSavedData network = PowerNetworkSavedData.get(level);
-        int budget = TRANSFER_LIMIT_PER_TICK;
+        int budget = transferLimit;
         long total = 0L;
 
         for (Direction direction : Direction.values()) {
@@ -73,9 +109,9 @@ public final class NetworkPlugBlockEntity extends BlockEntity {
         return total;
     }
 
-    private static long pushFromNetwork(ServerLevel level, BlockPos pos) {
+    private static long pushFromNetwork(ServerLevel level, BlockPos pos, int transferLimit) {
         PowerNetworkSavedData network = PowerNetworkSavedData.get(level);
-        int budget = TRANSFER_LIMIT_PER_TICK;
+        int budget = transferLimit;
         long total = 0L;
 
         for (Direction direction : Direction.values()) {
@@ -120,7 +156,7 @@ public final class NetworkPlugBlockEntity extends BlockEntity {
             if (network == null) return 0;
 
             int accepted = (int) Math.min(
-                    Math.min((long) maxReceive, (long) TRANSFER_LIMIT_PER_TICK),
+                    Math.min((long) maxReceive, (long) transferLimit),
                     network.getSpace()
             );
             if (!simulate && accepted > 0) network.addEnergy(accepted);
@@ -134,7 +170,7 @@ public final class NetworkPlugBlockEntity extends BlockEntity {
             if (network == null) return 0;
 
             int extracted = (int) Math.min(
-                    Math.min((long) maxExtract, (long) TRANSFER_LIMIT_PER_TICK),
+                    Math.min((long) maxExtract, (long) transferLimit),
                     network.getEnergy()
             );
             if (!simulate && extracted > 0) network.removeEnergy(extracted);
