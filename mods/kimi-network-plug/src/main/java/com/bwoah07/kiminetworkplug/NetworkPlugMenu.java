@@ -1,5 +1,6 @@
 package com.bwoah07.kiminetworkplug;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -20,7 +21,7 @@ public final class NetworkPlugMenu extends AbstractContainerMenu {
             2_000_000_000
     };
 
-    private static final int DATA_COUNT = 14;
+    private static final int DATA_COUNT = 17;
     private static final int NETWORK_NAME_START = 8;
     private static final int NETWORK_NAME_INTS = 6;
 
@@ -63,6 +64,9 @@ public final class NetworkPlugMenu extends AbstractContainerMenu {
                     case 5 -> network == null ? 0 : (int) Math.min(Integer.MAX_VALUE, network.getInputRate(blockEntity.getNetworkName(), gameTime));
                     case 6 -> network == null ? 0 : (int) Math.min(Integer.MAX_VALUE, network.getOutputRate(blockEntity.getNetworkName(), gameTime));
                     case 7 -> network == null ? 0 : network.getPlugCount(blockEntity.getNetworkName());
+                    case 14 -> blockEntity.getBlockPos().getX();
+                    case 15 -> blockEntity.getBlockPos().getY();
+                    case 16 -> blockEntity.getBlockPos().getZ();
                     default -> {
                         if (index >= NETWORK_NAME_START && index < NETWORK_NAME_START + NETWORK_NAME_INTS) {
                             yield packNetworkName(blockEntity.getNetworkName(), index - NETWORK_NAME_START);
@@ -139,6 +143,10 @@ public final class NetworkPlugMenu extends AbstractContainerMenu {
             }
         }
         return out.length() == 0 ? PowerNetworkSavedData.DEFAULT_NETWORK : out.toString();
+    }
+
+    public BlockPos getBlockPos() {
+        return new BlockPos(data.get(14), data.get(15), data.get(16));
     }
 
     public NetworkPlugBlockEntity getBlockEntity() {
