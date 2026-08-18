@@ -2,9 +2,9 @@
 
 NeoForge 1.21.1 power networking, chunk loading, ComputerCraft/KIMI integration, and wireless player charging for FTB Evolution.
 
-## alpha.6
+## alpha.7
 
-Alpha.6 adds the requested usability and throughput pass.
+Alpha.7 is the compact visual/UI pass requested after in-game alpha.6 testing.
 
 ### Blocks
 
@@ -12,9 +12,27 @@ Alpha.6 adds the requested usability and throughput pass.
 - **Chunk Loader** — standalone one-chunk loader for areas that do not need a power plug.
 - **KIMI Wireless Charger** — draws directly from a selected PowerNet network and wirelessly charges nearby player equipment. It does not need a Network Plug attached.
 
-### Network Plug
+### Compact tabbed UI
 
-The plug keeps the face-mounted plate + short neck + compact head design, but now uses smoother black-concrete-based materials. The item/hand display transform also shows the actual connector silhouette instead of reading like a generic cube.
+The Network Plug screen is reduced from the large alpha.6 panel to a compact 196x174 card with three tabs:
+
+- **HOME** — mode, transfer limit, live FE/t, local buffer, chunkload state
+- **NETWORK** — one-click existing-network selector/dropdown, create-new-network controls, plug count, network buffer
+- **KIMI** — KIMI link state, local/network buffers, network in/out FE/t, coordinates
+
+The Wireless Charger uses the same compact visual language:
+
+- **HOME** — network, range, rate, live draw, players in range
+- **TARGETS** — inventory, armor, offhand, Curios toggles
+- **STATS** — KIMI link, live draw, player count, network buffer/status
+
+The goal is a Flux-style compact machine-panel feel without copying Flux Networks pixel-for-pixel.
+
+### Visual polish
+
+The Network Plug model is slimmer again: smaller machine-face plate, thinner connector neck, smaller floating head, thin colored status ring, and recessed front panel. Materials stay smooth and low-noise using dark concrete-like surfaces with light-gray trim and mode accent colors.
+
+The Wireless Charger is also no longer a plain full cube: it now renders as a shorter dark PowerNet node with a thin metallic/cyan top assembly.
 
 Mode accents:
 
@@ -22,11 +40,7 @@ Mode accents:
 - Lime = `INPUT`
 - Orange = `OUTPUT`
 
-The GUI now uses an actual network selector: click the selected network, pick an existing network from the dropdown, done. A separate field creates new named networks. Up to 12 networks are shown directly in the selector.
-
-Named networks remain isolated from one another. `BASE_POWER` is created automatically.
-
-### Throughput and buffers
+### PowerNet backend retained from alpha.6
 
 Per Network Plug:
 
@@ -39,7 +53,7 @@ Per named network:
 
 - shared transit buffer: 64 GFE
 
-NeoForge energy capability calls use integer-sized transfers, so alpha.6 safely performs multiple capability operations per tick when a configured transfer limit is above the per-call integer limit.
+Named networks remain isolated from one another and `BASE_POWER` is created automatically. Existing networks are selectable from the dropdown in one click.
 
 ### KIMI Wireless Charger
 
@@ -59,25 +73,21 @@ Configurable targets:
 - offhand
 - Curios slots when Curios is installed
 
-It charges any compatible item exposing NeoForge's item energy capability and reports current players in range, live FE draw, and selected-network energy in its GUI.
-
 ### CC:Tweaked / KIMI Base OS
 
 Network Plugs expose the `kimi_network_plug` peripheral when CC:Tweaked is installed. One attached computer can inspect and control the server-wide PowerNet registry.
 
-Operations include `getInfo()`, `listNetworks()`, `getNetwork(name)`, `listPlugs()`, `listNetworkPlugs(name)`, `setPlugMode(id, mode)`, `setPlugNetwork(id, network)`, `setPlugTransferLimit(id, limit)`, and `disableNetwork(name)`.
-
 KIMI Base OS includes `modules/powernet.lua` for telemetry and remote PowerNet control.
 
-## Alpha.6 test path
+## Alpha.7 test path
 
-1. Replace alpha.5 with alpha.6 and boot the pack.
-2. Confirm the Network Plug icon and in-world model look correct.
-3. Open a plug and test the network dropdown by selecting an existing network in one click.
-4. Test Energy Cube -> INPUT Plug -> named network -> OUTPUT Plug -> Energy Cube.
-5. Raise the transfer limit and confirm throughput scales without duping or losing FE.
-6. Place the KIMI Wireless Charger, select `BASE_POWER`, and test a chargeable inventory/armor/offhand item.
-7. Test a chargeable Curios item.
+1. Replace alpha.6 with alpha.7 and boot the pack.
+2. Open a Network Plug and confirm the GUI is substantially smaller and tabs switch cleanly.
+3. Open the NETWORK tab and verify the existing-network dropdown is one-click selectable with no overlap.
+4. Confirm the slimmer plug model and hand icon still look correct from multiple mounting directions.
+5. Test Energy Cube -> INPUT Plug -> named network -> OUTPUT Plug -> Energy Cube.
+6. Open the Wireless Charger and test its HOME/TARGETS/STATS tabs.
+7. Test normal inventory, armor, offhand and Curios wireless charging.
 8. Test cross-dimensional PowerNet and chunk loading.
 9. Test `peripheral.find("kimi_network_plug")` on a CC:Tweaked computer.
 10. Only after harmless loads pass, connect the turbine and Induction Matrix.
