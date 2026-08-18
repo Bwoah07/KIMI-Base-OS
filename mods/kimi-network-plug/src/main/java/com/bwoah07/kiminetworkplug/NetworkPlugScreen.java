@@ -231,7 +231,6 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
         int y = topPos;
         int accent = modeColor();
 
-        // Main frame stays neutral. Mode colour is deliberately restrained.
         floatingPanel(g, x + 5, y + 44, 180, 166, SILVER);
         g.fill(x + 17, y + 47, x + 55, y + 49, accent);
 
@@ -341,25 +340,26 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
         if (tab == Tab.GENERAL) {
             g.drawString(font, "MODE", 16, 74, MUTED, false);
             g.drawString(font, "TRANSFER LIMIT", 16, 116, MUTED, false);
-            g.drawString(font, formatFe(menu.getTransferLimit()) + " FE/t", 100, 116, TEXT, false);
+            drawRight(g, formatFe(menu.getTransferLimit()) + " FE/t", 174, 116, TEXT);
             g.drawString(font, "LIVE", 16, 158, MUTED, false);
             g.drawString(font, formatFe(menu.getLastTransfer()) + " FE/t", 50, 158, accent, false);
             g.drawString(font, "LOCAL BUFFER", 16, 172, MUTED, false);
-            g.drawString(font, formatFe(menu.getLocalEnergy()) + " / " + formatFe(NetworkPlugBlockEntity.LOCAL_BUFFER_CAPACITY) + " FE", 87, 172, TEXT, false);
+            drawRight(g, formatFe(menu.getLocalEnergy()) + " / " + formatFe(NetworkPlugBlockEntity.LOCAL_BUFFER_CAPACITY), 174, 172, TEXT);
             g.drawString(font, "CHUNK LOADING", 16, 195, MUTED, false);
         } else if (tab == Tab.NETWORK) {
             g.drawString(font, "NETWORKS", 16, 71, MUTED, false);
             g.drawString(font, "CREATE NETWORK", 16, 151, MUTED, false);
-            g.drawString(font, "PLUGS " + menu.getPlugCount(), 16, 188, MUTED, false);
-            g.drawString(font, "BUFFER " + formatFe(menu.getNetworkEnergy()) + " / " + formatFe(PowerNetworkSavedData.NETWORK_CAPACITY) + " FE", 78, 188, TEXT, false);
-            g.drawString(font, menu.getNetworkName(), 16, 201, CYAN, false);
+            g.drawString(font, "PLUGS", 16, 188, MUTED, false);
+            drawRight(g, Integer.toString(menu.getPlugCount()), 174, 188, TEXT);
+            g.drawString(font, "BUFFER", 16, 201, MUTED, false);
+            drawRight(g, formatFe(menu.getNetworkEnergy()) + " / " + formatFe(PowerNetworkSavedData.NETWORK_CAPACITY), 174, 201, TEXT);
         } else if (tab == Tab.STATS) {
             g.drawString(font, "LIVE FLOW", 16, 73, MUTED, false);
             g.drawString(font, "+" + formatFe(menu.getNetworkInput()) + " / -" + formatFe(menu.getNetworkOutput()) + " FE/t", 16, 87, TEXT, false);
             g.drawString(font, "LOCAL BUFFER", 16, 103, MUTED, false);
-            g.drawString(font, formatFe(menu.getLocalEnergy()) + " / " + formatFe(NetworkPlugBlockEntity.LOCAL_BUFFER_CAPACITY) + " FE", 16, 121, TEXT, false);
+            g.drawString(font, formatFe(menu.getLocalEnergy()) + " / " + formatFe(NetworkPlugBlockEntity.LOCAL_BUFFER_CAPACITY), 16, 121, TEXT, false);
             g.drawString(font, "NETWORK BUFFER", 16, 143, MUTED, false);
-            g.drawString(font, formatFe(menu.getNetworkEnergy()) + " / " + formatFe(PowerNetworkSavedData.NETWORK_CAPACITY) + " FE", 16, 161, TEXT, false);
+            g.drawString(font, formatFe(menu.getNetworkEnergy()) + " / " + formatFe(PowerNetworkSavedData.NETWORK_CAPACITY), 16, 161, TEXT, false);
             g.drawString(font, "NETWORK  " + menu.getNetworkName(), 16, 181, CYAN, false);
             BlockPos pos = menu.getBlockPos();
             g.drawString(font, "X " + pos.getX() + "  Y " + pos.getY() + "  Z " + pos.getZ(), 16, 196, MUTED, false);
@@ -367,14 +367,18 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
             g.drawString(font, "PERIPHERAL", 16, 75, MUTED, false);
             g.drawString(font, "kimi_network_plug", 16, 89, TEXT, false);
             g.drawString(font, "CC:TWEAKED API", 16, 103, MUTED, false);
-            g.drawString(font, "READY", 145, 103, GREEN, false);
-            g.drawString(font, "SERVER-WIDE REGISTRY", 16, 131, MUTED, false);
-            g.drawString(font, "ACTIVE", 145, 131, CYAN, false);
+            drawRight(g, "READY", 174, 103, GREEN);
+            g.drawString(font, "SERVER REGISTRY", 16, 131, MUTED, false);
+            drawRight(g, "ACTIVE", 174, 131, CYAN);
             g.drawString(font, "NETWORK", 16, 157, MUTED, false);
-            g.drawString(font, menu.getNetworkName(), 72, 157, CYAN, false);
-            g.drawString(font, "ONE ATTACHED PLUG CAN LIST + CONTROL", 16, 181, TEXT, false);
-            g.drawString(font, "ALL REGISTERED POWERNET PLUGS", 16, 195, MUTED, false);
+            drawRight(g, menu.getNetworkName(), 174, 157, CYAN);
+            g.drawString(font, "ONE ATTACHED PLUG", 16, 181, TEXT, false);
+            g.drawString(font, "LISTS + CONTROLS ALL PLUGS", 16, 195, MUTED, false);
         }
+    }
+
+    private void drawRight(GuiGraphics g, String text, int rightX, int y, int color) {
+        g.drawString(font, text, rightX - font.width(text), y, color, false);
     }
 
     @Override
@@ -469,7 +473,6 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        // Intentionally no renderBackground(): the PowerNet card floats over the live world.
         super.render(g, mouseX, mouseY, partialTick);
         renderTooltip(g, mouseX, mouseY);
     }
