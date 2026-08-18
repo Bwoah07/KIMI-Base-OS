@@ -3,7 +3,9 @@ local M = {}
 local ROOT = ".kimi"
 local PENDING = ROOT .. "/update_pending"
 local REQUESTED = ROOT .. "/update_requested"
-local MANIFEST_URL = "https://raw.githubusercontent.com/Bwoah07/KIMI-Base-OS/main/manifest.json"
+local OWNER, REPO, BRANCH = "Bwoah07", "KIMI-Base-OS", "main"
+local API_HEAD = "https://api.github.com/repos/" .. OWNER .. "/" .. REPO .. "/commits/" .. BRANCH
+local RAW_ROOT = "https://raw.githubusercontent.com/" .. OWNER .. "/" .. REPO .. "/"
 
 local function readFile(path)
     if not fs.exists(path) or fs.isDir(path) then return nil end
@@ -18,20 +20,48 @@ local function writeFile(path, data)
     local f = assert(fs.open(path, "w")); f.write(data); f.close()
 end
 
+local function nonce()
+    return tostring(os.epoch("utc")) .. "-" .. tostring(math.random(100000,999999))
+end
+
+local function getHeadSha()
+    local url = API_HEAD .. "?kimi_cb=" .. textutils.urlEncode(nonce())
+    local headers = { ["User-Agent"] = "KIMI-Base-OS", ["Accept"] = "application/vnd.github+json" }
+    local r, err = http.get(url, headers)
+    if not r then return nil, err end
+    local body = r.readAll(); r.close()
+    local obj = body and textutils.unserializeJSON(body) or nil
+    if type(obj) ~= "table" or type(obj.sha) ~= "string" or obj.sha == "" then
+        return nil, "invalid GitHub head response"
+    end
+    return obj.sha
+end
+
+local function fetchRaw(ref, path)
+    local url = RAW_ROOT .. tostring(ref) .. "/" .. path .. "?kimi_cb=" .. textutils.urlEncode(nonce())
+    local r, err = http.get(url)
+    if not r then return nil, err end
+    local body = r.readAll(); r.close()
+    if not body or body == "" then return nil, "empty response for " .. path end
+    return body
+end
+
 function M.localVersion()
     return ((readFile("version.txt") or "not-installed"):gsub("%s+$", ""))
 end
 
 function M.remoteVersion()
-    local url = MANIFEST_URL .. "?kimi_cb=" .. tostring(os.epoch("utc"))
-    local r, err = http.get(url)
-    if not r then return nil, err end
-    local body = r.readAll(); r.close()
-    if not body or body == "" then return nil, "empty manifest response" end
+    -- Resolve the branch head through GitHub's API first, then fetch manifest.json
+    -- from that immutable commit. This avoids stale raw.githubusercontent.com/main cache.
+    local headSha, headErr = getHeadSha()
+    if not headSha then return nil, headErr end
+    local body, err = fetchRaw(headSha, "manifest.json")
+    if not body then return nil, err end
     local manifest = textutils.unserializeJSON(body)
     if type(manifest) ~= "table" or type(manifest.version) ~= "string" then
         return nil, "invalid manifest"
     end
+    manifest._head = headSha
     return manifest.version, manifest
 end
 
@@ -90,15 +120,11 @@ function M.rebootForUpdate(targetVersion, reason)
     os.reboot()
 end
 
--- Long-running fallback checker used by kimi.lua. Role-specific server/client
--- update workers may also check independently; this generic worker is deliberately
--- conservative and simply reboots into the recovery updater when a release appears.
 function M.periodic(updateCfg)
     updateCfg = updateCfg or {}
     if updateCfg.auto == false then
         while true do sleep(3600) end
     end
-
     local interval = math.max(60, tonumber(updateCfg.interval) or 600)
     while true do
         sleep(interval)
