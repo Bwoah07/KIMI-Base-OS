@@ -1,5 +1,5 @@
 {
-  "version": "5.0.0-alpha.25",
+  "version": "5.0.0-alpha.26",
   "channel": "alpha",
   "ref": "8a8b4dec3d463327e36c1697ee9c393067b66078",
   "entrypoint": "kimi.lua",
