@@ -24,19 +24,15 @@ end
 local function canonicalState(localState, sources, machines, updateInfo)
     local combined = copyTable(localState)
     local selected = {}
-
     for sourceId, source in pairs(sources or {}) do
         for moduleId, value in pairs(source.state or {}) do
             if type(value) == "table" then
                 local stamp = tonumber(value._updated) or tonumber(source.generated) or 0
                 local prev = selected[moduleId]
-                if not prev or stamp > prev.stamp then
-                    selected[moduleId] = { stamp = stamp, value = value, sourceId = sourceId }
-                end
+                if not prev or stamp > prev.stamp then selected[moduleId] = { stamp = stamp, value = value, sourceId = sourceId } end
             end
         end
     end
-
     for moduleId, picked in pairs(selected) do
         local localStamp = type(combined[moduleId]) == "table" and tonumber(combined[moduleId]._updated) or 0
         if not combined[moduleId] or picked.stamp > localStamp then
@@ -44,7 +40,6 @@ local function canonicalState(localState, sources, machines, updateInfo)
             combined[moduleId]._source = picked.sourceId
         end
     end
-
     combined.sources = sources
     combined.fleet = machines
     combined.update = updateInfo
@@ -52,34 +47,23 @@ local function canonicalState(localState, sources, machines, updateInfo)
 end
 
 local function makeEnvelope(localState, sources, machines, updateInfo)
-    return {
-        schema = 2,
-        serverId = os.getComputerID(),
-        version = updates.localVersion(),
-        generated = os.epoch("utc"),
-        state = canonicalState(localState, sources, machines, updateInfo)
-    }
+    return { schema = 2, serverId = os.getComputerID(), version = updates.localVersion(), generated = os.epoch("utc"), state = canonicalState(localState, sources, machines, updateInfo) }
 end
 
 function M.run(cfg)
     network.host(cfg)
     local modules = loader.discover("modules")
     local state = loader.readAll(modules, {})
-    local machines = {}
-    local sources = {}
+    local machines, sources = {}, {}
     local lastModuleScan = os.epoch("utc")
     local startedAt = os.epoch("utc")
-    local updateInfo = {
-        authority = os.getComputerID(),
-        lastCheck = nil,
-        lastResult = "not checked",
-        remoteVersion = nil,
-        targetVersion = nil
-    }
+    local updateInfo = { authority = os.getComputerID(), lastCheck = nil, lastResult = "not checked", remoteVersion = nil, targetVersion = nil }
 
     local profile = nil
     if cfg.localUI then
-        profile = loadProfile(cfg.profile or "admin")
+        -- Command-center servers always use the admin dashboard. This also migrates
+        -- older option-1 installs that still have profile="wall" preserved in config.
+        profile = loadProfile("admin")
         if profile.init then profile.init(cfg) end
     end
 
@@ -92,22 +76,10 @@ function M.run(cfg)
         return { ok = false, error = "unsupported module/action", module = moduleId }
     end
 
-    local function env()
-        return makeEnvelope(state, sources, machines, updateInfo)
-    end
-
+    local function env() return makeEnvelope(state, sources, machines, updateInfo) end
     local function renderLocal()
         if profile and profile.render then
-            profile.render(env(), {
-                connected = true,
-                lastSeen = os.epoch("utc"),
-                serverId = os.getComputerID(),
-                localServer = true,
-                startedAt = startedAt,
-                machines = machines,
-                sources = sources,
-                update = updateInfo
-            })
+            profile.render(env(), { connected = true, lastSeen = os.epoch("utc"), serverId = os.getComputerID(), localServer = true, startedAt = startedAt, machines = machines, sources = sources, update = updateInfo })
         end
     end
 
@@ -134,23 +106,12 @@ function M.run(cfg)
 
     while true do
         local e = { os.pullEvent() }
-
         if e[1] == "timer" and e[2] == refreshTimer then
             state = loader.readAll(modules, state)
             local now = os.epoch("utc")
-            if now - lastModuleScan >= 10000 then
-                modules = loader.discover("modules")
-                lastModuleScan = now
-            end
-
-            -- Mark stale machines without deleting them from the admin view.
-            for _, m in pairs(machines) do
-                m.online = (now - (tonumber(m.lastSeen) or 0)) <= 15000
-            end
-            for _, s in pairs(sources) do
-                s.online = (now - (tonumber(s.lastSeen) or 0)) <= 15000
-            end
-
+            if now - lastModuleScan >= 10000 then modules = loader.discover("modules"); lastModuleScan = now end
+            for _, m in pairs(machines) do m.online = (now - (tonumber(m.lastSeen) or 0)) <= 15000 end
+            for _, s in pairs(sources) do s.online = (now - (tonumber(s.lastSeen) or 0)) <= 15000 end
             renderLocal()
             refreshTimer = os.startTimer(0.5)
 
@@ -171,17 +132,9 @@ function M.run(cfg)
                         print("[KIMI] fleet update available: " .. result.current .. " -> " .. result.remote)
                         print("[KIMI] notifying " .. tostring(countTable(machines)) .. " connected/known machines...")
                         term.setTextColor(colors.white)
-
                         for id, machine in pairs(machines) do
-                            if machine.online ~= false then
-                                network.send(id, cfg, "update.available", {
-                                    version = result.remote,
-                                    issuedBy = os.getComputerID()
-                                })
-                            end
+                            if machine.online ~= false then network.send(id, cfg, "update.available", { version = result.remote, issuedBy = os.getComputerID() }) end
                         end
-
-                        -- Give clients/nodes time to receive and persist their update request.
                         sleep(2)
                         updates.rebootForUpdate(result.remote, "server-periodic-check")
                     end
@@ -196,33 +149,18 @@ function M.run(cfg)
             local sender, msg, protocol = e[2], e[3], e[4]
             if protocol == cfg.network.protocol and type(msg) == "table" then
                 local payload = type(msg.payload) == "table" and msg.payload or {}
-
                 if msg.kind == "state.get" then
                     touchMachine(sender, payload, "client")
                     network.send(sender, cfg, "state", env())
-
                 elseif msg.kind == "telemetry.state" or msg.kind == "node.state" then
                     local m = touchMachine(sender, payload, msg.kind == "node.state" and "node" or "client")
-                    sources[tostring(sender)] = {
-                        sourceId = payload.sourceId or payload.nodeId or sender,
-                        role = payload.role or m.role,
-                        name = payload.name or m.name,
-                        profile = payload.profile or m.profile,
-                        version = payload.version or m.version,
-                        generated = payload.generated,
-                        lastSeen = os.epoch("utc"),
-                        online = true,
-                        state = payload.state or {}
-                    }
-
+                    sources[tostring(sender)] = { sourceId = payload.sourceId or payload.nodeId or sender, role = payload.role or m.role, name = payload.name or m.name, profile = payload.profile or m.profile, version = payload.version or m.version, generated = payload.generated, lastSeen = os.epoch("utc"), online = true, state = payload.state or {} }
                 elseif msg.kind == "ping" then
                     touchMachine(sender, payload, payload.role or "client")
                     network.send(sender, cfg, "pong", { serverId = os.getComputerID(), version = updates.localVersion() })
-
                 elseif msg.kind == "command" then
                     touchMachine(sender, payload, "client")
                     network.send(sender, cfg, "command.result", executeCommand(payload.module, payload.action, payload.args))
-
                 elseif msg.kind == "update.status" then
                     local m = touchMachine(sender, payload, payload.role or "client")
                     m.version = payload.version or m.version
@@ -239,9 +177,7 @@ function M.run(cfg)
             renderLocal()
 
         elseif profile and profile.handleEvent then
-            profile.handleEvent(e, env(), function(moduleId, action, args)
-                return executeCommand(moduleId, action, args)
-            end)
+            profile.handleEvent(e, env(), function(moduleId, action, args) return executeCommand(moduleId, action, args) end)
         end
     end
 end
