@@ -60,6 +60,7 @@ public final class NetworkPlugBlock extends Block implements EntityBlock {
         if (!level.isClientSide) {
             PlugMode next = state.getValue(MODE).next();
             level.setBlock(pos, state.setValue(MODE, next), Block.UPDATE_ALL);
+            level.invalidateCapabilities(pos);
 
             long networkEnergy = level instanceof ServerLevel serverLevel
                     ? PowerNetworkSavedData.get(serverLevel).getEnergy()
