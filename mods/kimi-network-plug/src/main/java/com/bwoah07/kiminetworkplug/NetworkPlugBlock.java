@@ -36,36 +36,37 @@ public final class NetworkPlugBlock extends Block implements EntityBlock {
     public static final EnumProperty<PlugMode> MODE = EnumProperty.create("mode", PlugMode.class);
     public static final DirectionProperty FACING = BlockStateProperties.FACING;
 
-    // Compact Flux-style connector: small face plate, short neck and a floating cube head.
+    // Alpha.10: the head deliberately fills most of the selected block space while
+    // the machine-facing plate and neck remain compact, matching the visual model.
     private static final VoxelShape NORTH_SHAPE = Shapes.or(
-            Block.box(5, 5, 14, 11, 11, 16),
-            Block.box(6, 6, 10, 10, 10, 14),
-            Block.box(4, 4, 3, 12, 12, 10)
+            Block.box(5.25, 5.25, 14.5, 10.75, 10.75, 16),
+            Block.box(6.25, 6.25, 11.75, 9.75, 9.75, 14.5),
+            Block.box(2.75, 2.75, 4.0, 13.25, 13.25, 11.75)
     );
     private static final VoxelShape SOUTH_SHAPE = Shapes.or(
-            Block.box(5, 5, 0, 11, 11, 2),
-            Block.box(6, 6, 2, 10, 10, 6),
-            Block.box(4, 4, 6, 12, 12, 13)
+            Block.box(5.25, 5.25, 0, 10.75, 10.75, 1.5),
+            Block.box(6.25, 6.25, 1.5, 9.75, 9.75, 4.25),
+            Block.box(2.75, 2.75, 4.25, 13.25, 13.25, 12.0)
     );
     private static final VoxelShape WEST_SHAPE = Shapes.or(
-            Block.box(14, 5, 5, 16, 11, 11),
-            Block.box(10, 6, 6, 14, 10, 10),
-            Block.box(3, 4, 4, 10, 12, 12)
+            Block.box(14.5, 5.25, 5.25, 16, 10.75, 10.75),
+            Block.box(11.75, 6.25, 6.25, 14.5, 9.75, 9.75),
+            Block.box(4.0, 2.75, 2.75, 11.75, 13.25, 13.25)
     );
     private static final VoxelShape EAST_SHAPE = Shapes.or(
-            Block.box(0, 5, 5, 2, 11, 11),
-            Block.box(2, 6, 6, 6, 10, 10),
-            Block.box(6, 4, 4, 13, 12, 12)
+            Block.box(0, 5.25, 5.25, 1.5, 10.75, 10.75),
+            Block.box(1.5, 6.25, 6.25, 4.25, 9.75, 9.75),
+            Block.box(4.25, 2.75, 2.75, 12.0, 13.25, 13.25)
     );
     private static final VoxelShape UP_SHAPE = Shapes.or(
-            Block.box(5, 0, 5, 11, 2, 11),
-            Block.box(6, 2, 6, 10, 6, 10),
-            Block.box(4, 6, 4, 12, 13, 12)
+            Block.box(5.25, 0, 5.25, 10.75, 1.5, 10.75),
+            Block.box(6.25, 1.5, 6.25, 9.75, 4.25, 9.75),
+            Block.box(2.75, 4.25, 2.75, 13.25, 12.0, 13.25)
     );
     private static final VoxelShape DOWN_SHAPE = Shapes.or(
-            Block.box(5, 14, 5, 11, 16, 11),
-            Block.box(6, 10, 6, 10, 14, 10),
-            Block.box(4, 3, 4, 12, 10, 12)
+            Block.box(5.25, 14.5, 5.25, 10.75, 16, 10.75),
+            Block.box(6.25, 11.75, 6.25, 9.75, 14.5, 9.75),
+            Block.box(2.75, 4.0, 2.75, 13.25, 11.75, 13.25)
     );
 
     public NetworkPlugBlock(BlockBehaviour.Properties properties) {
