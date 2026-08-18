@@ -4,8 +4,12 @@ import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.MenuProvider;
+import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
@@ -18,11 +22,20 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.Shapes;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 
 public final class NetworkPlugBlock extends Block implements EntityBlock {
     public static final MapCodec<NetworkPlugBlock> CODEC = simpleCodec(NetworkPlugBlock::new);
     public static final EnumProperty<PlugMode> MODE = EnumProperty.create("mode", PlugMode.class);
+
+    private static final VoxelShape SHAPE = Shapes.or(
+            Block.box(2, 0, 2, 14, 3, 14),
+            Block.box(4, 3, 4, 12, 9, 12),
+            Block.box(6, 9, 6, 10, 11, 10)
+    );
 
     public NetworkPlugBlock(BlockBehaviour.Properties properties) {
         super(properties);
@@ -56,22 +69,33 @@ public final class NetworkPlugBlock extends Block implements EntityBlock {
     }
 
     @Override
+    public @Nullable MenuProvider getMenuProvider(BlockState state, Level level, BlockPos pos) {
+        BlockEntity blockEntity = level.getBlockEntity(pos);
+        if (!(blockEntity instanceof NetworkPlugBlockEntity plug)) return null;
+
+        return new SimpleMenuProvider(
+                (containerId, inventory, player) -> new NetworkPlugMenu(containerId, inventory, plug),
+                Component.literal("Network Plug")
+        );
+    }
+
+    @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
-        if (!level.isClientSide) {
-            PlugMode next = state.getValue(MODE).next();
-            level.setBlock(pos, state.setValue(MODE, next), Block.UPDATE_ALL);
-            level.invalidateCapabilities(pos);
-
-            long networkEnergy = level instanceof ServerLevel serverLevel
-                    ? PowerNetworkSavedData.get(serverLevel).getEnergy()
-                    : 0L;
-
-            player.displayClientMessage(Component.literal(
-                    "Network Plug: " + next.name() + " | chunk loaded | network " + networkEnergy + " / " + PowerNetworkSavedData.CAPACITY + " FE"
-            ), true);
+        if (!level.isClientSide && player instanceof ServerPlayer serverPlayer) {
+            MenuProvider provider = getMenuProvider(state, level, pos);
+            if (provider != null) serverPlayer.openMenu(provider);
         }
-
         return InteractionResult.sidedSuccess(level.isClientSide);
+    }
+
+    @Override
+    protected VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
+        return SHAPE;
+    }
+
+    @Override
+    protected VoxelShape getCollisionShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
+        return SHAPE;
     }
 
     @Override
