@@ -89,10 +89,9 @@ var generateKimiTextures = tasks.register('generateKimiTextures') {
             javax.imageio.ImageIO.write(image, 'png', new File(dir, name + '.png'))
         }
 
-        // Dark graphite shell: smooth low-noise metal with subtle bevels and panel seams.
         writeTexture('graphite_shell') { int x, int y ->
             int noise = ((x * 19 + y * 37 + x * y * 3) % 7) - 3
-            int vertical = (14 - y) / 6
+            int vertical = (14 - y).intdiv(6)
             int edge = (x < 2 || y < 2) ? 6 : ((x > 29 || y > 29) ? -7 : 0)
             int seam = (y == 8 || y == 23) ? -7 : 0
             argb(43 + noise + vertical + edge + seam,
@@ -100,7 +99,6 @@ var generateKimiTextures = tasks.register('generateKimiTextures') {
                  56 + noise + vertical + edge + seam)
         }
 
-        // Recessed front/control plate.
         writeTexture('front_plate') { int x, int y ->
             int noise = ((x * 11 + y * 23) % 5) - 2
             boolean rim = x == 2 || y == 2 || x == 29 || y == 29
@@ -109,7 +107,6 @@ var generateKimiTextures = tasks.register('generateKimiTextures') {
             argb(24 + noise + lift, 29 + noise + lift, 35 + noise + lift)
         }
 
-        // Brushed alloy used for the machine-facing mounting plate and hardware trim.
         writeTexture('metal_brushed') { int x, int y ->
             int streak = ((x * 7 + y * 3) % 9) - 4
             int brush = (y % 4 == 0) ? 6 : 0
@@ -123,7 +120,7 @@ var generateKimiTextures = tasks.register('generateKimiTextures') {
             writeTexture(name) { int x, int y ->
                 int dx = Math.abs(x - 15)
                 int dy = Math.abs(y - 15)
-                int falloff = Math.min(18, (dx + dy) / 2)
+                int falloff = Math.min(18, (dx + dy).intdiv(2))
                 int stripe = ((x + y) % 8 == 0) ? 14 : 0
                 int rim = (x < 2 || y < 2 || x > 29 || y > 29) ? -28 : 0
                 argb(r - falloff + stripe + rim,
@@ -136,7 +133,6 @@ var generateKimiTextures = tasks.register('generateKimiTextures') {
         glowTexture('status_cyan', 55, 210, 225)
         glowTexture('status_gray', 137, 146, 157)
 
-        // Neutral dark side panel for the charger / loader top face.
         writeTexture('tech_panel') { int x, int y ->
             int noise = ((x * 13 + y * 17) % 5) - 2
             boolean ring = (x == 4 || y == 4 || x == 27 || y == 27)
