@@ -1,0 +1,57 @@
+package com.bwoah07.kiminetworkplug;
+
+import com.mojang.logging.LogUtils;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.CreativeModeTabs;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.material.MapColor;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
+import net.neoforged.neoforge.registries.DeferredRegister;
+import org.slf4j.Logger;
+
+import java.util.function.Supplier;
+
+@Mod(KimiNetworkPlug.MODID)
+public final class KimiNetworkPlug {
+    public static final String MODID = "kimi_network_plug";
+    public static final Logger LOGGER = LogUtils.getLogger();
+
+    public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(MODID);
+    public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(MODID);
+    public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITY_TYPES =
+            DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, MODID);
+
+    public static final Supplier<NetworkPlugBlock> NETWORK_PLUG = BLOCKS.register(
+            "network_plug",
+            () -> new NetworkPlugBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.METAL)
+                    .strength(3.0F, 6.0F)
+                    .requiresCorrectToolForDrops())
+    );
+
+    public static final Supplier<BlockItem> NETWORK_PLUG_ITEM =
+            ITEMS.registerSimpleBlockItem("network_plug", NETWORK_PLUG);
+
+    public static final Supplier<BlockEntityType<NetworkPlugBlockEntity>> NETWORK_PLUG_BLOCK_ENTITY =
+            BLOCK_ENTITY_TYPES.register(
+                    "network_plug",
+                    () -> BlockEntityType.Builder.of(NetworkPlugBlockEntity::new, NETWORK_PLUG.get()).build(null)
+            );
+
+    public KimiNetworkPlug(IEventBus modEventBus) {
+        BLOCKS.register(modEventBus);
+        ITEMS.register(modEventBus);
+        BLOCK_ENTITY_TYPES.register(modEventBus);
+        modEventBus.addListener(this::addCreativeTabContents);
+    }
+
+    private void addCreativeTabContents(BuildCreativeModeTabContentsEvent event) {
+        if (event.getTabKey() == CreativeModeTabs.REDSTONE_BLOCKS) {
+            event.accept(NETWORK_PLUG_ITEM.get());
+        }
+    }
+}

@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "mode=disabled": { "model": "kimi_network_plug:block/network_plug_disabled" },
+    "mode=input": { "model": "kimi_network_plug:block/network_plug_input" },
+    "mode=output": { "model": "kimi_network_plug:block/network_plug_output" }
+  }
+}
