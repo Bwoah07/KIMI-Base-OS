@@ -1,28 +1,28 @@
 {
-  "ambientocclusion": true,
+  "ambientocclusion": false,
   "textures": {
-    "body": "minecraft:block/black_concrete",
-    "trim": "minecraft:block/light_gray_concrete",
+    "body": "minecraft:block/gray_concrete",
+    "trim": "minecraft:block/iron_block",
     "accent": "minecraft:block/cyan_concrete",
-    "panel": "minecraft:block/gray_concrete",
-    "particle": "minecraft:block/black_concrete"
+    "panel": "minecraft:block/light_gray_concrete",
+    "particle": "minecraft:block/gray_concrete"
   },
   "elements": [
     {
-      "from": [2, 1, 2],
-      "to": [14, 12, 14],
+      "from": [2, 0, 2],
+      "to": [14, 9, 14],
       "faces": {
         "north": { "texture": "#body" },
         "south": { "texture": "#body" },
         "east": { "texture": "#body" },
         "west": { "texture": "#body" },
         "up": { "texture": "#body" },
-        "down": { "texture": "#body" }
+        "down": { "texture": "#body", "cullface": "down" }
       }
     },
     {
-      "from": [2.5, 12, 2.5],
-      "to": [13.5, 13, 13.5],
+      "from": [1.5, 9, 1.5],
+      "to": [14.5, 10.5, 14.5],
       "faces": {
         "north": { "texture": "#trim" },
         "south": { "texture": "#trim" },
@@ -33,8 +33,8 @@
       }
     },
     {
-      "from": [4, 13, 4],
-      "to": [12, 13.5, 12],
+      "from": [3, 10.5, 3],
+      "to": [13, 12, 13],
       "faces": {
         "north": { "texture": "#accent" },
         "south": { "texture": "#accent" },
