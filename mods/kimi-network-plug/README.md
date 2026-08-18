@@ -1,113 +1,83 @@
-# KIMI Network Plug
+# KIMI PowerNet
 
-NeoForge 1.21.1 power networking + chunk loading for FTB Evolution.
+NeoForge 1.21.1 power networking, chunk loading, ComputerCraft/KIMI integration, and wireless player charging for FTB Evolution.
 
-## alpha.5
+## alpha.6
 
-Alpha.5 is the visual cleanup pass on top of the alpha.4 PowerNet backend.
+Alpha.6 adds the requested usability and throughput pass.
 
-Two blocks remain:
+### Blocks
 
-- **Network Plug** — a compact face-mounted connector for cross-dimensional FE transport.
-- **Chunk Loader** — a standalone one-chunk loader for machine areas that do not need a power plug.
+- **Network Plug** — compact face-mounted cross-dimensional FE connector. It self-chunkloads.
+- **Chunk Loader** — standalone one-chunk loader for areas that do not need a power plug.
+- **KIMI Wireless Charger** — draws directly from a selected PowerNet network and wirelessly charges nearby player equipment. It does not need a Network Plug attached.
 
-Every Network Plug force-loads its own containing chunk. Multiple KIMI loaders in the same chunk are reference-tracked so the chunk is only released when the final KIMI loader is removed.
+### Network Plug
 
-### Compact Flux-style plug
+The plug keeps the face-mounted plate + short neck + compact head design, but now uses smoother black-concrete-based materials. The item/hand display transform also shows the actual connector silhouette instead of reading like a generic cube.
 
-The Network Plug now uses the intended connector silhouette rather than a pedestal/machine shape:
-
-- small mounting plate flush to the clicked machine face
-- short connector neck
-- compact floating cube head
-- centered on the clicked face
-- supports all six directions
-- never rests on the floor unless it was actually mounted to the floor face
-
-Mode accents remain:
+Mode accents:
 
 - Gray = `DISABLED`
 - Lime = `INPUT`
 - Orange = `OUTPUT`
 
-The plug only transfers with the block it is physically mounted against. Its exposed sides still provide the standard NeoForge energy capability so cables can interact with it too.
+The GUI now uses an actual network selector: click the selected network, pick an existing network from the dropdown, done. A separate field creates new named networks. Up to 12 networks are shown directly in the selector.
 
-### Clean GUI
+Named networks remain isolated from one another. `BASE_POWER` is created automatically.
 
-Right-clicking opens a deliberately compact configuration card inspired by the clarity of Flux Networks without cloning its interface.
+### Throughput and buffers
 
-The alpha.5 screen has four non-overlapping bands:
+Per Network Plug:
 
-- mode: `DISABLED`, `INPUT`, `OUTPUT`
-- network: `<`, editable network name, `>`, `APPLY`
-- transfer limit: `-`, exact numeric entry, `SET`, `+`, `16M`
-- live status: live FE/t, network input/output, local buffer, network buffer, plug count, chunk-loaded state, and coordinates
+- minimum transfer: 100 kFE/t
+- default transfer: 512 MFE/t
+- maximum transfer: 64 GFE/t
+- local plug buffer: 8 GFE
 
-The noisy helper text and overlapping controls from alpha.4 are removed.
+Per named network:
 
-### Named networks
+- shared transit buffer: 64 GFE
 
-Power is isolated by named networks. `BASE_POWER` is created automatically and additional networks can be created by typing a name in the Network Plug GUI and pressing **APPLY**.
+NeoForge energy capability calls use integer-sized transfers, so alpha.6 safely performs multiple capability operations per tick when a configured transfer limit is above the per-call integer limit.
 
-Examples:
+### KIMI Wireless Charger
 
-- `BASE_POWER`
-- `REACTOR`
-- `MINING`
-- `FACTORY`
-- `EMERGENCY`
+The Wireless Charger is a native PowerNet device. It selects a named network and consumes FE directly from that network without requiring a physical Network Plug or cable.
 
-Each named network has its own **64,000,000 FE shared transit buffer**. Energy never crosses between different network names.
+Defaults/limits:
 
-### Per-plug buffer
+- default range: 32 blocks
+- adjustable range: 4–96 blocks
+- default charge rate: 512 MFE/t
+- maximum charge rate: 8 GFE/t
 
-Every Network Plug has its own **64,000,000 FE local buffer**.
+Configurable targets:
 
-INPUT path:
+- normal inventory
+- armor
+- offhand
+- Curios slots when Curios is installed
 
-`attached producer -> local plug buffer -> selected network buffer`
-
-OUTPUT path:
-
-`selected network buffer -> local plug buffer -> attached consumer`
-
-The local buffer is persisted in the block entity and retained across restarts. Both local and shared buffers are bounded so a blocked destination eventually back-pressures the source instead of behaving like infinite storage.
-
-### Transfer limits
-
-Transfer limits are persisted per plug:
-
-- minimum: 100,000 FE/t
-- default: 16,000,000 FE/t
-- maximum: 2,000,000,000 FE/t
+It charges any compatible item exposing NeoForge's item energy capability and reports current players in range, live FE draw, and selected-network energy in its GUI.
 
 ### CC:Tweaked / KIMI Base OS
 
-When CC:Tweaked is installed, every Network Plug exposes a `kimi_network_plug` peripheral. A ComputerCraft computer only needs access to one plug peripheral to inspect and control the server-wide KIMI PowerNet registry.
+Network Plugs expose the `kimi_network_plug` peripheral when CC:Tweaked is installed. One attached computer can inspect and control the server-wide PowerNet registry.
 
-Peripheral operations include:
+Operations include `getInfo()`, `listNetworks()`, `getNetwork(name)`, `listPlugs()`, `listNetworkPlugs(name)`, `setPlugMode(id, mode)`, `setPlugNetwork(id, network)`, `setPlugTransferLimit(id, limit)`, and `disableNetwork(name)`.
 
-- `getInfo()`
-- `listNetworks()`
-- `getNetwork(name)`
-- `listPlugs()`
-- `listNetworkPlugs(name)`
-- `setPlugMode(id, mode)`
-- `setPlugNetwork(id, network)`
-- `setPlugTransferLimit(id, limit)`
-- `disableNetwork(name)`
+KIMI Base OS includes `modules/powernet.lua` for telemetry and remote PowerNet control.
 
-KIMI Base OS includes `modules/powernet.lua`, which automatically detects the peripheral, publishes all PowerNet telemetry to KIMI, and exposes the remote control operations through a KIMI node.
+## Alpha.6 test path
 
-## Alpha.5 test
-
-1. Remove the older Network Plug JAR and install alpha.5.
-2. Confirm the plug appears as a small plate + neck + cube head attached to the clicked machine face.
-3. Open the GUI and confirm there is no overlapping text or controls.
-4. Powered Energy Cube -> INPUT Plug on `BASE_POWER`.
-5. OUTPUT Plug on `BASE_POWER` -> empty Energy Cube.
-6. Confirm local and network buffers transfer correctly.
-7. Create a second named network and confirm isolation.
-8. Move one endpoint to another dimension and confirm transport continues while chunks stay loaded.
-9. Connect a CC:Tweaked computer and confirm `peripheral.find("kimi_network_plug")` sees the PowerNet API.
-10. Only after the harmless Energy Cube test passes, connect the turbine and Induction Matrix.
+1. Replace alpha.5 with alpha.6 and boot the pack.
+2. Confirm the Network Plug icon and in-world model look correct.
+3. Open a plug and test the network dropdown by selecting an existing network in one click.
+4. Test Energy Cube -> INPUT Plug -> named network -> OUTPUT Plug -> Energy Cube.
+5. Raise the transfer limit and confirm throughput scales without duping or losing FE.
+6. Place the KIMI Wireless Charger, select `BASE_POWER`, and test a chargeable inventory/armor/offhand item.
+7. Test a chargeable Curios item.
+8. Test cross-dimensional PowerNet and chunk loading.
+9. Test `peripheral.find("kimi_network_plug")` on a CC:Tweaked computer.
+10. Only after harmless loads pass, connect the turbine and Induction Matrix.
