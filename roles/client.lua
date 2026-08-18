@@ -1,5 +1,6 @@
 local M = {}
 local network = require("core.network")
+local loader = require("core.module_loader")
 local updates = require("core.update_service")
 
 local function loadProfile(name)
@@ -8,14 +9,20 @@ local function loadProfile(name)
     return require("clients.terminal")
 end
 
+local function discoverModules()
+    return loader.discover("modules")
+end
+
 function M.run(cfg)
     network.openAll()
     local profile = loadProfile(cfg.profile)
+    local modules = discoverModules()
+    local localState = loader.readAll(modules, {})
     local serverId, state, lastSeen = nil, nil, 0
+    local lastModuleScan = os.epoch("utc")
     if profile.init then profile.init(cfg) end
 
     local pollTimer = os.startTimer(0.1)
-    local updateTimer = os.startTimer(updates.interval(cfg))
     local probationTimer = updates.hasPendingProbation() and os.startTimer(15) or nil
 
     while true do
@@ -23,30 +30,50 @@ function M.run(cfg)
 
         if e[1] == "timer" and e[2] == pollTimer then
             if not serverId then serverId = network.findServer(cfg) end
+
+            local now = os.epoch("utc")
+            if now - lastModuleScan >= 10000 then
+                modules = discoverModules()
+                lastModuleScan = now
+            end
+            localState = loader.readAll(modules, localState)
+
             if serverId then
                 network.send(serverId, cfg, "state.get", {
                     clientId = os.getComputerID(),
+                    role = "client",
+                    name = cfg.name,
                     profile = cfg.profile,
                     version = updates.localVersion()
                 })
+
+                -- Every client is also a telemetry source. If it has no useful
+                -- peripherals the module state is simply empty/offline; if it has
+                -- sensors, that data becomes available to the entire KIMI fleet.
+                network.send(serverId, cfg, "telemetry.state", {
+                    sourceId = os.getComputerID(),
+                    role = "client",
+                    name = cfg.name,
+                    profile = cfg.profile,
+                    version = updates.localVersion(),
+                    generated = now,
+                    state = localState
+                })
             end
-            if profile.render then profile.render(state, { connected = serverId ~= nil, lastSeen = lastSeen, serverId = serverId }) end
+
+            if profile.render then
+                profile.render(state, {
+                    connected = serverId ~= nil,
+                    lastSeen = lastSeen,
+                    serverId = serverId,
+                    localState = localState
+                })
+            end
             pollTimer = os.startTimer(1)
 
         elseif e[1] == "timer" and e[2] == probationTimer then
             if updates.markHealthy() then print("[KIMI] update probation passed; version marked healthy") end
             probationTimer = nil
-
-        elseif e[1] == "timer" and e[2] == updateTimer then
-            -- Independent fallback: a client that missed the server broadcast still
-            -- catches up even if it stays online for days.
-            if updates.autoEnabled(cfg) then
-                local result = updates.check()
-                if result and result.available then
-                    updates.rebootForUpdate(result.remote, "client-periodic-fallback")
-                end
-            end
-            updateTimer = os.startTimer(updates.interval(cfg))
 
         elseif e[1] == "rednet_message" then
             local sender, msg, protocol = e[2], e[3], e[4]
@@ -55,18 +82,24 @@ function M.run(cfg)
                     state = msg.payload
                     lastSeen = os.epoch("utc")
                     if profile.onState then profile.onState(state) end
-                    if profile.render then profile.render(state, { connected = true, lastSeen = lastSeen, serverId = serverId }) end
+                    if profile.render then
+                        profile.render(state, {
+                            connected = true,
+                            lastSeen = lastSeen,
+                            serverId = serverId,
+                            localState = localState
+                        })
+                    end
 
                 elseif sender == serverId and msg.kind == "update.available" and type(msg.payload) == "table" then
                     local target = tostring(msg.payload.version or "")
                     if updates.autoEnabled(cfg) and target ~= "" and target ~= updates.localVersion() then
                         network.send(serverId, cfg, "update.status", {
+                            role = "client",
                             version = updates.localVersion(),
                             target = target,
                             status = "accepted"
                         })
-                        -- Small deterministic stagger so a large fleet does not all
-                        -- hammer GitHub in the exact same tick.
                         sleep((os.getComputerID() % 4) + 1)
                         updates.rebootForUpdate(target, "server-announcement")
                     end
@@ -76,12 +109,18 @@ function M.run(cfg)
         elseif e[1] == "peripheral" or e[1] == "peripheral_detach" then
             network.openAll()
             serverId = network.findServer(cfg)
+            modules = discoverModules()
+            localState = loader.readAll(modules, localState)
             if profile.onPeripheralChange then profile.onPeripheralChange() end
 
         else
-            if profile.handleEvent then profile.handleEvent(e, state, function(module, action, args)
-                if serverId then network.send(serverId, cfg, "command", { module = module, action = action, args = args }) end
-            end) end
+            if profile.handleEvent then
+                profile.handleEvent(e, state, function(module, action, args)
+                    if serverId then
+                        network.send(serverId, cfg, "command", { module = module, action = action, args = args })
+                    end
+                end)
+            end
         end
     end
 end
