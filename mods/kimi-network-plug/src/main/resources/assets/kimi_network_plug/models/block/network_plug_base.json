@@ -38,20 +38,68 @@
       }
     },
     {
-      "from": [2.75, 2.75, 4.25],
-      "to": [13.25, 13.25, 4.75],
+      "from": [3, 3.5, 5.25],
+      "to": [3.5, 12.5, 11.25],
       "faces": {
-        "north": { "texture": "#accent" },
-        "south": { "texture": "#accent" },
-        "east": { "texture": "#accent" },
-        "west": { "texture": "#accent" },
-        "up": { "texture": "#accent" },
-        "down": { "texture": "#accent" }
+        "north": { "texture": "#base" },
+        "south": { "texture": "#base" },
+        "east": { "texture": "#base" },
+        "west": { "texture": "#base" },
+        "up": { "texture": "#base" },
+        "down": { "texture": "#base" }
       }
     },
     {
-      "from": [4, 4, 4.0],
-      "to": [12, 12, 4.25],
+      "from": [12.5, 3.5, 5.25],
+      "to": [13, 12.5, 11.25],
+      "faces": {
+        "north": { "texture": "#base" },
+        "south": { "texture": "#base" },
+        "east": { "texture": "#base" },
+        "west": { "texture": "#base" },
+        "up": { "texture": "#base" },
+        "down": { "texture": "#base" }
+      }
+    },
+    {
+      "from": [3.25, 12.5, 4.25],
+      "to": [12.75, 13, 4.6],
+      "faces": {
+        "north": { "texture": "#accent" }, "south": { "texture": "#accent" },
+        "east": { "texture": "#accent" }, "west": { "texture": "#accent" },
+        "up": { "texture": "#accent" }, "down": { "texture": "#accent" }
+      }
+    },
+    {
+      "from": [3.25, 3, 4.25],
+      "to": [12.75, 3.5, 4.6],
+      "faces": {
+        "north": { "texture": "#accent" }, "south": { "texture": "#accent" },
+        "east": { "texture": "#accent" }, "west": { "texture": "#accent" },
+        "up": { "texture": "#accent" }, "down": { "texture": "#accent" }
+      }
+    },
+    {
+      "from": [3, 3.5, 4.25],
+      "to": [3.5, 12.5, 4.6],
+      "faces": {
+        "north": { "texture": "#accent" }, "south": { "texture": "#accent" },
+        "east": { "texture": "#accent" }, "west": { "texture": "#accent" },
+        "up": { "texture": "#accent" }, "down": { "texture": "#accent" }
+      }
+    },
+    {
+      "from": [12.5, 3.5, 4.25],
+      "to": [13, 12.5, 4.6],
+      "faces": {
+        "north": { "texture": "#accent" }, "south": { "texture": "#accent" },
+        "east": { "texture": "#accent" }, "west": { "texture": "#accent" },
+        "up": { "texture": "#accent" }, "down": { "texture": "#accent" }
+      }
+    },
+    {
+      "from": [4.25, 4.25, 4.0],
+      "to": [11.75, 11.75, 4.25],
       "faces": {
         "north": { "texture": "#metal" },
         "south": { "texture": "#metal" },
