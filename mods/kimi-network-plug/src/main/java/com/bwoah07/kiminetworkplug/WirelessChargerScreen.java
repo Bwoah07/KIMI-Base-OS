@@ -10,39 +10,26 @@ import net.minecraft.world.entity.player.Inventory;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 public final class WirelessChargerScreen extends AbstractContainerScreen<WirelessChargerMenu> {
-    private static final int BG = 0xF20A0D11;
-    private static final int HEADER = 0xFF151A20;
-    private static final int BODY = 0xFF0C1015;
-    private static final int CARD = 0xFF11171D;
-    private static final int BORDER = 0xFF9AA1A8;
-    private static final int TEXT = 0xFFE8EDF1;
-    private static final int MUTED = 0xFF929CA5;
-    private static final int GREEN = 0xFF62E58E;
-    private static final int BLUE = 0xFF59AEEA;
+    private static final int BG = 0xE8050709;
+    private static final int FIELD = 0xD9111418;
+    private static final int BORDER = 0xFFD3D6DA;
+    private static final int TEXT = 0xFFF2F3F4;
+    private static final int MUTED = 0xFFA8ADB3;
+    private static final int GREEN = 0xFF64E889;
+    private static final int CYAN = 0xFF46C9D8;
 
-    private enum Tab { HOME, TARGETS, STATS }
-    private Tab tab = Tab.HOME;
+    private enum Tab { GENERAL, TARGETS, STATS }
+    private Tab tab = Tab.GENERAL;
 
-    private Button homeTab;
-    private Button targetsTab;
-    private Button statsTab;
-    private EditBox networkBox;
-    private EditBox rangeBox;
-    private EditBox rateBox;
-    private Button applyButton;
-    private Button inventoryButton;
-    private Button armorButton;
-    private Button offhandButton;
-    private Button curiosButton;
-    private boolean inventory;
-    private boolean armor;
-    private boolean offhand;
-    private boolean curios;
+    private Button tabGeneral, tabTargets, tabStats;
+    private EditBox networkBox, rangeBox, rateBox;
+    private Button applyButton, inventoryButton, armorButton, offhandButton, curiosButton;
+    private boolean inventory, armor, offhand, curios;
 
     public WirelessChargerScreen(WirelessChargerMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
-        imageWidth = 196;
-        imageHeight = 174;
+        imageWidth = 176;
+        imageHeight = 178;
         inventoryLabelY = 10_000;
         titleLabelY = 10_000;
     }
@@ -57,49 +44,53 @@ public final class WirelessChargerScreen extends AbstractContainerScreen<Wireles
         this.offhand = menu.offhand();
         this.curios = menu.curios();
 
-        homeTab = addRenderableWidget(Button.builder(Component.literal("HOME"), b -> setTab(Tab.HOME)).bounds(x + 10, y + 29, 54, 18).build());
-        targetsTab = addRenderableWidget(Button.builder(Component.literal("TARGETS"), b -> setTab(Tab.TARGETS)).bounds(x + 69, y + 29, 66, 18).build());
-        statsTab = addRenderableWidget(Button.builder(Component.literal("STATS"), b -> setTab(Tab.STATS)).bounds(x + 140, y + 29, 46, 18).build());
+        tabGeneral = addRenderableWidget(Button.builder(Component.literal("G"), b -> setTab(Tab.GENERAL)).bounds(x + 10, y + 7, 28, 20).build());
+        tabTargets = addRenderableWidget(Button.builder(Component.literal("T"), b -> setTab(Tab.TARGETS)).bounds(x + 42, y + 7, 28, 20).build());
+        tabStats = addRenderableWidget(Button.builder(Component.literal("S"), b -> setTab(Tab.STATS)).bounds(x + 74, y + 7, 28, 20).build());
 
-        networkBox = new EditBox(font, x + 12, y + 66, 172, 18, Component.literal("Network"));
+        networkBox = new EditBox(font, x + 16, y + 70, 144, 18, Component.literal("Network"));
         networkBox.setFilter(value -> value.matches("[A-Za-z0-9_-]*"));
         networkBox.setMaxLength(PowerNetworkSavedData.MAX_NETWORK_NAME_LENGTH);
         networkBox.setValue(menu.getNetworkName());
         addRenderableWidget(networkBox);
 
-        rangeBox = new EditBox(font, x + 12, y + 105, 64, 18, Component.literal("Range"));
+        rangeBox = new EditBox(font, x + 16, y + 111, 52, 18, Component.literal("Range"));
         rangeBox.setFilter(value -> value.matches("\\d*"));
         rangeBox.setValue(Integer.toString(menu.getRange()));
         addRenderableWidget(rangeBox);
 
-        rateBox = new EditBox(font, x + 82, y + 105, 72, 18, Component.literal("Rate"));
+        rateBox = new EditBox(font, x + 74, y + 111, 86, 18, Component.literal("Rate"));
         rateBox.setFilter(value -> value.matches("\\d*"));
-        rateBox.setMaxLength(12);
+        rateBox.setMaxLength(14);
         rateBox.setValue(Long.toString(menu.getChargeRate()));
         addRenderableWidget(rateBox);
-        applyButton = addRenderableWidget(Button.builder(Component.literal("APPLY"), b -> apply()).bounds(x + 158, y + 105, 26, 18).build());
 
-        inventoryButton = addRenderableWidget(Button.builder(Component.empty(), b -> { inventory = !inventory; apply(); }).bounds(x + 12, y + 68, 80, 20).build());
-        armorButton = addRenderableWidget(Button.builder(Component.empty(), b -> { armor = !armor; apply(); }).bounds(x + 104, y + 68, 80, 20).build());
-        offhandButton = addRenderableWidget(Button.builder(Component.empty(), b -> { offhand = !offhand; apply(); }).bounds(x + 12, y + 99, 80, 20).build());
-        curiosButton = addRenderableWidget(Button.builder(Component.empty(), b -> { curios = !curios; apply(); }).bounds(x + 104, y + 99, 80, 20).build());
+        applyButton = addRenderableWidget(Button.builder(Component.literal("APPLY"), b -> apply()).bounds(x + 108, y + 136, 52, 18).build());
+
+        inventoryButton = addRenderableWidget(Button.builder(Component.empty(), b -> { inventory = !inventory; apply(); }).bounds(x + 16, y + 72, 144, 20).build());
+        armorButton = addRenderableWidget(Button.builder(Component.empty(), b -> { armor = !armor; apply(); }).bounds(x + 16, y + 97, 144, 20).build());
+        offhandButton = addRenderableWidget(Button.builder(Component.empty(), b -> { offhand = !offhand; apply(); }).bounds(x + 16, y + 122, 144, 20).build());
+        curiosButton = addRenderableWidget(Button.builder(Component.empty(), b -> { curios = !curios; apply(); }).bounds(x + 16, y + 147, 144, 20).build());
 
         syncButtons();
         updateVisibility();
     }
 
-    private void setTab(Tab newTab) {
-        tab = newTab;
+    private void setTab(Tab next) {
+        tab = next;
         updateVisibility();
+        tabGeneral.active = tab != Tab.GENERAL;
+        tabTargets.active = tab != Tab.TARGETS;
+        tabStats.active = tab != Tab.STATS;
     }
 
     private void updateVisibility() {
-        boolean home = tab == Tab.HOME;
+        boolean general = tab == Tab.GENERAL;
         boolean targets = tab == Tab.TARGETS;
-        networkBox.visible = home;
-        rangeBox.visible = home;
-        rateBox.visible = home;
-        applyButton.visible = home;
+        networkBox.visible = general;
+        rangeBox.visible = general;
+        rateBox.visible = general;
+        applyButton.visible = general;
         inventoryButton.visible = targets;
         armorButton.visible = targets;
         offhandButton.visible = targets;
@@ -107,10 +98,10 @@ public final class WirelessChargerScreen extends AbstractContainerScreen<Wireles
     }
 
     private void syncButtons() {
-        if (inventoryButton != null) inventoryButton.setMessage(Component.literal("INV  " + (inventory ? "ON" : "OFF")));
-        if (armorButton != null) armorButton.setMessage(Component.literal("ARMOR  " + (armor ? "ON" : "OFF")));
-        if (offhandButton != null) offhandButton.setMessage(Component.literal("OFFHAND " + (offhand ? "ON" : "OFF")));
-        if (curiosButton != null) curiosButton.setMessage(Component.literal("CURIOS " + (curios ? "ON" : "OFF")));
+        if (inventoryButton != null) inventoryButton.setMessage(Component.literal("INVENTORY        " + (inventory ? "ON" : "OFF")));
+        if (armorButton != null) armorButton.setMessage(Component.literal("ARMOR            " + (armor ? "ON" : "OFF")));
+        if (offhandButton != null) offhandButton.setMessage(Component.literal("OFFHAND          " + (offhand ? "ON" : "OFF")));
+        if (curiosButton != null) curiosButton.setMessage(Component.literal("CURIOS           " + (curios ? "ON" : "OFF")));
     }
 
     private void apply() {
@@ -122,12 +113,12 @@ public final class WirelessChargerScreen extends AbstractContainerScreen<Wireles
         try { rate = Long.parseLong(rateBox.getValue()); } catch (NumberFormatException e) { rate = menu.getChargeRate(); }
         range = Math.max(WirelessChargerBlockEntity.MIN_RANGE, Math.min(WirelessChargerBlockEntity.MAX_RANGE, range));
         rate = Math.max(WirelessChargerBlockEntity.MIN_RATE, Math.min(WirelessChargerBlockEntity.MAX_RATE, rate));
-        networkBox.setValue(network);
-        rangeBox.setValue(Integer.toString(range));
-        rateBox.setValue(Long.toString(rate));
         BlockPos pos = menu.getBlockPos();
         PacketDistributor.sendToServer(new NetworkPlugNetworking.ChargerConfigPayload(
                 pos.getX(), pos.getY(), pos.getZ(), network, range, rate, inventory, armor, offhand, curios));
+        networkBox.setValue(network);
+        rangeBox.setValue(Integer.toString(range));
+        rateBox.setValue(Long.toString(rate));
         syncButtons();
     }
 
@@ -143,61 +134,54 @@ public final class WirelessChargerScreen extends AbstractContainerScreen<Wireles
     protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
         int x = leftPos;
         int y = topPos;
-        g.fill(x, y, x + imageWidth, y + imageHeight, BG);
-        outline(g, x, y, imageWidth, imageHeight, BORDER);
-        g.fill(x + 1, y + 1, x + imageWidth - 1, y + 25, HEADER);
-        g.fill(x + 7, y + 52, x + imageWidth - 7, y + imageHeight - 8, BODY);
+        g.fill(x + 4, y + 31, x + imageWidth - 4, y + imageHeight - 4, BG);
+        outline(g, x + 4, y + 31, imageWidth - 8, imageHeight - 35, CYAN);
+        g.fill(x + 12, y + 40, x + imageWidth - 12, y + 60, FIELD);
+        g.fill(x + 12, y + 63, x + imageWidth - 12, y + imageHeight - 12, 0xB006090C);
 
-        if (tab == Tab.HOME) {
-            g.fill(x + 10, y + 55, x + 186, y + 91, CARD);
-            g.fill(x + 10, y + 96, x + 186, y + 130, CARD);
-            g.fill(x + 10, y + 136, x + 186, y + 160, CARD);
-        } else if (tab == Tab.TARGETS) {
-            g.fill(x + 10, y + 55, x + 186, y + 132, CARD);
-        } else {
-            g.fill(x + 10, y + 55, x + 186, y + 158, CARD);
-            drawBar(g, x + 18, y + 113, 160, 5, menu.getNetworkEnergy() / (double) PowerNetworkSavedData.NETWORK_CAPACITY, BLUE);
+        if (tab == Tab.GENERAL) {
+            outline(g, x + 15, y + 67, 146, 24, BORDER);
+            outline(g, x + 15, y + 108, 146, 24, BORDER);
+        } else if (tab == Tab.STATS) {
+            drawBar(g, x + 18, y + 128, 140, 5, menu.getNetworkEnergy() / (double) PowerNetworkSavedData.NETWORK_CAPACITY, CYAN);
         }
     }
 
     private static void outline(GuiGraphics g, int x, int y, int w, int h, int c) {
-        g.fill(x, y, x + w, y + 1, c);
-        g.fill(x, y + h - 1, x + w, y + h, c);
-        g.fill(x, y, x + 1, y + h, c);
-        g.fill(x + w - 1, y, x + w, y + h, c);
+        g.fill(x, y, x + w, y + 1, c); g.fill(x, y + h - 1, x + w, y + h, c);
+        g.fill(x, y, x + 1, y + h, c); g.fill(x + w - 1, y, x + w, y + h, c);
     }
 
     private static void drawBar(GuiGraphics g, int x, int y, int w, int h, double fraction, int color) {
         fraction = Math.max(0.0, Math.min(1.0, fraction));
-        g.fill(x, y, x + w, y + h, 0xFF263039);
-        int filled = (int) Math.round(w * fraction);
+        g.fill(x, y, x + w, y + h, 0xFF252B31);
+        int filled = (int)Math.round(w * fraction);
         if (filled > 0) g.fill(x, y, x + filled, y + h, color);
     }
 
     @Override
     protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
-        g.drawString(font, "KIMI CHARGER", 10, 9, TEXT, false);
-        g.drawString(font, "●", 174, 9, GREEN, false);
+        g.drawString(font, "KIMI WIRELESS", 16, 46, TEXT, false);
+        g.drawString(font, "●", 149, 46, GREEN, false);
 
-        if (tab == Tab.HOME) {
-            g.drawString(font, "NETWORK", 12, 56, MUTED, false);
-            g.drawString(font, "RANGE", 12, 97, MUTED, false);
-            g.drawString(font, "RATE", 82, 97, MUTED, false);
-            g.drawString(font, "LIVE  " + formatFe(menu.getLastDraw()) + " FE/t", 12, 140, GREEN, false);
-            g.drawString(font, menu.getPlayers() + " PLAYER" + (menu.getPlayers() == 1 ? "" : "S") + " IN RANGE", 12, 153, MUTED, false);
+        if (tab == Tab.GENERAL) {
+            g.drawString(font, "NETWORK", 16, 62, MUTED, false);
+            g.drawString(font, "RANGE", 16, 103, MUTED, false);
+            g.drawString(font, "RATE", 74, 103, MUTED, false);
+            g.drawString(font, "LIVE " + formatFe(menu.getLastDraw()) + " FE/t", 16, 141, GREEN, false);
+            g.drawString(font, menu.getPlayers() + " PLAYER" + (menu.getPlayers() == 1 ? "" : "S") + " IN RANGE", 16, 157, MUTED, false);
         } else if (tab == Tab.TARGETS) {
-            g.drawString(font, "WIRELESS TARGETS", 12, 57, MUTED, false);
-            g.drawString(font, "Charge only the slots you want.", 12, 128, MUTED, false);
+            g.drawString(font, "WIRELESS TARGETS", 16, 62, MUTED, false);
         } else {
-            g.drawString(font, "KIMI LINK", 16, 59, MUTED, false);
-            g.drawString(font, "ONLINE", 141, 59, GREEN, false);
-            g.drawString(font, "LIVE DRAW", 16, 77, MUTED, false);
-            g.drawString(font, formatFe(menu.getLastDraw()) + " FE/t", 106, 77, GREEN, false);
-            g.drawString(font, "PLAYERS", 16, 93, MUTED, false);
-            g.drawString(font, Integer.toString(menu.getPlayers()), 141, 93, TEXT, false);
-            g.drawString(font, "NETWORK BUFFER", 16, 105, MUTED, false);
-            g.drawString(font, formatFe(menu.getNetworkEnergy()) + " / " + formatFe(PowerNetworkSavedData.NETWORK_CAPACITY), 16, 122, TEXT, false);
-            g.drawString(font, "NETWORK  " + menu.getNetworkName(), 16, 139, MUTED, false);
+            g.drawString(font, "KIMI LINK", 18, 72, MUTED, false);
+            g.drawString(font, "ONLINE", 120, 72, GREEN, false);
+            g.drawString(font, "LIVE DRAW", 18, 91, MUTED, false);
+            g.drawString(font, formatFe(menu.getLastDraw()) + " FE/t", 98, 91, GREEN, false);
+            g.drawString(font, "PLAYERS", 18, 108, MUTED, false);
+            g.drawString(font, Integer.toString(menu.getPlayers()), 120, 108, TEXT, false);
+            g.drawString(font, "BUFFER", 18, 122, MUTED, false);
+            g.drawString(font, formatFe(menu.getNetworkEnergy()) + " / " + formatFe(PowerNetworkSavedData.NETWORK_CAPACITY), 18, 139, TEXT, false);
+            g.drawString(font, "NETWORK " + menu.getNetworkName(), 18, 155, MUTED, false);
         }
     }
 
