@@ -1,4 +1,10 @@
 {
-  "parent": "minecraft:block/cube_all",
-  "textures": { "all": "minecraft:block/lime_concrete" }
+  "parent": "kimi_network_plug:block/network_plug_base",
+  "textures": {
+    "particle": "minecraft:block/deepslate_tiles",
+    "base": "minecraft:block/deepslate_tiles",
+    "body": "minecraft:block/polished_blackstone",
+    "accent": "minecraft:block/lime_concrete",
+    "metal": "minecraft:block/iron_block"
+  }
 }
