@@ -66,9 +66,9 @@ var generateModMetadata = tasks.register('generateModMetadata', ProcessResources
     into 'build/generated/sources/modMetadata'
 }
 
-// GitHub's contents API is text-only, so the build creates the bespoke binary
-// PowerNet texture sheet deterministically. These are purpose-made KIMI textures,
-// not recoloured vanilla block assets.
+// GitHub's contents API is text-only, so the build creates deterministic binary
+// PowerNet textures. The patterns are purpose-made for KIMI hardware and avoid
+// vanilla Minecraft block textures entirely.
 var generateKimiTextures = tasks.register('generateKimiTextures') {
     def outDir = layout.buildDirectory.dir('generated/kimiTextures/assets/kimi_network_plug/textures/block')
     outputs.dir(outDir)
@@ -77,70 +77,84 @@ var generateKimiTextures = tasks.register('generateKimiTextures') {
         dir.mkdirs()
         final int SIZE = 32
 
-        def clamp = { int v -> Math.max(0, Math.min(255, v)) }
+        def clamp = { int v -> v < 0 ? 0 : (v > 255 ? 255 : v) }
         def argb = { int r, int g, int b ->
             (255 << 24) | (clamp(r) << 16) | (clamp(g) << 8) | clamp(b)
         }
         def writeTexture = { String name, Closure<Integer> pixel ->
             def image = new java.awt.image.BufferedImage(SIZE, SIZE, java.awt.image.BufferedImage.TYPE_INT_ARGB)
             for (int y = 0; y < SIZE; y++) {
-                for (int x = 0; x < SIZE; x++) image.setRGB(x, y, pixel(x, y))
+                for (int x = 0; x < SIZE; x++) {
+                    image.setRGB(x, y, pixel(x, y))
+                }
             }
             javax.imageio.ImageIO.write(image, 'png', new File(dir, name + '.png'))
         }
 
+        // Layered graphite shell: bevels, panel seams and tiny hardware points.
         writeTexture('graphite_shell') { int x, int y ->
-            int noise = ((x * 19 + y * 37 + x * y * 3) % 7) - 3
-            int vertical = (14 - y).intdiv(6)
-            int edge = (x < 2 || y < 2) ? 6 : ((x > 29 || y > 29) ? -7 : 0)
-            int seam = (y == 8 || y == 23) ? -7 : 0
-            argb(43 + noise + vertical + edge + seam,
-                 48 + noise + vertical + edge + seam,
-                 56 + noise + vertical + edge + seam)
+            int grain = ((x * 17 + y * 29 + x * y * 5) % 7) - 3
+            int base = 48 + grain
+            if (x <= 1 || y <= 1) base += 11
+            if (x >= 30 || y >= 30) base -= 10
+            if (y == 8 || y == 23) base -= 8
+            if (x == 15 || x == 16) base -= 2
+            boolean screw = (x == 4 || x == 27) && (y == 4 || y == 27)
+            if (screw) base += 18
+            argb(base - 3, base + 1, base + 8)
         }
 
+        // Recessed front face with a double rim and subtle center panel.
         writeTexture('front_plate') { int x, int y ->
-            int noise = ((x * 11 + y * 23) % 5) - 2
-            boolean rim = x == 2 || y == 2 || x == 29 || y == 29
-            boolean inner = x == 6 || y == 6 || x == 25 || y == 25
-            int lift = rim ? 13 : (inner ? 4 : 0)
-            argb(24 + noise + lift, 29 + noise + lift, 35 + noise + lift)
+            int grain = ((x * 13 + y * 19) % 5) - 2
+            int base = 28 + grain
+            boolean outer = x == 2 || y == 2 || x == 29 || y == 29
+            boolean inner = x == 5 || y == 5 || x == 26 || y == 26
+            boolean center = x >= 8 && x <= 23 && y >= 8 && y <= 23
+            if (outer) base += 18
+            else if (inner) base += 7
+            else if (center) base -= 5
+            if ((x == 10 || x == 21) && y >= 13 && y <= 18) base += 5
+            argb(base, base + 4, base + 9)
         }
 
+        // Brushed alloy: horizontal micro-streaks, hard bevel and darker panel split.
         writeTexture('metal_brushed') { int x, int y ->
-            int streak = ((x * 7 + y * 3) % 9) - 4
-            int brush = (y % 4 == 0) ? 6 : 0
-            int bevel = (x < 2 || y < 2) ? 15 : ((x > 29 || y > 29) ? -12 : 0)
-            argb(119 + streak + brush + bevel,
-                 130 + streak + brush + bevel,
-                 142 + streak + brush + bevel)
+            int streak = ((x * 5 + y * 11) % 9) - 4
+            int base = 132 + streak
+            if (y % 4 == 0) base += 6
+            if (x <= 1 || y <= 1) base += 20
+            if (x >= 30 || y >= 30) base -= 18
+            if (y == 15 || y == 16) base -= 8
+            argb(base - 8, base, base + 10)
         }
 
         def glowTexture = { String name, int r, int g, int b ->
             writeTexture(name) { int x, int y ->
-                int dx = Math.abs(x - 15)
-                int dy = Math.abs(y - 15)
-                int falloff = Math.min(18, (dx + dy).intdiv(2))
-                int stripe = ((x + y) % 8 == 0) ? 14 : 0
-                int rim = (x < 2 || y < 2 || x > 29 || y > 29) ? -28 : 0
-                argb(r - falloff + stripe + rim,
-                     g - falloff + stripe + rim,
-                     b - falloff + stripe + rim)
+                int edge = (x <= 1 || y <= 1 || x >= 30 || y >= 30) ? -38 : 0
+                int pulse = ((x + y) % 7 == 0) ? 10 : 0
+                int center = (x >= 7 && x <= 24 && y >= 7 && y <= 24) ? 8 : 0
+                argb(r + edge + pulse + center,
+                     g + edge + pulse + center,
+                     b + edge + pulse + center)
             }
         }
-        glowTexture('status_green', 76, 226, 125)
-        glowTexture('status_orange', 255, 151, 42)
-        glowTexture('status_cyan', 55, 210, 225)
-        glowTexture('status_gray', 137, 146, 157)
+        glowTexture('status_green', 52, 184, 102)
+        glowTexture('status_orange', 224, 118, 28)
+        glowTexture('status_cyan', 38, 172, 194)
+        glowTexture('status_gray', 102, 111, 122)
 
+        // Shared inset tech surface for charger/chunk-loader top panels.
         writeTexture('tech_panel') { int x, int y ->
-            int noise = ((x * 13 + y * 17) % 5) - 2
-            boolean ring = (x == 4 || y == 4 || x == 27 || y == 27)
-            int edge = ring ? 9 : 0
-            int center = (x >= 9 && x <= 22 && y >= 9 && y <= 22) ? -4 : 0
-            argb(31 + noise + edge + center,
-                 37 + noise + edge + center,
-                 44 + noise + edge + center)
+            int grain = ((x * 23 + y * 7) % 5) - 2
+            int base = 34 + grain
+            boolean rim = x == 3 || y == 3 || x == 28 || y == 28
+            boolean inner = x == 7 || y == 7 || x == 24 || y == 24
+            if (rim) base += 12
+            if (inner) base += 5
+            if (x >= 10 && x <= 21 && y >= 10 && y <= 21) base -= 4
+            if ((x == 15 || x == 16) && y >= 11 && y <= 20) base += 4
+            argb(base - 2, base + 3, base + 9)
         }
     }
 }
