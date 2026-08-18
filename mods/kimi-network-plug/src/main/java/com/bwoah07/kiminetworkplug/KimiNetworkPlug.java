@@ -10,6 +10,7 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.MapColor;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
@@ -70,6 +71,7 @@ public final class KimiNetworkPlug {
         MENUS.register(modEventBus);
         modEventBus.addListener(this::addCreativeTabContents);
         modEventBus.addListener(this::registerCapabilities);
+        modEventBus.addListener(NetworkPlugNetworking::register);
     }
 
     private void registerCapabilities(RegisterCapabilitiesEvent event) {
@@ -78,6 +80,10 @@ public final class KimiNetworkPlug {
                 NETWORK_PLUG_BLOCK_ENTITY.get(),
                 (blockEntity, side) -> blockEntity.getEnergyCapability()
         );
+
+        if (ModList.get().isLoaded("computercraft")) {
+            KimiComputerCraftIntegration.registerCapabilities(event);
+        }
     }
 
     private void addCreativeTabContents(BuildCreativeModeTabContentsEvent event) {
