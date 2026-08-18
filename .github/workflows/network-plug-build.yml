@@ -9,6 +9,12 @@ on:
     paths:
       - 'mods/kimi-network-plug/**'
       - '.github/workflows/network-plug-build.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'mods/kimi-network-plug/**'
+      - '.github/workflows/network-plug-build.yml'
 
 jobs:
   build:
