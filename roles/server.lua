@@ -27,25 +27,62 @@ local function versionRank(v)
     return tonumber(major) * 1000000000 + tonumber(minor) * 1000000 + tonumber(patch) * 1000 + tonumber(alpha)
 end
 
+local function healthRank(value)
+    if type(value) ~= "table" then return 0 end
+    local status = tostring(value._status or value.status or ""):lower()
+    if value.online == true or status == "online" or status == "ok" or status == "running" then return 3 end
+    if status == "error" then return 1 end
+    if value.online == false or status == "offline" then return 0 end
+    return 2
+end
+
+local function betterTelemetry(candidate, current)
+    if not current then return true end
+    local ch, oh = healthRank(candidate.value), healthRank(current.value)
+    if ch ~= oh then return ch > oh end
+    return candidate.stamp > current.stamp
+end
+
 local function canonicalState(localState, sources, machines, updateInfo)
     local combined = copyTable(localState)
     local selected = {}
+
     for sourceId, source in pairs(sources or {}) do
-        for moduleId, value in pairs(source.state or {}) do
-            if type(value) == "table" then
-                local stamp = tonumber(value._updated) or tonumber(source.generated) or 0
-                local prev = selected[moduleId]
-                if not prev or stamp > prev.stamp then selected[moduleId] = { stamp = stamp, value = value, sourceId = sourceId } end
+        if source.online ~= false then
+            for moduleId, value in pairs(source.state or {}) do
+                if type(value) == "table" then
+                    local candidate = {
+                        stamp = tonumber(value._updated) or tonumber(source.generated) or 0,
+                        value = value,
+                        sourceId = sourceId
+                    }
+                    if betterTelemetry(candidate, selected[moduleId]) then
+                        selected[moduleId] = candidate
+                    end
+                end
             end
         end
     end
+
     for moduleId, picked in pairs(selected) do
-        local localStamp = type(combined[moduleId]) == "table" and tonumber(combined[moduleId]._updated) or 0
-        if not combined[moduleId] or picked.stamp > localStamp then
-            combined[moduleId] = picked.value
-            combined[moduleId]._source = picked.sourceId
+        local localValue = combined[moduleId]
+        local localCandidate = localValue and {
+            stamp = tonumber(localValue._updated) or 0,
+            value = localValue,
+            sourceId = "server"
+        } or nil
+
+        if not localCandidate or betterTelemetry(picked, localCandidate) then
+            local chosen = copyTable(picked.value)
+            chosen._source = picked.sourceId
+            combined[moduleId] = chosen
+        elseif type(localValue) == "table" then
+            local chosen = copyTable(localValue)
+            chosen._source = "server"
+            combined[moduleId] = chosen
         end
     end
+
     combined.sources = sources
     combined.fleet = machines
     combined.update = updateInfo
