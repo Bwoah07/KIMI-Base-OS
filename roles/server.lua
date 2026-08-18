@@ -21,6 +21,12 @@ local function copyTable(src)
     return out
 end
 
+local function versionRank(v)
+    local major, minor, patch, alpha = tostring(v or ""):match("^(%d+)%.(%d+)%.(%d+)%-alpha%.(%d+)$")
+    if not major then return nil end
+    return tonumber(major) * 1000000000 + tonumber(minor) * 1000000 + tonumber(patch) * 1000 + tonumber(alpha)
+end
+
 local function canonicalState(localState, sources, machines, updateInfo)
     local combined = copyTable(localState)
     local selected = {}
@@ -61,8 +67,6 @@ function M.run(cfg)
 
     local profile = nil
     if cfg.localUI then
-        -- Command-center servers always use the admin dashboard. This also migrates
-        -- older option-1 installs that still have profile="wall" preserved in config.
         profile = loadProfile("admin")
         if profile.init then profile.init(cfg) end
     end
@@ -77,9 +81,18 @@ function M.run(cfg)
     end
 
     local function env() return makeEnvelope(state, sources, machines, updateInfo) end
+
     local function renderLocal()
         if profile and profile.render then
             profile.render(env(), { connected = true, lastSeen = os.epoch("utc"), serverId = os.getComputerID(), localServer = true, startedAt = startedAt, machines = machines, sources = sources, update = updateInfo })
+        end
+    end
+
+    local function offerCatchup(sender, machine)
+        local serverVersion = updates.localVersion()
+        local sr, mr = versionRank(serverVersion), versionRank(machine and machine.version)
+        if sr and mr and mr < sr then
+            network.send(sender, cfg, "update.available", { version = serverVersion, issuedBy = os.getComputerID(), reason = "fleet-catchup" })
         end
     end
 
@@ -92,6 +105,7 @@ function M.run(cfg)
         m.profile = payload and payload.profile or m.profile
         m.version = payload and payload.version or m.version
         machines[sender] = m
+        offerCatchup(sender, m)
         return m
     end
 
