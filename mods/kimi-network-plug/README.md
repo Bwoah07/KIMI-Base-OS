@@ -1,93 +1,114 @@
 # KIMI PowerNet
 
-NeoForge 1.21.1 power networking, chunk loading, ComputerCraft/KIMI integration, and wireless player charging for FTB Evolution.
+NeoForge 1.21.1 power networking, chunk loading, CC:Tweaked/KIMI integration, and wireless player charging for FTB Evolution.
 
-## alpha.7
+## alpha.9
 
-Alpha.7 is the compact visual/UI pass requested after in-game alpha.6 testing.
+Alpha.9 is the visual-language and ComputerCraft pass agreed after alpha.8 in-game testing.
 
-### Blocks
+### Custom KIMI hardware textures
 
-- **Network Plug** — compact face-mounted cross-dimensional FE connector. It self-chunkloads.
-- **Chunk Loader** — standalone one-chunk loader for areas that do not need a power plug.
-- **KIMI Wireless Charger** — draws directly from a selected PowerNet network and wirelessly charges nearby player equipment. It does not need a Network Plug attached.
+The PowerNet family no longer depends on visible vanilla Minecraft block textures in the built JAR. The Gradle build generates a small dedicated KIMI texture set for graphite bodywork, dark graphite, metallic trim, panel surfaces, green/orange/gray status accents, and cyan infrastructure accents.
 
-### Compact tabbed UI
+This keeps the source repository text-only while the compiled mod still contains real PNG texture assets.
 
-The Network Plug screen is reduced from the large alpha.6 panel to a compact 196x174 card with three tabs:
+### Network Plug
 
-- **HOME** — mode, transfer limit, live FE/t, local buffer, chunkload state
-- **NETWORK** — one-click existing-network selector/dropdown, create-new-network controls, plug count, network buffer
-- **KIMI** — KIMI link state, local/network buffers, network in/out FE/t, coordinates
+The Network Plug remains a tiny face-mounted connector:
 
-The Wireless Charger uses the same compact visual language:
+- compact machine-face plate
+- very short neck
+- small floating head
+- custom graphite body and metallic trim
+- gray = disabled
+- green = input
+- orange = output
+- self chunk-loading
+- 8 GFE local buffer
+- 64 GFE/t maximum transfer
+- named-network dropdown/create system
 
-- **HOME** — network, range, rate, live draw, players in range
-- **TARGETS** — inventory, armor, offhand, Curios toggles
-- **STATS** — KIMI link, live draw, player count, network buffer/status
+### Wireless Charger
 
-The goal is a Flux-style compact machine-panel feel without copying Flux Networks pixel-for-pixel.
+The KIMI Wireless Charger is now a low floor pad instead of a machine-sized block:
 
-### Visual polish
+- roughly 12x12 pixel footprint
+- under 5 pixels tall
+- custom graphite/metal/cyan materials
+- non-full-cube collision and no occlusion
+- does not hide the floor block below it
+- draws directly from a selected KIMI PowerNet network
+- inventory, armor, offhand and Curios charging
+- 4–96 block configurable range
+- up to 8 GFE/t charge budget
 
-The Network Plug model is slimmer again: smaller machine-face plate, thinner connector neck, smaller floating head, thin colored status ring, and recessed front panel. Materials stay smooth and low-noise using dark concrete-like surfaces with light-gray trim and mode accent colors.
+### Chunk Loader
 
-The Wireless Charger is also no longer a plain full cube: it now renders as a shorter dark PowerNet node with a thin metallic/cyan top assembly.
+The standalone Chunk Loader is now a small low-profile floor puck:
 
-Mode accents:
+- roughly 10x10 pixel footprint
+- under 4 pixels tall
+- custom dark graphite/metal/cyan materials
+- non-full-cube collision and no occlusion
+- one chunk only
+- enable/disable state is persisted in KIMI chunk-loader saved data
 
-- Gray = `DISABLED`
-- Lime = `INPUT`
-- Orange = `OUTPUT`
+### Floating GUI
 
-### PowerNet backend retained from alpha.6
+The Network Plug and Wireless Charger interfaces now intentionally float over the live world rather than darkening the entire screen.
+
+The visual style is inspired by the density and clarity of Flux Networks without reusing its assets:
+
+- semi-transparent dark control card
+- clipped/rounded-looking corners drawn with GUI primitives
+- thin mode-colored border
+- compact tabs hovering above the panel
+- custom flat controls instead of large vanilla stone buttons
+- slim outlined text fields
+- human-readable FE/t and buffer values
+- General / Network / Stats / KIMI separation on the Network Plug
+- General / Targets / Stats separation on the Wireless Charger
+
+### PowerNet backend
 
 Per Network Plug:
 
 - minimum transfer: 100 kFE/t
 - default transfer: 512 MFE/t
 - maximum transfer: 64 GFE/t
-- local plug buffer: 8 GFE
+- local buffer: 8 GFE
 
 Per named network:
 
 - shared transit buffer: 64 GFE
 
-Named networks remain isolated from one another and `BASE_POWER` is created automatically. Existing networks are selectable from the dropdown in one click.
-
-### KIMI Wireless Charger
-
-The Wireless Charger is a native PowerNet device. It selects a named network and consumes FE directly from that network without requiring a physical Network Plug or cable.
-
-Defaults/limits:
-
-- default range: 32 blocks
-- adjustable range: 4–96 blocks
-- default charge rate: 512 MFE/t
-- maximum charge rate: 8 GFE/t
-
-Configurable targets:
-
-- normal inventory
-- armor
-- offhand
-- Curios slots when Curios is installed
+Named networks are isolated and `BASE_POWER` is created automatically.
 
 ### CC:Tweaked / KIMI Base OS
 
-Network Plugs expose the `kimi_network_plug` peripheral when CC:Tweaked is installed. One attached computer can inspect and control the server-wide PowerNet registry.
+All three PowerNet device types now expose CC:Tweaked peripherals when ComputerCraft is installed:
 
-KIMI Base OS includes `modules/powernet.lua` for telemetry and remote PowerNet control.
+- `kimi_network_plug`
+- `kimi_wireless_charger`
+- `kimi_chunk_loader`
 
-## Alpha.7 test path
+`kimi_network_plug` keeps the server-wide PowerNet API for listing networks/plugs and remotely changing plug mode, network, transfer limit, or disabling a network.
 
-1. Replace alpha.6 with alpha.7 and boot the pack.
-2. Open a Network Plug and confirm the GUI is substantially smaller and tabs switch cleanly.
-3. Open the NETWORK tab and verify the existing-network dropdown is one-click selectable with no overlap.
-4. Confirm the slimmer plug model and hand icon still look correct from multiple mounting directions.
-5. Test Energy Cube -> INPUT Plug -> named network -> OUTPUT Plug -> Energy Cube.
-6. Open the Wireless Charger and test its HOME/TARGETS/STATS tabs.
-7. Test normal inventory, armor, offhand and Curios wireless charging.
-8. Test cross-dimensional PowerNet and chunk loading.
-9. Test `peripheral.find("kimi_network_plug")` on a CC:Tweaked computer.
-10. Only after harmless loads pass, connect the turbine and Induction Matrix.
+`kimi_wireless_charger` exposes charger status plus network/range/rate/target control.
+
+`kimi_chunk_loader` exposes enabled state, dimension, chunk coordinates, block coordinates, and remote enable/disable.
+
+KIMI Base OS `modules/powernet.lua` now discovers all three peripheral types, publishes charger/chunk-loader telemetry, and routes remote charger/chunk-loader control commands as well as existing PowerNet commands.
+
+## Alpha.9 test path
+
+1. Replace alpha.8 with alpha.9 and boot FTB Evolution.
+2. Confirm Plug, Wireless Charger, and Chunk Loader use the new KIMI textures rather than vanilla block textures.
+3. Confirm the Wireless Charger and Chunk Loader are low-profile and do not visually remove the block underneath.
+4. Open a Network Plug and verify the floating panel leaves the world visible behind it and the top tabs use the custom flat style.
+5. Test the Network dropdown/create path and verify no overlapping controls at your normal GUI scale.
+6. Test Energy Cube -> INPUT Plug -> named network -> OUTPUT Plug -> Energy Cube at high transfer limits.
+7. Test Wireless Charger inventory/armor/offhand/Curios charging.
+8. Test cross-dimensional PowerNet and plug self chunk-loading.
+9. On CC:Tweaked, verify `peripheral.find("kimi_network_plug")`, `peripheral.find("kimi_wireless_charger")`, and `peripheral.find("kimi_chunk_loader")`.
+10. Verify KIMI OS PowerNet telemetry sees plugs, chargers and chunk loaders before connecting Reactor Mk II.
