@@ -55,8 +55,6 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
         int x = leftPos;
         int y = topPos;
 
-        // Tabs deliberately hover above the panel, matching the compact tech-card
-        // layout the user preferred from Flux Networks without copying its assets.
         generalTab = addRenderableWidget(new KimiUiButton(x + 10, y + 18, 30, 24, Component.literal("⌂"), true, b -> setTab(Tab.GENERAL)));
         networkTab = addRenderableWidget(new KimiUiButton(x + 44, y + 18, 30, 24, Component.literal("≡"), true, b -> setTab(Tab.NETWORK)));
         statsTab = addRenderableWidget(new KimiUiButton(x + 78, y + 18, 30, 24, Component.literal("▥"), true, b -> setTab(Tab.STATS)));
@@ -214,9 +212,7 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
 
         floatingPanel(g, x + 5, y + 46, 180, 163, accent);
 
-        if (dropdownOpen && (tab == Tab.GENERAL || tab == Tab.NETWORK)) {
-            return;
-        }
+        if (dropdownOpen && (tab == Tab.GENERAL || tab == Tab.NETWORK)) return;
 
         if (tab == Tab.GENERAL) {
             drawField(g, x + 16, y + 131, 94, 22, SILVER);
@@ -246,7 +242,6 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
         g.fill(x + 6, y, x + w - 6, y + h, PANEL);
         g.fill(x, y + 6, x + w, y + h - 6, PANEL);
         g.fill(x + 3, y + 3, x + w - 3, y + h - 3, PANEL_INNER);
-
         g.fill(x + 6, y, x + w - 6, y + 2, border);
         g.fill(x + 6, y + h - 2, x + w - 6, y + h, border);
         g.fill(x, y + 6, x + 2, y + h - 6, border);
@@ -267,7 +262,7 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
     }
 
     private static void drawToggle(GuiGraphics g, int x, int y, boolean enabled, int accent) {
-        int bg = enabled ? accent : 0xFF666C72;
+        int knob = enabled ? accent : 0xFF666C72;
         g.fill(x + 2, y, x + 23, y + 10, 0xD0161A1E);
         g.fill(x, y + 2, x + 25, y + 8, 0xD0161A1E);
         g.fill(x + 2, y, x + 23, y + 1, 0xFFA8AEB4);
@@ -275,7 +270,7 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
         g.fill(x, y + 2, x + 1, y + 8, 0xFFA8AEB4);
         g.fill(x + 24, y + 2, x + 25, y + 8, 0xFFA8AEB4);
         int knobX = enabled ? x + 15 : x + 2;
-        g.fill(knobX, y + 2, knobX + 8, y + 8, bg);
+        g.fill(knobX, y + 2, knobX + 8, y + 8, knob);
     }
 
     private static void drawBar(GuiGraphics g, int x, int y, int w, int h, double fraction, int color) {
@@ -288,8 +283,6 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
     @Override
     protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
         int accent = modeColor();
-
-        // Like Flux's screens, the page title lives above the floating tab row.
         String pageTitle = switch (tab) {
             case GENERAL -> "Power Plug";
             case NETWORK -> "Network Selection";
@@ -297,18 +290,13 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
             case KIMI -> "KIMI / ComputerCraft";
         };
         g.drawString(font, pageTitle, 8, 3, TEXT, false);
-
         g.drawString(font, "KIMI POWER PLUG", 16, 53, TEXT, false);
         g.drawString(font, "•", 166, 53, accent, false);
 
-        if (dropdownOpen && (tab == Tab.GENERAL || tab == Tab.NETWORK)) {
-            g.drawString(font, "SELECT NETWORK", 16, 86, MUTED, false);
-            return;
-        }
+        if (dropdownOpen && (tab == Tab.GENERAL || tab == Tab.NETWORK)) return;
 
         if (tab == Tab.GENERAL) {
-            g.drawString(font, "NETWORK", 16, 85, MUTED, false);
-            g.drawString(font, "MODE", 16, 86, 0x00000000, false); // spacing placeholder; widgets own this row
+            g.drawString(font, "MODE", 16, 86, MUTED, false);
             g.drawString(font, "TRANSFER LIMIT", 16, 117, MUTED, false);
             g.drawString(font, formatFe(menu.getTransferLimit()) + " FE/t", 98, 117, TEXT, false);
             g.drawString(font, "LIVE", 16, 158, MUTED, false);
@@ -317,7 +305,6 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
             g.drawString(font, formatFe(menu.getLocalEnergy()) + " / " + formatFe(NetworkPlugBlockEntity.LOCAL_BUFFER_CAPACITY), 62, 171, TEXT, false);
             g.drawString(font, "CHUNK LOADING", 16, 193, MUTED, false);
         } else if (tab == Tab.NETWORK) {
-            g.drawString(font, "SELECT NETWORK", 16, 86, MUTED, false);
             g.drawString(font, "CREATE NETWORK", 16, 96, MUTED, false);
             g.drawString(font, "PLUGS", 16, 137, MUTED, false);
             g.drawString(font, Integer.toString(menu.getPlugCount()), 164, 137, TEXT, false);
@@ -340,7 +327,8 @@ public final class NetworkPlugScreen extends AbstractContainerScreen<NetworkPlug
             g.drawString(font, "SERVER-WIDE REGISTRY", 16, 129, MUTED, false);
             g.drawString(font, "NETWORK", 16, 153, MUTED, false);
             g.drawString(font, menu.getNetworkName(), 74, 153, CYAN, false);
-            g.drawString(font, "One attached plug can list/control all registered plugs.", 16, 181, MUTED, false);
+            g.drawString(font, "ONE PLUG = FULL POWERNET", 16, 178, TEXT, false);
+            g.drawString(font, "LIST + CONTROL ALL REGISTERED PLUGS", 16, 191, MUTED, false);
         }
     }
 
