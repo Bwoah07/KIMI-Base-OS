@@ -16,14 +16,11 @@ public final class ChunkLoadingSavedData extends SavedData {
 
     private final Set<Long> loaderPositions = new HashSet<>();
 
-    public ChunkLoadingSavedData() {
-    }
+    public ChunkLoadingSavedData() {}
 
     private static ChunkLoadingSavedData load(CompoundTag tag, HolderLookup.Provider registries) {
         ChunkLoadingSavedData data = new ChunkLoadingSavedData();
-        for (long value : tag.getLongArray("Loaders")) {
-            data.loaderPositions.add(value);
-        }
+        for (long value : tag.getLongArray("Loaders")) data.loaderPositions.add(value);
         return data;
     }
 
@@ -40,28 +37,22 @@ public final class ChunkLoadingSavedData extends SavedData {
         return level.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
     }
 
+    public static boolean isRegistered(ServerLevel level, BlockPos pos) {
+        return get(level).loaderPositions.contains(pos.asLong());
+    }
+
     public static void register(ServerLevel level, BlockPos pos) {
         ChunkLoadingSavedData data = get(level);
-        if (data.loaderPositions.add(pos.asLong())) {
-            data.setDirty();
-        }
-
-        int chunkX = pos.getX() >> 4;
-        int chunkZ = pos.getZ() >> 4;
-        level.setChunkForced(chunkX, chunkZ, true);
+        if (data.loaderPositions.add(pos.asLong())) data.setDirty();
+        level.setChunkForced(pos.getX() >> 4, pos.getZ() >> 4, true);
     }
 
     public static void unregister(ServerLevel level, BlockPos pos) {
         ChunkLoadingSavedData data = get(level);
-        if (data.loaderPositions.remove(pos.asLong())) {
-            data.setDirty();
-        }
-
+        if (data.loaderPositions.remove(pos.asLong())) data.setDirty();
         int chunkX = pos.getX() >> 4;
         int chunkZ = pos.getZ() >> 4;
-        if (!data.hasLoaderInChunk(chunkX, chunkZ)) {
-            level.setChunkForced(chunkX, chunkZ, false);
-        }
+        if (!data.hasLoaderInChunk(chunkX, chunkZ)) level.setChunkForced(chunkX, chunkZ, false);
     }
 
     private boolean hasLoaderInChunk(int chunkX, int chunkZ) {
