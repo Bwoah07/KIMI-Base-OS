@@ -17,12 +17,18 @@ repositories {
         url = "https://maven.squiddev.cc"
         content { includeGroup("cc.tweaked") }
     }
+    maven {
+        name = "Curios"
+        url = uri("https://maven.theillusivec4.top/")
+        content { includeGroup("top.theillusivec4.curios") }
+    }
 }
 
 dependencies {
     compileOnly("cc.tweaked:cc-tweaked-1.21.1-common-api:1.120.2")
     compileOnly("cc.tweaked:cc-tweaked-1.21.1-core-api:1.120.2")
     compileOnly("cc.tweaked:cc-tweaked-1.21.1-forge-api:1.120.2")
+    compileOnly("top.theillusivec4.curios:curios-neoforge:9.5.1+1.21.1:api")
 }
 
 neoForge {
