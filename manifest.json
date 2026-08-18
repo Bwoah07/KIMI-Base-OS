@@ -1,7 +1,7 @@
 {
-  "version": "5.0.0-alpha.17",
+  "version": "5.0.0-alpha.18",
   "channel": "alpha",
-  "ref": "8e1ce4b020a08b44f4c6797ba1a9dccaddb265ae",
+  "ref": "554a733296ca890d1cc49bf2e64a4a229f89be24",
   "entrypoint": "kimi.lua",
   "managed": [
     "startup.lua",
@@ -21,7 +21,9 @@
     "clients/admin.lua",
     "clients/wall.lua",
     "modules/environment.lua",
-    "modules/system.lua"
+    "modules/system.lua",
+    "modules/ae2.lua",
+    "modules/power.lua"
   ],
   "remove": [
     "server.lua",
