@@ -86,6 +86,29 @@ function M.run(cfg)
                         sleep((os.getComputerID() % 4) + 1)
                         updates.rebootForUpdate(target, "server-announcement")
                     end
+                elseif sender == serverId and msg.kind == "powernet.command" and type(msg.payload) == "table" then
+                    local mod = modules.powernet
+                    local requestId = msg.payload.requestId
+                    local action = tostring(msg.payload.action or "")
+                    local args = type(msg.payload.args) == "table" and msg.payload.args or {}
+                    local ok, result, detail
+                    if mod and type(mod.command) == "function" then
+                        local callOk, a, b = pcall(mod.command, action, args)
+                        ok = callOk and a ~= false
+                        result = a
+                        detail = b
+                    else
+                        ok = false
+                        detail = "powernet module unavailable"
+                    end
+                    network.send(serverId, cfg, "powernet.response", {
+                        requestId = requestId,
+                        nodeId = os.getComputerID(),
+                        action = action,
+                        ok = ok,
+                        result = result,
+                        detail = detail
+                    })
                 elseif sender == serverId and msg.kind == "ping" then
                     network.send(serverId, cfg, "pong", {
                         role = "node",
