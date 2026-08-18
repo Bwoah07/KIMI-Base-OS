@@ -13,6 +13,16 @@ base {
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 repositories {
+    maven {
+        url = "https://maven.squiddev.cc"
+        content { includeGroup("cc.tweaked") }
+    }
+}
+
+dependencies {
+    compileOnly("cc.tweaked:cc-tweaked-1.21.1-common-api:1.120.2")
+    compileOnly("cc.tweaked:cc-tweaked-1.21.1-core-api:1.120.2")
+    compileOnly("cc.tweaked:cc-tweaked-1.21.1-forge-api:1.120.2")
 }
 
 neoForge {
