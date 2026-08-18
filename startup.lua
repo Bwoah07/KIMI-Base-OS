@@ -1,8 +1,9 @@
--- KIMI Base OS immutable recovery bootloader
--- Intentionally kept outside normal OS updates.
+-- KIMI Base OS recovery bootloader
 local ROOT = ".kimi"
 local PENDING = ROOT .. "/update_pending"
+local REQUESTED = ROOT .. "/update_requested"
 local BACKUP = ROOT .. "/rollback"
+local CONFIG = ROOT .. "/config"
 local UPDATER_URL = "https://raw.githubusercontent.com/Bwoah07/KIMI-Base-OS/main/updater.lua"
 
 local function readFile(path)
@@ -21,6 +22,12 @@ end
 local function readPending()
     local raw = readFile(PENDING)
     return raw and textutils.unserialize(raw) or nil
+end
+
+local function readRole()
+    local raw = readFile(CONFIG)
+    local cfg = raw and textutils.unserialize(raw) or nil
+    return type(cfg) == "table" and cfg.role or "client"
 end
 
 local function refreshUpdater()
@@ -59,11 +66,11 @@ local function directRollback()
     local oldManifest = readFile(BACKUP .. "/installed_manifest.json")
     if oldManifest then writeFile(ROOT .. "/installed_manifest.json", oldManifest) end
     if fs.exists(PENDING) then fs.delete(PENDING) end
-    if fs.exists(ROOT .. "/update_requested") then fs.delete(ROOT .. "/update_requested") end
+    if fs.exists(REQUESTED) then fs.delete(REQUESTED) end
     return true
 end
 
-local function tryAutoUpdate()
+local function tryUpdate()
     pcall(refreshUpdater)
     if not fs.exists("updater.lua") then return end
     local ok, result = pcall(function() return shell.run("updater", "auto") end)
@@ -75,7 +82,13 @@ local function tryAutoUpdate()
 end
 
 if not fs.exists(ROOT) then fs.makeDir(ROOT) end
-tryAutoUpdate()
+
+-- Only servers independently check GitHub. Clients/nodes touch GitHub only after
+-- the server has explicitly requested a fleet update and rebooted them.
+local role = readRole()
+if role == "server" or fs.exists(REQUESTED) then
+    tryUpdate()
+end
 
 while true do
     term.setBackgroundColor(colors.black)
