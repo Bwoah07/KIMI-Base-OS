@@ -1,28 +1,28 @@
 {
   "ambientocclusion": false,
   "textures": {
-    "body": "minecraft:block/gray_concrete",
-    "trim": "minecraft:block/iron_block",
-    "accent": "minecraft:block/cyan_concrete",
-    "panel": "minecraft:block/light_gray_concrete",
-    "particle": "minecraft:block/gray_concrete"
+    "body": "kimi_network_plug:block/graphite",
+    "trim": "kimi_network_plug:block/metal",
+    "accent": "kimi_network_plug:block/status_cyan",
+    "panel": "kimi_network_plug:block/panel",
+    "particle": "kimi_network_plug:block/graphite"
   },
   "elements": [
     {
       "from": [2, 0, 2],
-      "to": [14, 9, 14],
+      "to": [14, 3, 14],
       "faces": {
         "north": { "texture": "#body" },
         "south": { "texture": "#body" },
         "east": { "texture": "#body" },
         "west": { "texture": "#body" },
         "up": { "texture": "#body" },
-        "down": { "texture": "#body", "cullface": "down" }
+        "down": { "texture": "#body" }
       }
     },
     {
-      "from": [1.5, 9, 1.5],
-      "to": [14.5, 10.5, 14.5],
+      "from": [2.5, 3, 2.5],
+      "to": [13.5, 4, 13.5],
       "faces": {
         "north": { "texture": "#trim" },
         "south": { "texture": "#trim" },
@@ -33,8 +33,8 @@
       }
     },
     {
-      "from": [3, 10.5, 3],
-      "to": [13, 12, 13],
+      "from": [4, 4, 4],
+      "to": [12, 4.75, 12],
       "faces": {
         "north": { "texture": "#accent" },
         "south": { "texture": "#accent" },
