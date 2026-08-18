@@ -20,11 +20,15 @@ public final class NetworkPlugMenu extends AbstractContainerMenu {
             2_000_000_000
     };
 
+    private static final int DATA_COUNT = 14;
+    private static final int NETWORK_NAME_START = 8;
+    private static final int NETWORK_NAME_INTS = 6;
+
     private final NetworkPlugBlockEntity blockEntity;
     private final ContainerData data;
 
     public NetworkPlugMenu(int containerId, Inventory inventory) {
-        this(containerId, inventory, null, new SimpleContainerData(4));
+        this(containerId, inventory, null, new SimpleContainerData(DATA_COUNT));
     }
 
     public NetworkPlugMenu(int containerId, Inventory inventory, NetworkPlugBlockEntity blockEntity) {
@@ -35,7 +39,7 @@ public final class NetworkPlugMenu extends AbstractContainerMenu {
         super(KimiNetworkPlug.NETWORK_PLUG_MENU.get(), containerId);
         this.blockEntity = blockEntity;
         this.data = data;
-        checkContainerDataCount(data, 4);
+        checkContainerDataCount(data, DATA_COUNT);
         addDataSlots(data);
     }
 
@@ -43,16 +47,28 @@ public final class NetworkPlugMenu extends AbstractContainerMenu {
         return new ContainerData() {
             @Override
             public int get(int index) {
+                if (blockEntity == null) return 0;
+
+                long gameTime = blockEntity.getLevel() == null ? 0L : blockEntity.getLevel().getGameTime();
+                PowerNetworkSavedData network = blockEntity.getLevel() instanceof net.minecraft.server.level.ServerLevel serverLevel
+                        ? PowerNetworkSavedData.get(serverLevel)
+                        : null;
+
                 return switch (index) {
-                    case 0 -> blockEntity.getBlockState().getValue(NetworkPlugBlock.MODE).ordinal();
+                    case 0 -> blockEntity.getMode().ordinal();
                     case 1 -> blockEntity.getTransferLimit();
                     case 2 -> (int) Math.min(Integer.MAX_VALUE, blockEntity.getLastTransfer());
-                    case 3 -> {
-                        if (!(blockEntity.getLevel() instanceof net.minecraft.server.level.ServerLevel serverLevel)) yield 0;
-                        PowerNetworkSavedData network = PowerNetworkSavedData.get(serverLevel);
-                        yield (int) Math.round((network.getEnergy() * 1000.0) / PowerNetworkSavedData.CAPACITY);
+                    case 3 -> network == null ? 0 : (int) Math.min(Integer.MAX_VALUE, network.getEnergy(blockEntity.getNetworkName()));
+                    case 4 -> (int) Math.min(Integer.MAX_VALUE, blockEntity.getLocalEnergy());
+                    case 5 -> network == null ? 0 : (int) Math.min(Integer.MAX_VALUE, network.getInputRate(blockEntity.getNetworkName(), gameTime));
+                    case 6 -> network == null ? 0 : (int) Math.min(Integer.MAX_VALUE, network.getOutputRate(blockEntity.getNetworkName(), gameTime));
+                    case 7 -> network == null ? 0 : network.getPlugCount(blockEntity.getNetworkName());
+                    default -> {
+                        if (index >= NETWORK_NAME_START && index < NETWORK_NAME_START + NETWORK_NAME_INTS) {
+                            yield packNetworkName(blockEntity.getNetworkName(), index - NETWORK_NAME_START);
+                        }
+                        yield 0;
                     }
-                    default -> 0;
                 };
             }
 
@@ -62,9 +78,21 @@ public final class NetworkPlugMenu extends AbstractContainerMenu {
 
             @Override
             public int getCount() {
-                return 4;
+                return DATA_COUNT;
             }
         };
+    }
+
+    private static int packNetworkName(String name, int slot) {
+        String normalized = PowerNetworkSavedData.normalizeNetworkName(name);
+        int start = slot * 4;
+        int packed = 0;
+        for (int i = 0; i < 4; i++) {
+            int charIndex = start + i;
+            if (charIndex >= normalized.length()) break;
+            packed |= (normalized.charAt(charIndex) & 0xFF) << (i * 8);
+        }
+        return packed;
     }
 
     public PlugMode getMode() {
@@ -80,8 +108,41 @@ public final class NetworkPlugMenu extends AbstractContainerMenu {
         return data.get(2);
     }
 
-    public int getNetworkPermille() {
+    public int getNetworkEnergy() {
         return data.get(3);
+    }
+
+    public int getLocalEnergy() {
+        return data.get(4);
+    }
+
+    public int getNetworkInput() {
+        return data.get(5);
+    }
+
+    public int getNetworkOutput() {
+        return data.get(6);
+    }
+
+    public int getPlugCount() {
+        return data.get(7);
+    }
+
+    public String getNetworkName() {
+        StringBuilder out = new StringBuilder();
+        for (int slot = 0; slot < NETWORK_NAME_INTS; slot++) {
+            int packed = data.get(NETWORK_NAME_START + slot);
+            for (int i = 0; i < 4; i++) {
+                int value = (packed >>> (i * 8)) & 0xFF;
+                if (value == 0) return out.length() == 0 ? PowerNetworkSavedData.DEFAULT_NETWORK : out.toString();
+                out.append((char) value);
+            }
+        }
+        return out.length() == 0 ? PowerNetworkSavedData.DEFAULT_NETWORK : out.toString();
+    }
+
+    public NetworkPlugBlockEntity getBlockEntity() {
+        return blockEntity;
     }
 
     @Override
@@ -105,6 +166,11 @@ public final class NetworkPlugMenu extends AbstractContainerMenu {
             index += id == 10 ? -1 : 1;
             index = Math.max(0, Math.min(LIMIT_PRESETS.length - 1, index));
             blockEntity.setTransferLimit(LIMIT_PRESETS[index]);
+            return true;
+        }
+
+        if (id == 20 || id == 21) {
+            blockEntity.cycleNetwork(id == 20 ? -1 : 1);
             return true;
         }
 
