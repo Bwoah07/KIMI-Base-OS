@@ -8,10 +8,16 @@ import net.minecraft.world.inventory.ContainerData;
 import net.minecraft.world.inventory.SimpleContainerData;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public final class WirelessChargerMenu extends AbstractContainerMenu {
-    private static final int NAME_START = 15;
+    public static final int MAX_VISIBLE_NETWORKS = 32;
     private static final int NAME_INTS = 6;
-    private static final int DATA_COUNT = 21;
+    private static final int CURRENT_NAME_START = 15;
+    private static final int NETWORK_COUNT_INDEX = CURRENT_NAME_START + NAME_INTS;
+    private static final int NETWORK_LIST_START = NETWORK_COUNT_INDEX + 1;
+    private static final int DATA_COUNT = NETWORK_LIST_START + (MAX_VISIBLE_NETWORKS * NAME_INTS);
 
     private final WirelessChargerBlockEntity blockEntity;
     private final ContainerData data;
@@ -36,26 +42,41 @@ public final class WirelessChargerMenu extends AbstractContainerMenu {
         return new ContainerData() {
             @Override public int get(int index) {
                 if (charger == null) return 0;
-                long networkEnergy = charger.getLevel() instanceof net.minecraft.server.level.ServerLevel serverLevel
-                        ? PowerNetworkSavedData.get(serverLevel).getEnergy(charger.getNetworkName()) : 0L;
-                return switch (index) {
-                    case 0 -> charger.getRange();
-                    case 1 -> low(charger.getChargeRate());
-                    case 2 -> high(charger.getChargeRate());
-                    case 3 -> low(charger.getLastDraw());
-                    case 4 -> high(charger.getLastDraw());
-                    case 5 -> charger.getLastPlayers();
-                    case 6 -> charger.chargesInventory() ? 1 : 0;
-                    case 7 -> charger.chargesArmor() ? 1 : 0;
-                    case 8 -> charger.chargesOffhand() ? 1 : 0;
-                    case 9 -> charger.chargesCurios() ? 1 : 0;
-                    case 10 -> low(networkEnergy);
-                    case 11 -> high(networkEnergy);
-                    case 12 -> charger.getBlockPos().getX();
-                    case 13 -> charger.getBlockPos().getY();
-                    case 14 -> charger.getBlockPos().getZ();
-                    default -> index >= NAME_START && index < NAME_START + NAME_INTS ? packName(charger.getNetworkName(), index - NAME_START) : 0;
-                };
+                PowerNetworkSavedData network = charger.getLevel() instanceof net.minecraft.server.level.ServerLevel serverLevel
+                        ? PowerNetworkSavedData.get(serverLevel) : null;
+                long networkEnergy = network == null ? 0L : network.getEnergy(charger.getNetworkName());
+
+                if (index == 0) return charger.getRange();
+                if (index == 1) return low(charger.getChargeRate());
+                if (index == 2) return high(charger.getChargeRate());
+                if (index == 3) return low(charger.getLastDraw());
+                if (index == 4) return high(charger.getLastDraw());
+                if (index == 5) return charger.getLastPlayers();
+                if (index == 6) return charger.chargesInventory() ? 1 : 0;
+                if (index == 7) return charger.chargesArmor() ? 1 : 0;
+                if (index == 8) return charger.chargesOffhand() ? 1 : 0;
+                if (index == 9) return charger.chargesCurios() ? 1 : 0;
+                if (index == 10) return low(networkEnergy);
+                if (index == 11) return high(networkEnergy);
+                if (index == 12) return charger.getBlockPos().getX();
+                if (index == 13) return charger.getBlockPos().getY();
+                if (index == 14) return charger.getBlockPos().getZ();
+                if (index >= CURRENT_NAME_START && index < CURRENT_NAME_START + NAME_INTS) {
+                    return packName(charger.getNetworkName(), index - CURRENT_NAME_START);
+                }
+                if (index == NETWORK_COUNT_INDEX) {
+                    return network == null ? 0 : Math.min(MAX_VISIBLE_NETWORKS, network.getNetworkNames().size());
+                }
+                if (index >= NETWORK_LIST_START) {
+                    if (network == null) return 0;
+                    int relative = index - NETWORK_LIST_START;
+                    int networkIndex = relative / NAME_INTS;
+                    int nameSlot = relative % NAME_INTS;
+                    List<String> names = network.getNetworkNames();
+                    if (networkIndex >= names.size() || networkIndex >= MAX_VISIBLE_NETWORKS) return 0;
+                    return packName(names.get(networkIndex), nameSlot);
+                }
+                return 0;
             }
             @Override public void set(int index, int value) {}
             @Override public int getCount() { return DATA_COUNT; }
@@ -78,17 +99,17 @@ public final class WirelessChargerMenu extends AbstractContainerMenu {
         return packed;
     }
 
-    private String unpackName() {
+    private String unpackName(int start) {
         StringBuilder out = new StringBuilder();
         for (int slot = 0; slot < NAME_INTS; slot++) {
-            int packed = data.get(NAME_START + slot);
+            int packed = data.get(start + slot);
             for (int i = 0; i < 4; i++) {
                 int value = (packed >>> (i * 8)) & 0xFF;
                 if (value == 0) return out.length() == 0 ? PowerNetworkSavedData.DEFAULT_NETWORK : out.toString();
                 out.append((char) value);
             }
         }
-        return out.toString();
+        return out.length() == 0 ? PowerNetworkSavedData.DEFAULT_NETWORK : out.toString();
     }
 
     public int getRange() { return data.get(0); }
@@ -100,8 +121,15 @@ public final class WirelessChargerMenu extends AbstractContainerMenu {
     public boolean offhand() { return data.get(8) != 0; }
     public boolean curios() { return data.get(9) != 0; }
     public long getNetworkEnergy() { return readLong(10); }
-    public String getNetworkName() { return unpackName(); }
+    public String getNetworkName() { return unpackName(CURRENT_NAME_START); }
     public BlockPos getBlockPos() { return new BlockPos(data.get(12), data.get(13), data.get(14)); }
+
+    public List<String> getNetworkNames() {
+        int count = Math.max(0, Math.min(MAX_VISIBLE_NETWORKS, data.get(NETWORK_COUNT_INDEX)));
+        List<String> out = new ArrayList<>();
+        for (int i = 0; i < count; i++) out.add(unpackName(NETWORK_LIST_START + i * NAME_INTS));
+        return out;
+    }
 
     @Override public ItemStack quickMoveStack(Player player, int index) { return ItemStack.EMPTY; }
 
