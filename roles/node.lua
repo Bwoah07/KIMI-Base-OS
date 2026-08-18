@@ -9,6 +9,16 @@ local function countTable(t)
     return n
 end
 
+local function hasUnhealthyState(state)
+    for _, value in pairs(state or {}) do
+        if type(value) == "table" then
+            local s = tostring(value._status or value.status or ""):lower()
+            if s == "offline" or s == "error" or s == "disconnected" then return true end
+        end
+    end
+    return false
+end
+
 function M.run(cfg)
     network.openAll()
     local modules = loader.discover("modules")
@@ -33,8 +43,13 @@ function M.run(cfg)
             state = loader.readAll(modules, state)
 
             local now = os.epoch("utc")
-            if now - lastModuleScan >= 10000 then
+            -- A Mekanism multiblock can temporarily invalidate its peripheral without
+            -- producing a useful attach/detach event. While anything is unhealthy,
+            -- actively re-open the network and rediscover modules every publish cycle.
+            if hasUnhealthyState(state) or now - lastModuleScan >= 10000 then
+                network.openAll()
                 modules = loader.discover("modules")
+                state = loader.readAll(modules, state)
                 lastModuleScan = now
             end
 
@@ -85,6 +100,7 @@ function M.run(cfg)
             serverId = network.findServer(cfg)
             modules = loader.discover("modules")
             state = loader.readAll(modules, state)
+            lastModuleScan = os.epoch("utc")
         end
     end
 end
