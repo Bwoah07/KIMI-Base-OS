@@ -66,8 +66,45 @@ var generateModMetadata = tasks.register('generateModMetadata', ProcessResources
     into 'build/generated/sources/modMetadata'
 }
 
+var generateKimiTextures = tasks.register('generateKimiTextures') {
+    def outDir = layout.buildDirectory.dir('generated/kimiTextures/assets/kimi_network_plug/textures/block')
+    outputs.dir(outDir)
+    doLast {
+        def dir = outDir.get().asFile
+        dir.mkdirs()
+        def makeTexture = { String name, int r, int g, int b, int accentR, int accentG, int accentB ->
+            def image = new java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+            for (int y = 0; y < 16; y++) {
+                for (int x = 0; x < 16; x++) {
+                    int edge = (x == 0 || y == 0 || x == 15 || y == 15) ? 10 : 0
+                    int band = ((x + y) % 7 == 0) ? 4 : 0
+                    int rr = Math.max(0, Math.min(255, r + edge + band))
+                    int gg = Math.max(0, Math.min(255, g + edge + band))
+                    int bb = Math.max(0, Math.min(255, b + edge + band))
+                    if ((x == 2 || x == 13) && y >= 3 && y <= 12) {
+                        rr = accentR; gg = accentG; bb = accentB
+                    }
+                    image.setRGB(x, y, (255 << 24) | (rr << 16) | (gg << 8) | bb)
+                }
+            }
+            javax.imageio.ImageIO.write(image, 'png', new File(dir, name + '.png'))
+        }
+        makeTexture('graphite', 52, 56, 62, 74, 80, 88)
+        makeTexture('graphite_dark', 31, 34, 39, 48, 52, 58)
+        makeTexture('metal', 122, 130, 139, 166, 174, 184)
+        makeTexture('status_green', 35, 104, 62, 82, 226, 126)
+        makeTexture('status_orange', 122, 70, 20, 255, 155, 46)
+        makeTexture('status_gray', 75, 80, 86, 138, 145, 154)
+        makeTexture('status_cyan', 20, 94, 106, 44, 213, 229)
+        makeTexture('panel', 57, 62, 68, 92, 99, 108)
+    }
+}
+
 sourceSets.main.resources.srcDir generateModMetadata
+sourceSets.main.resources.srcDir layout.buildDirectory.dir('generated/kimiTextures')
+processResources.dependsOn generateKimiTextures
 neoForge.ideSyncTask generateModMetadata
+neoForge.ideSyncTask generateKimiTextures
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
