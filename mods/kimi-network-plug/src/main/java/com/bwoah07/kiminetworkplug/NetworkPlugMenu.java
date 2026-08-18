@@ -16,7 +16,13 @@ public final class NetworkPlugMenu extends AbstractContainerMenu {
     private static final int NAME_INTS = 6;
     private static final int CURRENT_NAME_START = 18;
     private static final int NETWORK_LIST_START = 24;
-    private static final int DATA_COUNT = NETWORK_LIST_START + (MAX_VISIBLE_NETWORKS * NAME_INTS);
+    private static final int NETWORK_LIST_END = NETWORK_LIST_START + (MAX_VISIBLE_NETWORKS * NAME_INTS);
+    private static final int ATTACHED_TRANSFER_START = NETWORK_LIST_END;
+    private static final int NETWORK_TRANSFER_START = ATTACHED_TRANSFER_START + 2;
+    private static final int BOTTLENECK_INDEX = NETWORK_TRANSFER_START + 2;
+    private static final int ATTACHED_NAME_START = BOTTLENECK_INDEX + 1;
+    private static final int ATTACHED_NAME_INTS = 8;
+    private static final int DATA_COUNT = ATTACHED_NAME_START + ATTACHED_NAME_INTS;
 
     private static final long[] LIMIT_PRESETS = {
             1_000_000L,
@@ -80,16 +86,24 @@ public final class NetworkPlugMenu extends AbstractContainerMenu {
                 if (index == 16) return blockEntity.getBlockPos().getZ();
                 if (index == 17) return network == null ? 0 : Math.min(MAX_VISIBLE_NETWORKS, network.getNetworkNames().size());
                 if (index >= CURRENT_NAME_START && index < CURRENT_NAME_START + NAME_INTS) {
-                    return packName(blockEntity.getNetworkName(), index - CURRENT_NAME_START);
+                    return packNetworkName(blockEntity.getNetworkName(), index - CURRENT_NAME_START);
                 }
-                if (index >= NETWORK_LIST_START) {
+                if (index >= NETWORK_LIST_START && index < NETWORK_LIST_END) {
                     int relative = index - NETWORK_LIST_START;
                     int networkIndex = relative / NAME_INTS;
                     int nameSlot = relative % NAME_INTS;
                     if (network == null) return 0;
                     List<String> names = network.getNetworkNames();
                     if (networkIndex >= names.size() || networkIndex >= MAX_VISIBLE_NETWORKS) return 0;
-                    return packName(names.get(networkIndex), nameSlot);
+                    return packNetworkName(names.get(networkIndex), nameSlot);
+                }
+                if (index == ATTACHED_TRANSFER_START) return low(blockEntity.getLastAttachedTransfer());
+                if (index == ATTACHED_TRANSFER_START + 1) return high(blockEntity.getLastAttachedTransfer());
+                if (index == NETWORK_TRANSFER_START) return low(blockEntity.getLastNetworkTransfer());
+                if (index == NETWORK_TRANSFER_START + 1) return high(blockEntity.getLastNetworkTransfer());
+                if (index == BOTTLENECK_INDEX) return blockEntity.getBottleneck().ordinal();
+                if (index >= ATTACHED_NAME_START && index < ATTACHED_NAME_START + ATTACHED_NAME_INTS) {
+                    return packText(blockEntity.getAttachedBlockName(), index - ATTACHED_NAME_START);
                 }
                 return 0;
             }
@@ -102,32 +116,42 @@ public final class NetworkPlugMenu extends AbstractContainerMenu {
     private static int low(long value) { return (int) (value & 0xFFFFFFFFL); }
     private static int high(long value) { return (int) ((value >>> 32) & 0xFFFFFFFFL); }
     private long readLong(int lowIndex) {
-        return (Integer.toUnsignedLong(data.get(lowIndex)) | (Integer.toUnsignedLong(data.get(lowIndex + 1)) << 32));
+        return Integer.toUnsignedLong(data.get(lowIndex)) | (Integer.toUnsignedLong(data.get(lowIndex + 1)) << 32);
     }
 
-    private static int packName(String name, int slot) {
-        String normalized = PowerNetworkSavedData.normalizeNetworkName(name);
+    private static int packNetworkName(String name, int slot) {
+        return packText(PowerNetworkSavedData.normalizeNetworkName(name), slot);
+    }
+
+    private static int packText(String value, int slot) {
+        String text = value == null ? "" : value;
         int start = slot * 4;
         int packed = 0;
         for (int i = 0; i < 4; i++) {
             int charIndex = start + i;
-            if (charIndex >= normalized.length()) break;
-            packed |= (normalized.charAt(charIndex) & 0xFF) << (i * 8);
+            if (charIndex >= text.length()) break;
+            char c = text.charAt(charIndex);
+            packed |= ((c <= 255 ? c : '?') & 0xFF) << (i * 8);
         }
         return packed;
     }
 
-    private String unpackName(int start) {
+    private String unpackNetworkName(int start) {
+        String text = unpackText(start, NAME_INTS);
+        return text.isBlank() ? PowerNetworkSavedData.DEFAULT_NETWORK : text;
+    }
+
+    private String unpackText(int start, int slots) {
         StringBuilder out = new StringBuilder();
-        for (int slot = 0; slot < NAME_INTS; slot++) {
+        for (int slot = 0; slot < slots; slot++) {
             int packed = data.get(start + slot);
             for (int i = 0; i < 4; i++) {
                 int value = (packed >>> (i * 8)) & 0xFF;
-                if (value == 0) return out.length() == 0 ? PowerNetworkSavedData.DEFAULT_NETWORK : out.toString();
+                if (value == 0) return out.toString();
                 out.append((char) value);
             }
         }
-        return out.length() == 0 ? PowerNetworkSavedData.DEFAULT_NETWORK : out.toString();
+        return out.toString();
     }
 
     public PlugMode getMode() { return PlugMode.values()[Math.max(0, Math.min(PlugMode.values().length - 1, data.get(0)))]; }
@@ -138,13 +162,23 @@ public final class NetworkPlugMenu extends AbstractContainerMenu {
     public long getNetworkInput() { return readLong(9); }
     public long getNetworkOutput() { return readLong(11); }
     public int getPlugCount() { return data.get(13); }
-    public String getNetworkName() { return unpackName(CURRENT_NAME_START); }
+    public String getNetworkName() { return unpackNetworkName(CURRENT_NAME_START); }
     public BlockPos getBlockPos() { return new BlockPos(data.get(14), data.get(15), data.get(16)); }
+    public long getAttachedTransfer() { return readLong(ATTACHED_TRANSFER_START); }
+    public long getNetworkTransfer() { return readLong(NETWORK_TRANSFER_START); }
+    public PowerBottleneck getBottleneck() {
+        int ordinal = Math.max(0, Math.min(PowerBottleneck.values().length - 1, data.get(BOTTLENECK_INDEX)));
+        return PowerBottleneck.values()[ordinal];
+    }
+    public String getAttachedBlockName() {
+        String name = unpackText(ATTACHED_NAME_START, ATTACHED_NAME_INTS);
+        return name.isBlank() ? "No block" : name;
+    }
 
     public List<String> getNetworkNames() {
         int count = Math.max(0, Math.min(MAX_VISIBLE_NETWORKS, data.get(17)));
         List<String> out = new ArrayList<>();
-        for (int i = 0; i < count; i++) out.add(unpackName(NETWORK_LIST_START + i * NAME_INTS));
+        for (int i = 0; i < count; i++) out.add(unpackNetworkName(NETWORK_LIST_START + i * NAME_INTS));
         return out;
     }
 
