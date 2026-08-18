@@ -30,19 +30,19 @@ local function line(mon,y,label,value,color)
     local w,h=mon.getSize(); if y>h then return end
     label=tostring(label or ""); value=tostring(value or "")
     local text=label=="" and value or (label..string.rep(" ",math.max(1,11-#label))..value)
-    mon.setCursorPos(2,y); mon.setTextColor(color or colors.white); mon.write(text:sub(1,math.max(0,w-2)))
+    mon.setCursorPos(2,y); mon.setBackgroundColor(colors.black); mon.setTextColor(color or colors.white); mon.write(text:sub(1,math.max(0,w-2)))
 end
 
 local function divider(mon,y)
     local w,h=mon.getSize(); if y>h then return end
-    mon.setCursorPos(2,y); mon.setTextColor(colors.gray); mon.write(string.rep("-",math.max(1,w-3)))
+    mon.setCursorPos(2,y); mon.setBackgroundColor(colors.black); mon.setTextColor(colors.gray); mon.write(string.rep("-",math.max(1,w-3)))
 end
 
 local function count(t) local n=0 for _ in pairs(t or {}) do n=n+1 end return n end
 local function countOnline(t) local total,online=0,0 for _,v in pairs(t or {}) do total=total+1 if v.online~=false then online=online+1 end end return online,total end
 local function gameTime() local t=os.time("ingame")%24 local h=math.floor(t) local m=math.floor((t-h)*60) return string.format("%02d:%02d",h,m) end
 local function age(ms) if not ms then return "never" end local d=math.max(0,math.floor((os.epoch("utc")-tonumber(ms))/1000)) if d<60 then return d.."s" elseif d<3600 then return math.floor(d/60).."m" else return math.floor(d/3600).."h" end end
-local function fmtDuration(sec) sec=math.max(0,math.floor(tonumber(sec) or 0)) local h=math.floor(sec/3600) local m=math.floor((sec%3600)/60) local s=sec%60 if h>0 then return string.format("%dh %02dm",h,m) elseif m>0 then return string.format("%dm %02ds",m,s) else return s.."s" end end
+local function fmtDuration(sec) sec=math.max(0,math.floor(tonumber(sec) or 0)) local d=math.floor(sec/86400) local h=math.floor((sec%86400)/3600) local m=math.floor((sec%3600)/60) local s=sec%60 if d>0 then return string.format("%dd %02dh",d,h) elseif h>0 then return string.format("%dh %02dm",h,m) elseif m>0 then return string.format("%dm %02ds",m,s) else return s.."s" end end
 local function statusColor(status) status=tostring(status or ""):lower() if status=="online" or status=="ok" or status=="sunny" or status=="up to date" then return colors.lime end if status=="offline" or status=="error" or status:find("failed",1,true) then return colors.red end return colors.yellow end
 local function stateOf(envelope) return envelope and envelope.state or {} end
 
@@ -69,17 +69,61 @@ local function percentOf(p)
     return math.max(0,math.min(100,p))
 end
 
-local function bar(mon,y,pct)
+local function batteryColor(pct)
+    if pct>=60 then return colors.lime end
+    if pct>=25 then return colors.yellow end
+    return colors.red
+end
+
+local function batteryBar(mon,y,pct)
     local w,h=mon.getSize(); if y>h then return end
-    local inner=math.max(8,w-6)
     pct=math.max(0,math.min(100,tonumber(pct) or 0))
+    local x1=3
+    local x2=w-2
+    if x2-x1<12 then return end
+    local inner=x2-x1-1
     local fill=math.floor(inner*pct/100+0.5)
     if pct>0 and fill<1 then fill=1 end
-    local c = pct >= 60 and colors.lime or (pct >= 25 and colors.yellow or colors.red)
-    mon.setCursorPos(2,y); mon.setTextColor(colors.lightGray); mon.write("[")
-    mon.setTextColor(c); mon.write(string.rep("#",fill))
-    mon.setTextColor(colors.gray); mon.write(string.rep(".",inner-fill))
-    mon.setTextColor(colors.lightGray); mon.write("]")
+    local c=batteryColor(pct)
+
+    mon.setBackgroundColor(colors.black); mon.setTextColor(colors.lightGray)
+    mon.setCursorPos(x1-1,y); mon.write("[")
+    for i=1,inner do
+        mon.setCursorPos(x1+i-1,y)
+        mon.setBackgroundColor(i<=fill and c or colors.gray)
+        mon.write(" ")
+    end
+    mon.setBackgroundColor(colors.black); mon.setTextColor(colors.lightGray)
+    mon.setCursorPos(x2,y); mon.write("]")
+
+    local label=string.format(" %.2f%% ",pct)
+    local lx=math.max(x1,math.floor((w-#label)/2)+1)
+    mon.setCursorPos(lx,y)
+    mon.setBackgroundColor(colors.black)
+    mon.setTextColor(c)
+    mon.write(label)
+    mon.setBackgroundColor(colors.black)
+end
+
+local function batteryStatus(p)
+    local stored=tonumber(p and p.stored)
+    local capacity=tonumber(p and p.capacity)
+    local net=tonumber(p and p.net)
+    if not stored or not capacity or capacity<=0 or not net then return "STATUS UNKNOWN",colors.yellow end
+
+    local epsilon=0.5
+    if stored>=capacity*0.999999 and net>=-epsilon then return "FULL - holding",colors.lime end
+    if stored<=0 and net<=epsilon then return "EMPTY - holding",colors.red end
+    if math.abs(net)<=epsilon then return "STABLE - holding",colors.lightGray end
+
+    if net>0 then
+        local remaining=math.max(0,capacity-stored)
+        local seconds=remaining/(net*20)
+        return "CHARGING - full in "..fmtDuration(seconds),colors.lime
+    end
+
+    local seconds=stored/(math.abs(net)*20)
+    return "DRAINING - empty in "..fmtDuration(seconds),colors.orange
 end
 
 local function panelOverview(mon,envelope,meta)
@@ -110,13 +154,12 @@ local function panelOperations(mon,envelope)
         local pct=percentOf(p.filledPercentage)
         if not pct and tonumber(p.stored) and tonumber(p.capacity) and tonumber(p.capacity)>0 then pct=tonumber(p.stored)/tonumber(p.capacity)*100 end
         line(mon,3,"POWER","ONLINE",colors.lime)
-        line(mon,4,"CHARGE",pct and string.format("%.2f%%",pct) or "?")
-        bar(mon,5,pct or 0)
-        line(mon,7,"STORED",fmtFE(p.stored,false).." / "..fmtFE(p.capacity,false))
-        line(mon,8,"INPUT",fmtFE(p.input,true),colors.lime)
-        line(mon,9,"OUTPUT",fmtFE(p.output,true),colors.orange)
-        local net=tonumber(p.net)
-        line(mon,10,"NET",net and ((net>=0 and "+" or "")..fmtFE(net,true)) or "?",net and (net>=0 and colors.lime or colors.red) or colors.white)
+        batteryBar(mon,5,pct or 0)
+        local statusText,statusCol=batteryStatus(p)
+        line(mon,6,"",statusText,statusCol)
+        line(mon,8,"STORED",fmtFE(p.stored,false).." / "..fmtFE(p.capacity,false))
+        line(mon,9,"INPUT",fmtFE(p.input,true),colors.lime)
+        line(mon,10,"OUTPUT",fmtFE(p.output,true),colors.orange)
         line(mon,11,"TRANSFER",fmtFE(p.transferCap,true))
         line(mon,12,"CELLS",p.installedCells or "?")
         line(mon,13,"MODE",p.mode or "?")
