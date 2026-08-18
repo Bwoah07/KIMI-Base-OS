@@ -1,7 +1,7 @@
 {
-  "version": "5.0.0-alpha.10",
+  "version": "5.0.0-alpha.11",
   "channel": "alpha",
-  "ref": "9fc38554fba0e0f28987e5829b5c88a544a22c0d",
+  "ref": "9b062dd199a3ccbca1efa356e5c826e3ab3c3192",
   "entrypoint": "kimi.lua",
   "managed": [
     "updater.lua",
@@ -17,6 +17,7 @@
     "roles/client.lua",
     "roles/node.lua",
     "clients/terminal.lua",
+    "clients/wall.lua",
     "modules/environment.lua",
     "modules/system.lua"
   ],
