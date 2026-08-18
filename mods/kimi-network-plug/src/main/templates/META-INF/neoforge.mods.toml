@@ -8,8 +8,9 @@ version="${mod_version}"
 displayName="${mod_name}"
 authors="Bwoah07"
 description='''
-A deliberately simple cross-dimensional FE transport block for KIMI Base.
-One Network Plug block can be configured as Disabled, Input, or Output.
+KIMI Base power networking for NeoForge 1.21.1.
+Face-mounted Network Plugs provide named cross-dimensional FE networks, local buffers,
+chunk loading, configurable transfer limits, and optional CC:Tweaked/KIMI OS control.
 '''
 
 [[dependencies.${mod_id}]]
@@ -24,4 +25,11 @@ modId="minecraft"
 type="required"
 versionRange="${minecraft_version_range}"
 ordering="NONE"
+side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="computercraft"
+type="optional"
+versionRange="[1.0,)"
+ordering="AFTER"
 side="BOTH"
