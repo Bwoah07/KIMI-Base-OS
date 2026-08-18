@@ -148,6 +148,8 @@ function M.command(action, args)
         return safeCall(bridge, "listNetworks", {})
     elseif action == "list_plugs" then
         return safeCall(bridge, "listPlugs", {})
+    elseif action == "list_network_plugs" then
+        return safeCall(bridge, "listNetworkPlugs", {}, tostring(args.network or "BASE_POWER"))
     elseif action == "list_chargers" then
         return collectType("kimi_wireless_charger"), true
     elseif action == "list_chunk_loaders" then
