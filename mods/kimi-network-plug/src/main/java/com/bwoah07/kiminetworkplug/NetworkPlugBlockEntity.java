@@ -18,7 +18,9 @@ public final class NetworkPlugBlockEntity extends BlockEntity {
     public static final long DEFAULT_TRANSFER_LIMIT = 512_000_000L;
     public static final long MIN_TRANSFER_LIMIT = 100_000L;
     public static final long MAX_TRANSFER_LIMIT = 64_000_000_000L;
-    public static final long LOCAL_BUFFER_CAPACITY = 8_000_000_000L;
+    // The local buffer must be at least one full max-rate tick. Alpha.11 used
+    // 8 GFE here, which silently capped a nominal 64 GFE/t plug to 8 GFE/t.
+    public static final long LOCAL_BUFFER_CAPACITY = 64_000_000_000L;
 
     private UUID plugId = UUID.randomUUID();
     private String networkName = PowerNetworkSavedData.DEFAULT_NETWORK;
