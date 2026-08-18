@@ -123,6 +123,22 @@ local function moduleNames(state)
     return table.concat(names,",")
 end
 
+local function scadaSummary(sources)
+    local online,total,pending=0,0,0
+    for _,src in pairs(sources or {}) do
+        if src.role=="scada" then
+            total=total+1
+            if src.online~=false then online=online+1 end
+            local needs=false
+            for _,value in pairs(src.state or {}) do
+                if type(value)=="table" and value.updateAvailable==true then needs=true; break end
+            end
+            if needs then pending=pending+1 end
+        end
+    end
+    return online,total,pending
+end
+
 local function button(mon,name,x1,y1,x2,y2,text,enabled)
     local w,h=mon.getSize()
     x1=math.max(1,x1); x2=math.min(w,x2); y1=math.max(1,y1); y2=math.min(h,y2)
@@ -147,6 +163,7 @@ local function drawComposite(mon,envelope,meta)
     local update=meta.update or {}
     local online,total=countOnline(machines)
     local srcCount=count(sources)
+    local scadaOnline,scadaTotal,scadaPending=scadaSummary(sources)
     local version=envelope and envelope.version or "?"
 
     header(mon,"KIMI SERVER","#"..tostring(meta.serverId or "?"))
@@ -175,10 +192,16 @@ local function drawComposite(mon,envelope,meta)
     put(mon,2,12,"LAST CHECK",colors.lightGray); put(mon,14,12,age(update.lastCheck))
     put(mon,2,13,"RESULT",colors.lightGray); put(mon,14,13,update.lastResult or "not checked",colorFor(update.lastResult))
     put(mon,2,14,"TARGET",colors.lightGray); put(mon,14,14,update.targetVersion or "none")
+    local scadaText=scadaOnline.."/"..scadaTotal.." online"
+    if scadaPending>0 then scadaText=scadaText.." / "..scadaPending.." update"..(scadaPending==1 and "" or "s") end
+    put(mon,2,15,"SCADA",colors.lightGray); put(mon,14,15,scadaText,scadaPending>0 and colors.yellow or (scadaTotal>0 and colors.lime or colors.gray))
 
     local checking=tostring(update.lastResult or ""):lower()=="checking..."
     local bx1=math.max(36,math.floor(w*0.58)); local bx2=w-3
-    if bx2-bx1>=20 then button(mon,"check_updates",bx1,10,bx2,13,checking and "CHECKING..." or "CHECK FOR UPDATES",not checking) end
+    if bx2-bx1>=20 then
+        button(mon,"check_updates",bx1,10,bx2,12,checking and "CHECKING..." or "CHECK KIMI UPDATES",not checking)
+        button(mon,"scada_update",bx1,14,bx2,15,scadaPending>0 and "UPDATE SCADA" or "SCADA CURRENT",scadaPending>0)
+    end
 
     if h < 18 then return end
     hline(mon,16,2,w-1)
@@ -235,6 +258,7 @@ local function drawComposite(mon,envelope,meta)
         local problems={}
         if online<total then problems[#problems+1]=(total-online).." machine(s) offline" end
         if tostring(update.lastResult or ""):lower():find("failed",1,true) then problems[#problems+1]="update check failed" end
+        if scadaPending>0 then problems[#problems+1]=scadaPending.." SCADA update(s) ready" end
         local footerY=h
         mon.setBackgroundColor(#problems==0 and colors.black or colors.red)
         mon.setTextColor(#problems==0 and colors.gray or colors.white)
@@ -292,7 +316,35 @@ local function panelSources(mon,envelope,meta)
     if #ids==0 then line(mon,6,"","No remote telemetry",colors.yellow) end
 end
 
-local extraPanels={panelFleet,panelUpdates,panelSources}
+local function panelScada(mon,envelope,meta)
+    prep(mon); header(mon,"NUCLEAR / SCADA")
+    local srcs=meta.sources or {}
+    local on,total,pending=scadaSummary(srcs)
+    line(mon,3,"SCADA",on.."/"..total.." online",on==total and total>0 and colors.lime or colors.yellow)
+    line(mon,4,"UPDATES",pending,pending>0 and colors.yellow or colors.lime)
+    hline(mon,5,2,select(1,mon.getSize())-1)
+    local y=6; local _,h=mon.getSize()
+    for _,id in ipairs(sortedIds(srcs)) do
+        if y>h-4 then break end
+        local src=srcs[id]
+        if src.role=="scada" then
+            local shown=false
+            for _,value in pairs(src.state or {}) do
+                if type(value)=="table" and value.app then
+                    local state=value.updateAvailable and "UPDATE" or "CURRENT"
+                    line(mon,y,"",tostring(value.app).."  "..tostring(value.installedVersion or "?").."  "..state,value.updateAvailable and colors.yellow or colors.lime)
+                    y=y+1; shown=true; break
+                end
+            end
+            if not shown then line(mon,y,"",tostring(src.name or id),colors.lightGray); y=y+1 end
+        end
+    end
+    if total==0 then line(mon,7,"","Waiting for SCADA bridge nodes",colors.yellow) end
+    local w2,h2=mon.getSize()
+    if pending>0 and h2>=4 and w2>=28 then button(mon,"scada_update",3,h2-2,w2-2,h2,"UPDATE SCADA",true) end
+end
+
+local extraPanels={panelFleet,panelUpdates,panelSources,panelScada}
 
 function M.init()
     monitors=getMonitors()
@@ -322,6 +374,8 @@ function M.handleEvent(e,envelope,action)
         if target.enabled and x>=target.x1 and x<=target.x2 and y>=target.y1 and y<=target.y2 then
             if target.name=="check_updates" and action then
                 action("server","check_updates",{})
+            elseif target.name=="scada_update" and action then
+                action("server","scada_update",{})
             end
             return
         end
