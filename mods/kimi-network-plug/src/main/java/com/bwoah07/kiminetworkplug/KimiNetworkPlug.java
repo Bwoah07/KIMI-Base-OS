@@ -2,6 +2,8 @@ package com.bwoah07.kiminetworkplug;
 
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.world.flag.FeatureFlags;
+import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -26,13 +28,16 @@ public final class KimiNetworkPlug {
     public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(MODID);
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITY_TYPES =
             DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, MODID);
+    public static final DeferredRegister<MenuType<?>> MENUS =
+            DeferredRegister.create(Registries.MENU, MODID);
 
     public static final Supplier<NetworkPlugBlock> NETWORK_PLUG = BLOCKS.register(
             "network_plug",
             () -> new NetworkPlugBlock(BlockBehaviour.Properties.of()
                     .mapColor(MapColor.METAL)
                     .strength(3.0F, 6.0F)
-                    .requiresCorrectToolForDrops())
+                    .requiresCorrectToolForDrops()
+                    .noOcclusion())
     );
 
     public static final Supplier<BlockItem> NETWORK_PLUG_ITEM =
@@ -55,10 +60,14 @@ public final class KimiNetworkPlug {
                     () -> BlockEntityType.Builder.of(NetworkPlugBlockEntity::new, NETWORK_PLUG.get()).build(null)
             );
 
+    public static final Supplier<MenuType<NetworkPlugMenu>> NETWORK_PLUG_MENU =
+            MENUS.register("network_plug", () -> new MenuType<>(NetworkPlugMenu::new, FeatureFlags.DEFAULT_FLAGS));
+
     public KimiNetworkPlug(IEventBus modEventBus) {
         BLOCKS.register(modEventBus);
         ITEMS.register(modEventBus);
         BLOCK_ENTITY_TYPES.register(modEventBus);
+        MENUS.register(modEventBus);
         modEventBus.addListener(this::addCreativeTabContents);
         modEventBus.addListener(this::registerCapabilities);
     }
