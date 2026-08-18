@@ -2,45 +2,54 @@
 
 NeoForge 1.21.1 power networking, chunk loading, CC:Tweaked/KIMI integration, and wireless player charging for FTB Evolution.
 
-## alpha.11
+## alpha.12
 
-Alpha.11 is a visual-quality pass. Backend behavior from alpha.10 is intentionally preserved.
+Alpha.12 is a focused in-game bugfix and material-quality pass based on alpha.11 testing.
 
-### Network Plug GUI
+### Fixed item rendering
 
-The floating PowerNet UI is now split cleanly by responsibility:
+- Network Plug first/third-person transforms are reduced so the plug no longer fills half the player's hand view.
+- Wireless Charger now has explicit GUI/ground/first-person/third-person transforms so the low floor pad is visible when held instead of rendering edge-on/invisible.
+- Chunk Loader uses matching item transforms for consistency.
 
-- **Power Plug** — mode, transfer limit, live FE/t, local buffer, chunk loading
-- **Network Selection** — existing-network list, network creation, plug count, network buffer
-- **Power Statistics** — network in/out, local/network buffers, selected network and coordinates
-- **KIMI / ComputerCraft** — peripheral/API and server-wide registry status
+### Fixed model flicker
 
-The selected network no longer appears on the General page.
+The Network Plug housing was rebuilt to remove coplanar/overlapping model faces that could z-fight and flicker.
 
-### Scrollable network list
+The in-world proportions remain close to alpha.11, but the side rails, front panel, status ring, neck and backplate now occupy separated planes instead of sharing surfaces.
 
-The old dropdown/arrow network picker has been removed.
+### Smoother unified hardware materials
 
-The Network tab now presents existing named networks as an always-visible list. Four entries are shown at once with a visible scrollbar; mouse-wheel scrolling and scrollbar clicking move through up to 32 synced network names. Clicking a row immediately moves the plug to that network. Network creation stays as a separate compact row below the list.
+The generated PowerNet texture sheet moves from noisy 32px materials to deliberately smoother 64px materials.
 
-### Human-readable transfer limits
+- no high-frequency per-pixel dither/grain
+- broader graphite gradients and panel seams
+- smoother brushed alloy
+- cleaner recessed front plate
+- softer green/orange/gray/cyan status glow
+- Network Plug, Wireless Charger and Chunk Loader now use the same graphite + alloy + recessed-panel material language
+- cyan on infrastructure blocks is reduced to a thin status ring rather than dominating the whole top surface
 
-The transfer editor accepts readable values such as:
+The hardware still uses custom KIMI assets rather than visible vanilla Minecraft block textures.
 
-- `64G`
-- `500M`
-- `250k`
-- raw FE/t numbers when desired
+### Throughput fix
 
-The UI displays human-readable FE/t values instead of leading with raw values such as `64000000000`.
+Alpha.11 allowed a configured transfer limit of 64 GFE/t but each plug only had an 8 GFE local buffer. Because the transfer path stages energy through that local buffer, the local buffer silently imposed an 8 GFE/t ceiling even when the GUI was set to 64 GFE/t.
 
-### Refined visual language
+Alpha.12 raises each Network Plug local buffer to **64 GFE**, matching one full tick at the maximum configured plug rate. The existing multi-call NeoForge energy loop remains, so a PowerNet plug is no longer internally buffer-limited below its configured 64 GFE/t ceiling.
 
-The main floating panel now keeps a neutral silver/gray frame regardless of plug mode. Green/orange are limited to the selected mode, live flow/status and a small accent strip rather than wrapping the whole UI in a warning-colored border.
+If a test still tops out below 64 GFE/t, the next isolation step is the source/consumer capability limit (for example the creative source or Mekanism Induction Matrix transfer cap), not the PowerNet local buffer.
 
-Top tabs use custom-drawn PowerNet icons instead of Unicode glyphs.
+### GUI cleanup
 
-The generated KIMI texture sheet was also refined with deliberate graphite panel seams, bevel highlights, recessed control plates, brushed alloy, restrained status glow and shared charger/chunk-loader tech surfaces. The Network Plug model keeps its alpha.10 overall size but now uses narrow metal side rails and a much thinner four-piece status ring rather than a large picture-frame bezel.
+The alpha.11 layout stays intact:
+
+- General contains only mode, transfer limit, live FE/t, local buffer and chunk loading
+- Network owns the scrollable network list/create controls
+- Stats owns network/local telemetry
+- KIMI owns ComputerCraft/server-registry status
+
+Alpha.12 also right-aligns long buffer/value strings so the new 64 GFE local capacity does not collide with labels, removes the redundant selected-network line at the bottom of Network, and shortens KIMI status copy so it fits cleanly.
 
 ### ComputerCraft / KIMI architecture
 
@@ -66,14 +75,14 @@ The other PowerNet peripherals remain:
 
 KIMI Base OS `modules/powernet.lua` continues to discover and control all three device types.
 
-### Backend retained
+### Current backend limits
 
 Per Network Plug:
 
 - minimum transfer: 100 kFE/t
 - default transfer: 512 MFE/t
 - maximum transfer: 64 GFE/t
-- local buffer: 8 GFE
+- local buffer: 64 GFE
 - self chunk-loading
 
 Per named network:
@@ -84,15 +93,15 @@ Named networks remain isolated and `BASE_POWER` is created automatically.
 
 Wireless Charger retains inventory/armor/offhand/Curios charging, 4-96 block range, and up to 8 GFE/t charge budget. The standalone Chunk Loader remains a one-chunk low-profile node with CC/KIMI enable/disable control.
 
-## Alpha.11 test path
+## Alpha.12 test path
 
-1. Replace alpha.10 with alpha.11 and boot FTB Evolution.
-2. Inspect the Network Plug housing/status ring against dark Mekanism blocks.
-3. Open General and confirm there is no network selector on that page.
-4. Open Network and verify the always-visible list, mouse wheel, scrollbar and one-click network selection.
-5. Create enough networks to verify scrolling and selected-row highlighting.
-6. Enter transfer limits such as `64G`, `500M` and `250k` and verify they apply correctly.
-7. Check Stats and KIMI pages for compact spacing and no overlaps.
-8. Test Energy Cube -> INPUT Plug -> named network -> OUTPUT Plug -> Energy Cube.
+1. Replace alpha.11 with alpha.12 and boot FTB Evolution.
+2. Hold the Network Plug and Wireless Charger and verify both item transforms look sane.
+3. Inspect the Network Plug in-world for any texture/model flicker while moving the camera.
+4. Compare Plug / Wireless Charger / Chunk Loader materials and confirm they visibly belong to the same hardware family.
+5. Check the smoother 64px materials against dark Mekanism machines and bright floors.
+6. Open General / Network / KIMI and verify value strings no longer overlap or clip.
+7. Set both plugs to `64G` and retest Creative Energy source -> INPUT Plug -> BASE_POWER -> OUTPUT Plug -> Induction Matrix.
+8. Compare the plug LIVE rate with the Induction Matrix input rate. If both plateau at the same lower number, isolate the source and Matrix transfer caps next.
 9. Attach one CC:Tweaked computer to one plug and call `listNetworkPlugs("BASE_POWER")`; confirm all BASE_POWER plugs are returned.
 10. Re-test Wireless Charger and standalone Chunk Loader before connecting Reactor Mk II.
