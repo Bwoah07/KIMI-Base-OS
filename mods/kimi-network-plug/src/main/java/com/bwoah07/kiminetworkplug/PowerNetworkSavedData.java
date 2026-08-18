@@ -153,7 +153,9 @@ public final class PowerNetworkSavedData extends SavedData {
         ensureNetwork(networkName);
         plugs.put(plug.getPlugId(), new PlugRecord(
                 plug.getPlugId(), level.dimension(), plug.getBlockPos().immutable(), networkName,
-                plug.getMode(), plug.getTransferLimit(), plug.getLocalEnergy(), plug.getLastTransfer(), true));
+                plug.getMode(), plug.getTransferLimit(), plug.getLocalEnergy(), plug.getLastTransfer(),
+                plug.getAttachedBlockId(), plug.getAttachedBlockName(), plug.getLastAttachedTransfer(),
+                plug.getLastNetworkTransfer(), plug.getBottleneck(), true));
     }
 
     public void unregisterPlug(UUID id) { plugs.remove(id); }
@@ -207,6 +209,10 @@ public final class PowerNetworkSavedData extends SavedData {
     }
 
     public record NetworkSnapshot(String name, long energy, long capacity, long input, long output, int plugs) {}
+
     public record PlugRecord(UUID id, ResourceKey<Level> dimension, BlockPos pos, String network, PlugMode mode,
-                             long transferLimit, long localEnergy, long lastTransfer, boolean chunkLoaded) {}
+                             long transferLimit, long localEnergy, long lastTransfer,
+                             String attachedBlockId, String attachedBlockName,
+                             long attachedTransfer, long networkTransfer,
+                             PowerBottleneck bottleneck, boolean chunkLoaded) {}
 }
