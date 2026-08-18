@@ -1,71 +1,50 @@
 local M = {}
 
-local cfg = nil
-local monitors = { left = nil, center = nil, right = nil }
-local monitorNames = { left = nil, center = nil, right = nil }
-local lastSignature = nil
-local CAL_PATH = ".kimi/monitors"
+local monitors = {}
 
-local function ensureDir(path)
-    local dir = fs.getDir(path)
-    if dir ~= "" and not fs.exists(dir) then fs.makeDir(dir) end
-end
-
-local function saveCalibration()
-    ensureDir(CAL_PATH)
-    local f = assert(fs.open(CAL_PATH, "w"))
-    f.write(textutils.serialize(monitorNames))
-    f.close()
-end
-
-local function loadCalibration()
-    if not fs.exists(CAL_PATH) then return false end
-    local f = fs.open(CAL_PATH, "r")
-    if not f then return false end
-    local raw = f.readAll(); f.close()
-    local t = textutils.unserialize(raw)
-    if type(t) ~= "table" then return false end
-    for _, key in ipairs({"left","center","right"}) do
-        if type(t[key]) ~= "string" or not peripheral.isPresent(t[key]) or not peripheral.hasType(t[key], "monitor") then
-            return false
-        end
-    end
-    monitorNames = t
-    monitors.left = peripheral.wrap(t.left)
-    monitors.center = peripheral.wrap(t.center)
-    monitors.right = peripheral.wrap(t.right)
-    return true
-end
-
-local function listMonitors()
+local function getMonitors()
     local out = {}
     for _, name in ipairs(peripheral.getNames()) do
-        if peripheral.hasType(name, "monitor") then out[#out+1] = name end
+        if peripheral.hasType(name, "monitor") then
+            out[#out + 1] = { name = name, mon = peripheral.wrap(name) }
+        end
     end
-    table.sort(out)
+    table.sort(out, function(a,b) return a.name < b.name end)
     return out
 end
 
-local function setScale(mon, scale)
-    if mon and mon.setTextScale then pcall(mon.setTextScale, scale) end
-end
-
-local function clear(mon, bg)
-    if not mon then return end
-    mon.setBackgroundColor(bg or colors.black)
+local function prep(mon)
+    pcall(mon.setTextScale, 0.5)
+    mon.setBackgroundColor(colors.black)
     mon.setTextColor(colors.white)
     mon.clear()
     mon.setCursorPos(1,1)
 end
 
-local function center(mon, y, text, color)
-    if not mon then return end
+local function header(mon, title)
     local w = select(1, mon.getSize())
-    text = tostring(text or "")
-    local x = math.max(1, math.floor((w - #text) / 2) + 1)
-    mon.setCursorPos(x, y)
+    mon.setBackgroundColor(colors.red)
+    mon.setTextColor(colors.white)
+    mon.setCursorPos(1,1)
+    mon.write(string.rep(" ", w))
+    local x = math.max(1, math.floor((w - #title) / 2) + 1)
+    mon.setCursorPos(x,1)
+    mon.write(title)
+    mon.setBackgroundColor(colors.black)
+end
+
+local function line(mon, y, text, color)
+    local w, h = mon.getSize()
+    if y > h then return end
+    mon.setCursorPos(2,y)
     mon.setTextColor(color or colors.white)
-    mon.write(text)
+    mon.write(tostring(text or ""):sub(1, math.max(0, w - 2)))
+end
+
+local function count(t)
+    local n = 0
+    for _ in pairs(t or {}) do n = n + 1 end
+    return n
 end
 
 local function gameTime()
@@ -75,178 +54,124 @@ local function gameTime()
     return string.format("%02d:%02d", h, m)
 end
 
-local function calibrate()
-    local names = listMonitors()
-    if #names < 3 then
-        term.clear(); term.setCursorPos(1,1)
-        term.setTextColor(colors.red)
-        print("KIMI WALL CLIENT")
-        term.setTextColor(colors.white)
-        print("Need 3 attached monitors; found " .. tostring(#names))
-        return false
-    end
-
-    term.clear(); term.setCursorPos(1,1)
-    term.setTextColor(colors.red)
-    print("KIMI WALL MONITOR CALIBRATION")
-    term.setTextColor(colors.white)
-    print("Touch the LEFT monitor...")
-
-    for _, name in ipairs(names) do
-        local mon = peripheral.wrap(name)
-        setScale(mon, 0.5)
-        clear(mon, colors.black)
-        center(mon, 2, "TOUCH ME", colors.red)
-        center(mon, 4, name, colors.lightGray)
-    end
-
-    local _, leftName = os.pullEvent("monitor_touch")
-    monitorNames.left = leftName
-    term.clear(); term.setCursorPos(1,1)
-    print("LEFT = " .. leftName)
-    print("Now touch the RIGHT monitor...")
-
-    local rightName
-    repeat
-        local _, name = os.pullEvent("monitor_touch")
-        if name ~= leftName then rightName = name end
-    until rightName
-    monitorNames.right = rightName
-
-    for _, name in ipairs(names) do
-        if name ~= leftName and name ~= rightName then
-            monitorNames.center = name
-            break
-        end
-    end
-
-    monitors.left = peripheral.wrap(monitorNames.left)
-    monitors.center = peripheral.wrap(monitorNames.center)
-    monitors.right = peripheral.wrap(monitorNames.right)
-    saveCalibration()
-
-    term.clear(); term.setCursorPos(1,1)
-    print("Calibration saved:")
-    print("LEFT   " .. tostring(monitorNames.left))
-    print("CENTER " .. tostring(monitorNames.center))
-    print("RIGHT  " .. tostring(monitorNames.right))
-    sleep(1)
-    return true
+local function panelOverview(mon, envelope, meta)
+    prep(mon); header(mon, "KIMI BASE")
+    line(mon,3,meta.connected and "SERVER ONLINE" or "SEARCHING FOR SERVER", meta.connected and colors.lime or colors.yellow)
+    line(mon,5,"Time     " .. gameTime())
+    line(mon,7,"Server   " .. tostring(meta.serverId or "---"))
+    line(mon,9,"Version  " .. tostring(envelope and envelope.version or "?"))
+    local state = envelope and envelope.state or {}
+    line(mon,11,"Sources  " .. tostring(count(state.sources)))
 end
 
-local function ensureMonitors()
-    if loadCalibration() then return true end
-    return calibrate()
-end
-
-local function drawSide(mon, title, lines)
-    if not mon then return end
-    setScale(mon, 0.5)
-    clear(mon, colors.black)
-    local w, h = mon.getSize()
-    mon.setBackgroundColor(colors.red)
-    mon.setTextColor(colors.white)
-    mon.setCursorPos(1,1)
-    mon.write(string.rep(" ", w))
-    center(mon, 1, title, colors.white)
-    mon.setBackgroundColor(colors.black)
-    local y = 3
-    for _, line in ipairs(lines) do
-        if y <= h then
-            mon.setCursorPos(2,y)
-            mon.setTextColor(line.color or colors.white)
-            mon.write(tostring(line.text or ""))
-            y = y + 2
-        end
-    end
-end
-
-local function drawCenter(envelope, meta)
-    local mon = monitors.center
-    if not mon then return end
-    setScale(mon, 0.5)
-    clear(mon, colors.black)
-    local w, h = mon.getSize()
-
-    mon.setBackgroundColor(colors.red)
-    mon.setTextColor(colors.white)
-    mon.setCursorPos(1,1)
-    mon.write(string.rep(" ", w))
-    center(mon, 1, "KIMI BASE OS", colors.white)
-    mon.setBackgroundColor(colors.black)
-
-    center(mon, 3, gameTime(), colors.white)
-    if not meta.connected or not envelope then
-        center(mon, 6, "SEARCHING FOR SERVER", colors.yellow)
-        center(mon, 8, "ID " .. tostring(os.getComputerID()), colors.lightGray)
+local function panelEnvironment(mon, envelope)
+    prep(mon); header(mon, "ENVIRONMENT")
+    local env = envelope and envelope.state and envelope.state.environment or nil
+    if not env then
+        line(mon,3,"No environment sensor", colors.yellow)
+        line(mon,5,"Waiting for any KIMI", colors.lightGray)
+        line(mon,7,"client/node with sensor", colors.lightGray)
         return
     end
+    line(mon,3,"Weather  " .. tostring(env.weather or "UNKNOWN"), colors.white)
+    line(mon,5,"Biome    " .. tostring(env.biome or "UNKNOWN"), colors.white)
+    line(mon,7,"Moon     " .. tostring(env.moon or "UNKNOWN"), colors.white)
+    line(mon,9,"Status   " .. tostring(env._status or "?"), env._status == "online" and colors.lime or colors.yellow)
+    line(mon,11,"Source   " .. tostring(env._source or "server"), colors.lightGray)
+end
 
-    center(mon, 5, "SERVER ONLINE", colors.lime)
-    local env = envelope.state and envelope.state.environment or nil
-    local weather = env and env.weather or "UNKNOWN"
-    local biome = env and env.biome or "UNKNOWN"
-    local moon = env and env.moon or "UNKNOWN"
+local function panelPower(mon, envelope)
+    prep(mon); header(mon, "POWER")
+    local p = envelope and envelope.state and envelope.state.power or nil
+    if not p then line(mon,3,"No power telemetry", colors.yellow); return end
+    line(mon,3,"Status   " .. tostring(p.status or p._status or "UNKNOWN"))
+    line(mon,5,"Stored   " .. tostring(p.stored or "?"))
+    line(mon,7,"Capacity " .. tostring(p.capacity or "?"))
+    line(mon,9,"Input    " .. tostring(p.input or "?"))
+    line(mon,11,"Output   " .. tostring(p.output or "?"))
+end
 
-    center(mon, 8, "WEATHER", colors.lightGray)
-    center(mon, 10, weather, weather == "SUNNY" and colors.lime or colors.white)
-    center(mon, 13, "BIOME  " .. tostring(biome), colors.white)
-    center(mon, 15, "MOON   " .. tostring(moon), colors.white)
+local function panelStorage(mon, envelope)
+    prep(mon); header(mon, "AE2 / STORAGE")
+    local s = envelope and envelope.state and (envelope.state.ae2 or envelope.state.storage) or nil
+    if not s then line(mon,3,"No storage telemetry", colors.yellow); return end
+    line(mon,3,"Status   " .. tostring(s._status or (s.online and "online" or "unknown")), s.online == false and colors.red or colors.lime)
+    line(mon,5,"Items    " .. tostring(s.items or s.itemCount or "?"))
+    line(mon,7,"Crafting " .. tostring(s.craftingJobs or "?"))
+    line(mon,9,"Source   " .. tostring(s._source or "server"), colors.lightGray)
+end
 
-    if h >= 20 then
-        center(mon, h-2, "KIMI " .. tostring(envelope.version or "") .. "  SERVER " .. tostring(meta.serverId or "?"), colors.gray)
+local function panelFleet(mon, envelope)
+    prep(mon); header(mon, "KIMI FLEET")
+    local fleet = envelope and envelope.state and envelope.state.fleet or {}
+    local ids = {}
+    for id in pairs(fleet) do ids[#ids+1] = id end
+    table.sort(ids, function(a,b) return tonumber(a) < tonumber(b) end)
+    if #ids == 0 then line(mon,3,"No other machines seen", colors.yellow); return end
+    local y = 3
+    for _, id in ipairs(ids) do
+        local m = fleet[id]
+        local online = m.online ~= false
+        line(mon,y,(online and "ON " or "OFF ") .. tostring(id) .. " " .. tostring(m.role or "?") .. " " .. tostring(m.version or "?"), online and colors.lime or colors.red)
+        y = y + 2
     end
 end
 
-function M.init(config)
-    cfg = config
-    term.setBackgroundColor(colors.black)
-    term.setTextColor(colors.white)
+local function panelSources(mon, envelope)
+    prep(mon); header(mon, "TELEMETRY")
+    local sources = envelope and envelope.state and envelope.state.sources or {}
+    local ids = {}
+    for id in pairs(sources) do ids[#ids+1] = id end
+    table.sort(ids)
+    if #ids == 0 then line(mon,3,"No remote sources", colors.yellow); return end
+    local y = 3
+    for _, id in ipairs(ids) do
+        local s = sources[id]
+        line(mon,y,tostring(id) .. " " .. tostring(s.role or "?") .. " " .. tostring(count(s.state)) .. " modules", s.online == false and colors.red or colors.lime)
+        y = y + 2
+    end
+end
+
+local function panelSystem(mon, envelope, meta)
+    prep(mon); header(mon, "SYSTEM")
+    line(mon,3,"Client ID " .. tostring(os.getComputerID()))
+    line(mon,5,"Server    " .. tostring(meta.serverId or "---"))
+    line(mon,7,"Link      " .. (meta.connected and "ONLINE" or "OFFLINE"), meta.connected and colors.lime or colors.red)
+    line(mon,9,"Version   " .. tostring(envelope and envelope.version or "?"))
+    line(mon,11,"Monitors  " .. tostring(#monitors))
+end
+
+local panels = {
+    panelOverview,
+    panelEnvironment,
+    panelPower,
+    panelStorage,
+    panelFleet,
+    panelSources,
+    panelSystem
+}
+
+function M.init()
+    monitors = getMonitors()
     term.clear(); term.setCursorPos(1,1)
     print("KIMI Wall Client")
-    ensureMonitors()
+    print("Monitors detected: " .. tostring(#monitors))
+    if #monitors == 0 then print("Attach any number of monitors; KIMI will auto-layout them.") end
 end
 
 function M.render(envelope, meta)
-    if not monitors.center or not monitors.left or not monitors.right then
-        if not ensureMonitors() then return end
+    monitors = getMonitors()
+    meta = meta or {}
+    for i, entry in ipairs(monitors) do
+        local fn = panels[((i - 1) % #panels) + 1]
+        fn(entry.mon, envelope, meta)
     end
-
-    local env = envelope and envelope.state and envelope.state.environment or nil
-    local signature = table.concat({
-        tostring(meta.connected), tostring(meta.serverId), gameTime(),
-        tostring(env and env.weather), tostring(env and env.biome), tostring(env and env.moon),
-        tostring(envelope and envelope.version)
-    }, "|")
-    if signature == lastSignature then return end
-    lastSignature = signature
-
-    drawCenter(envelope, meta)
-
-    local envStatus = env and env._status or (meta.connected and "UNKNOWN" or "OFFLINE")
-    drawSide(monitors.left, "ENVIRONMENT", {
-        { text = "Weather", color = colors.lightGray },
-        { text = env and env.weather or "UNKNOWN", color = colors.white },
-        { text = "Biome", color = colors.lightGray },
-        { text = env and env.biome or "UNKNOWN", color = colors.white },
-        { text = "Sensor " .. tostring(envStatus), color = envStatus == "online" and colors.lime or colors.yellow }
-    })
-
-    drawSide(monitors.right, "SYSTEM", {
-        { text = meta.connected and "SERVER ONLINE" or "SERVER OFFLINE", color = meta.connected and colors.lime or colors.red },
-        { text = "Server " .. tostring(meta.serverId or "---"), color = colors.white },
-        { text = "Client " .. tostring(os.getComputerID()), color = colors.white },
-        { text = gameTime(), color = colors.white }
-    })
 end
 
 function M.onPeripheralChange()
-    monitors = { left = nil, center = nil, right = nil }
-    lastSignature = nil
+    monitors = getMonitors()
 end
 
-function M.handleEvent(e)
-    -- Future touch navigation/actions live here.
-end
+function M.handleEvent() end
 
 return M
