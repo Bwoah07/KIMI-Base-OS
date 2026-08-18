@@ -1,10 +1,10 @@
 {
   "parent": "kimi_network_plug:block/network_plug_base",
   "textures": {
-    "particle": "minecraft:block/deepslate_tiles",
-    "base": "minecraft:block/deepslate_tiles",
-    "body": "minecraft:block/polished_blackstone",
+    "particle": "minecraft:block/black_concrete",
+    "base": "minecraft:block/black_concrete",
+    "body": "minecraft:block/black_concrete",
     "accent": "minecraft:block/lime_concrete",
-    "metal": "minecraft:block/iron_block"
+    "metal": "minecraft:block/light_gray_concrete"
   }
 }
