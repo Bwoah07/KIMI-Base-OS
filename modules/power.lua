@@ -17,6 +17,20 @@ local function hasMethods(name, required)
     return true
 end
 
+-- Flux Networks CC:Tweaked support (native/fork builds exposing flux_device).
+-- We also detect by method signature so this survives peripheral-name changes.
+local function findFluxDevice()
+    local required = { "getNetworkName", "getEnergyInput", "getEnergyOutput", "getEnergy" }
+    for _, name in ipairs(peripheral.getNames()) do
+        local ptype = peripheral.getType(name)
+        local isFluxType = peripheral.hasType(name, "flux_device") or ptype == "flux_device"
+        if isFluxType or hasMethods(name, required) then
+            local wrapped = peripheral.wrap(name)
+            if wrapped then return wrapped, name end
+        end
+    end
+end
+
 local function findInductionPort()
     for _, name in ipairs(peripheral.getNames()) do
         if hasMethods(name, { "getEnergy", "getMaxEnergy", "getLastInput", "getLastOutput", "getTransferCap" }) then
@@ -34,7 +48,60 @@ local function findEnergyDetector()
     end
 end
 
+local function readFlux()
+    local flux, fluxName = findFluxDevice()
+    if not flux then return nil end
+
+    local valid = call(flux, "isValid", true)
+    local networkName = call(flux, "getNetworkName", "UNKNOWN")
+    local networkId = call(flux, "getNetworkID", nil)
+    local stored = call(flux, "getEnergy", nil)
+    local capacity = call(flux, "getEnergyCapacity", nil)
+    local input = call(flux, "getEnergyInput", nil)
+    local output = call(flux, "getEnergyOutput", nil)
+    local buffer = call(flux, "getEnergyBuffer", nil)
+    local plugs = call(flux, "getPlugsCount", nil)
+    local points = call(flux, "getPointCount", nil)
+    local storages = call(flux, "getStorageCount", nil)
+    local controllers = call(flux, "getControllerCount", nil)
+    local avgTickUs = call(flux, "getAVGTickUs", nil)
+    local security = call(flux, "getSecurityLevel", nil)
+
+    local filled
+    if type(stored) == "number" and type(capacity) == "number" and capacity > 0 then
+        filled = stored / capacity
+    end
+
+    return {
+        sourceType = "flux_network",
+        peripheral = fluxName,
+        networkName = networkName,
+        networkId = networkId,
+        stored = stored,
+        capacity = capacity,
+        input = input,
+        output = output,
+        buffer = buffer,
+        plugs = plugs,
+        points = points,
+        storages = storages,
+        controllers = controllers,
+        avgTickUs = avgTickUs,
+        security = security,
+        filledPercentage = filled,
+        net = (type(input) == "number" and type(output) == "number") and (input - output) or nil,
+        status = valid == false and "DEGRADED" or "ONLINE",
+        _status = valid == false and "degraded" or "online",
+        _updated = os.epoch("utc")
+    }
+end
+
 function M.read(previous)
+    -- Prefer Flux when it is attached: this is the network-wide view we want on
+    -- the KIMI ComputerCraft power screen. Matrix remains the fallback source.
+    local flux = readFlux()
+    if flux then return flux end
+
     local port, portName = findInductionPort()
     if port then
         local energy = call(port, "getEnergy", nil)
