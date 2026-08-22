@@ -140,9 +140,12 @@ local function panelEnvironment(mon,envelope)
 end
 
 local function panelOperations(mon,envelope)
-    prep(mon); header(mon,"POWER + STORAGE")
+    prep(mon)
     local s=stateOf(envelope); local p=s.power; local ae=s.ae2 or s.storage
+    local isFlux=p and p.sourceType=="flux_network"
+    header(mon,isFlux and "FLUX NETWORKS" or "POWER + STORAGE")
     local w,h=mon.getSize()
+    local divY=math.min(h-7,20)
 
     if p and (p.status=="ONLINE" or p._status=="online") then
         local pct=percentOf(p.filledPercentage)
@@ -152,13 +155,13 @@ local function panelOperations(mon,envelope)
         local gaugeX=3
         local gaugeY=6
         local gaugeW=12
-        local gaugeH=math.min(12,math.max(7,h-14))
+        local gaugeH=math.min(12,math.max(5,divY-gaugeY))
         verticalBattery(mon,gaugeX,gaugeY,gaugeW,gaugeH,pct or 0)
 
         local statusText,statusCol=batteryStatus(p)
         local infoX=17
         local function info(y,label,value,color)
-            if y>h then return end
+            if y>=divY then return end
             mon.setCursorPos(infoX,y); mon.setBackgroundColor(colors.black); mon.setTextColor(color or colors.white)
             local txt=tostring(label)..string.rep(" ",math.max(1,10-#tostring(label)))..tostring(value)
             mon.write(txt:sub(1,math.max(0,w-infoX+1)))
@@ -168,16 +171,23 @@ local function panelOperations(mon,envelope)
         info(7,"CAPACITY",fmtFE(p.capacity,false))
         info(8,"INPUT",fmtFE(p.input,true),colors.lime)
         info(9,"OUTPUT",fmtFE(p.output,true),colors.orange)
-        info(10,"TRANSFER",fmtFE(p.transferCap,true))
-        info(11,"CELLS",p.installedCells or "?")
-        info(12,"MODE",p.mode or "?")
-        info(13,"SOURCE",p._source or p.peripheral or "server",colors.lightGray)
+        if isFlux then
+            info(10,"BUFFER",fmtFE(p.buffer,false))
+            info(11,"NETWORK",p.networkName or "?")
+            info(12,"DEVICES","P:"..tostring(p.plugs or "?").." PT:"..tostring(p.points or "?").." S:"..tostring(p.storages or "?").." C:"..tostring(p.controllers or "?"))
+            info(13,"SECURITY",p.security or "?")
+            info(14,"AVG TICK",p.avgTickUs and (string.format("%.1f",tonumber(p.avgTickUs)).." us/t") or "?")
+        else
+            info(10,"TRANSFER",fmtFE(p.transferCap,true))
+            info(11,"CELLS",p.installedCells or "?")
+            info(12,"MODE",p.mode or "?")
+            info(13,"SOURCE",p._source or p.peripheral or "server",colors.lightGray)
+        end
     else
         line(mon,3,"POWER","OFFLINE",colors.red)
-        line(mon,5,"","Waiting for Induction Port",colors.lightGray)
+        line(mon,5,"","Waiting for Flux / power peripheral",colors.lightGray)
     end
 
-    local divY=math.min(h-7,20)
     if divY>=15 then divider(mon,divY) end
     if ae and ae._status=="online" then
         local y=divY+1
@@ -239,3 +249,4 @@ function M.render(envelope,meta) monitors=getMonitors(); meta=meta or {}; for i,
 function M.onPeripheralChange() monitors=getMonitors() end
 function M.handleEvent() end
 return M
+
