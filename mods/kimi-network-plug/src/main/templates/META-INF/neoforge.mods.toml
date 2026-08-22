@@ -1,0 +1,35 @@
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="${mod_license}"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+authors="Bwoah07"
+description='''
+KIMI Base power networking for NeoForge 1.21.1.
+Face-mounted Network Plugs provide named cross-dimensional FE networks, local buffers,
+chunk loading, configurable transfer limits, and optional CC:Tweaked/KIMI OS control.
+'''
+
+[[dependencies.${mod_id}]]
+modId="neoforge"
+type="required"
+versionRange="[${neo_version},)"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="minecraft"
+type="required"
+versionRange="${minecraft_version_range}"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="computercraft"
+type="optional"
+versionRange="[1.0,)"
+ordering="AFTER"
+side="BOTH"

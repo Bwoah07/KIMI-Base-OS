@@ -1,0 +1,10 @@
+{
+  "parent": "kimi_network_plug:block/network_plug_base",
+  "textures": {
+    "particle": "kimi_network_plug:block/graphite_shell",
+    "base": "kimi_network_plug:block/metal_brushed",
+    "body": "kimi_network_plug:block/graphite_shell",
+    "accent": "kimi_network_plug:block/status_green",
+    "metal": "kimi_network_plug:block/front_plate"
+  }
+}

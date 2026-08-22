@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "kimi_network_plug:block/chunk_loader" }
+  }
+}
