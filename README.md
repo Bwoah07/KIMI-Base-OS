@@ -20,7 +20,9 @@ Remote clients/nodes can contribute telemetry from anywhere the KIMI network rea
 
 ## Modules
 
-The server and remote nodes discover `modules/*.lua` dynamically. Current integrations include environment/weather/moon, AE2, and Mekanism Induction Matrix power telemetry, with room for doors/redstone, RFTools, quarry/mining, factories, and other peripherals.
+The server and remote nodes discover `modules/*.lua` dynamically. Current integrations include environment/weather/moon, AE2, Flux Networks, and Mekanism Induction Matrix power telemetry, with room for doors/redstone, RFTools, quarry/mining, factories, and other peripherals.
+
+Flux Networks telemetry is shown directly on Command Center, wall, and terminal clients, including network storage, live input/output, internal buffer, device counts, security mode, and average tick cost when the peripheral exposes those fields.
 
 ## cc-mek-scada / Nuclear
 
@@ -57,6 +59,7 @@ The network core opens every attached CC modem, allowing wired and wireless netw
 
 ## Current version
 
-`5.0.0-alpha.26`
+`5.0.0-alpha.28`
 
 The repository is public so CC:Tweaked can perform unauthenticated HTTPS downloads from GitHub.
+
