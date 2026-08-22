@@ -87,6 +87,26 @@ local function age(ms)
     return math.floor(d/86400).."d ago"
 end
 
+local function fmtNumber(value)
+    local n=tonumber(value)
+    if not n then return "?" end
+    local a=math.abs(n)
+    if a>=1e12 then return string.format("%.2fT",n/1e12) end
+    if a>=1e9 then return string.format("%.2fG",n/1e9) end
+    if a>=1e6 then return string.format("%.2fM",n/1e6) end
+    if a>=1e3 then return string.format("%.2fK",n/1e3) end
+    return tostring(math.floor(n+0.5))
+end
+
+local function fmtFE(value,rate)
+    local text=fmtNumber(value)
+    return text=="?" and text or (text.." FE"..(rate and "/t" or ""))
+end
+
+local function powerOnline(power)
+    return type(power)=="table" and (power.status=="ONLINE" or power._status=="online")
+end
+
 local function uptime(startedAt)
     if not startedAt then return "?" end
     local d=math.max(0,math.floor((os.epoch("utc")-startedAt)/1000))
@@ -165,6 +185,7 @@ local function drawComposite(mon,envelope,meta)
     local srcCount=count(sources)
     local scadaOnline,scadaTotal,scadaPending=scadaSummary(sources)
     local version=envelope and envelope.version or "?"
+    local power=envelope and envelope.state and envelope.state.power or nil
 
     header(mon,"KIMI SERVER","#"..tostring(meta.serverId or "?"))
 
@@ -178,7 +199,8 @@ local function drawComposite(mon,envelope,meta)
         put(mon,mid+2,3,"FLEET",colors.lightGray); put(mon,mid+13,3,online.."/"..total.." online",online==total and colors.lime or colors.yellow)
         put(mon,mid+2,4,"SOURCES",colors.lightGray); put(mon,mid+13,4,srcCount,srcCount>0 and colors.lime or colors.yellow)
         put(mon,mid+2,5,"MONITORS",colors.lightGray); put(mon,mid+13,5,#monitors)
-        put(mon,mid+2,6,"SCHEMA",colors.lightGray); put(mon,mid+13,6,envelope and envelope.schema or "?")
+        put(mon,mid+2,6,"POWER",colors.lightGray); put(mon,mid+13,6,powerOnline(power) and fmtFE(power.stored,false) or "OFFLINE",powerOnline(power) and colors.lime or colors.red)
+        put(mon,mid+2,7,"NETWORK",colors.lightGray); put(mon,mid+13,7,powerOnline(power) and (power.networkName or power.sourceType or "ONLINE") or "---",powerOnline(power) and colors.white or colors.gray)
     else
         put(mon,2,6,"FLEET",colors.lightGray); put(mon,14,6,online.."/"..total.." online")
         put(mon,2,7,"SOURCES",colors.lightGray); put(mon,14,7,srcCount)
@@ -270,6 +292,45 @@ local function drawComposite(mon,envelope,meta)
     end
 end
 
+local function panelPower(mon,envelope,meta)
+    prep(mon)
+    local power=envelope and envelope.state and envelope.state.power or nil
+    local isFlux=power and power.sourceType=="flux_network"
+    header(mon,isFlux and "FLUX NETWORKS" or "POWER NETWORK")
+
+    if not powerOnline(power) then
+        line(mon,3,"STATUS","OFFLINE",colors.red)
+        line(mon,5,"","Waiting for Flux / power peripheral",colors.yellow)
+        return
+    end
+
+    line(mon,3,"STATUS",power.status or "ONLINE",colors.lime)
+    line(mon,4,"NETWORK",power.networkName or "---",colors.white)
+    hline(mon,5,2,select(1,mon.getSize())-1)
+    line(mon,6,"STORED",fmtFE(power.stored,false))
+    line(mon,7,"CAPACITY",fmtFE(power.capacity,false))
+    line(mon,8,"INPUT",fmtFE(power.input,true),colors.lime)
+    line(mon,9,"OUTPUT",fmtFE(power.output,true),colors.orange)
+    line(mon,10,"NET",fmtFE(power.net,true),tonumber(power.net or 0)>=0 and colors.lime or colors.orange)
+
+    if isFlux then
+        line(mon,11,"BUFFER",fmtFE(power.buffer,false))
+        hline(mon,12,2,select(1,mon.getSize())-1)
+        line(mon,13,"PLUGS",power.plugs or "?")
+        line(mon,14,"POINTS",power.points or "?")
+        line(mon,15,"STORAGES",power.storages or "?")
+        line(mon,16,"CONTROLLERS",power.controllers or "?")
+        line(mon,17,"SECURITY",power.security or "?")
+        line(mon,18,"AVG TICK",power.avgTickUs and (string.format("%.1f",tonumber(power.avgTickUs)).." us/t") or "?")
+    else
+        line(mon,11,"TRANSFER",fmtFE(power.transferCap,true))
+        line(mon,12,"CELLS",power.installedCells or "?")
+        line(mon,13,"MODE",power.mode or "?")
+    end
+    local _,h=mon.getSize()
+    if h>=20 then line(mon,h-1,"SOURCE",power._source or power.peripheral or "server",colors.lightGray) end
+end
+
 local function panelFleet(mon,envelope,meta)
     prep(mon); header(mon,"FLEET")
     local machines=meta.machines or {}; local ids=sortedIds(machines)
@@ -344,7 +405,7 @@ local function panelScada(mon,envelope,meta)
     if pending>0 and h2>=4 and w2>=28 then button(mon,"scada_update",3,h2-2,w2-2,h2,"UPDATE SCADA",true) end
 end
 
-local extraPanels={panelFleet,panelUpdates,panelSources,panelScada}
+local extraPanels={panelPower,panelFleet,panelUpdates,panelSources,panelScada}
 
 function M.init()
     monitors=getMonitors()
@@ -383,3 +444,4 @@ function M.handleEvent(e,envelope,action)
 end
 
 return M
+
