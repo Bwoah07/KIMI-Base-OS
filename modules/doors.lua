@@ -21,6 +21,10 @@ local function directRedstone(action,args,state)
     local side=args.side~=nil and tostring(args.side) or nil
     if target=="" then return nil end
     local d=savedDoor(state,args)
+    -- Peripheral fast-path is for already configured local doors. Unconfigured
+    -- probes keep the generic implementation so propagation-delay semantics
+    -- and discovery behavior remain backward compatible.
+    if target~="computer" and not d then return nil end
     local mode=tostring((d and d.mode) or "hold")
     local current=d and d.signal==true or false
     local desired
