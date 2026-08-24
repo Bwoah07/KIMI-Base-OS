@@ -12,21 +12,68 @@ end
 local function loadProfile(name)
     local resolved = normalizedProfile(name)
     local ok, profile = pcall(require, "clients." .. resolved)
-    if ok and type(profile) == "table" then return profile, resolved end
-    return require("clients.terminal"), "terminal"
+    if ok and type(profile) == "table" then return profile, resolved, nil end
+    local fallbackOk, fallback = pcall(require, "clients.terminal")
+    if fallbackOk and type(fallback) == "table" then return fallback, "terminal", profile end
+    error("unable to load UI profile " .. tostring(resolved) .. ": " .. tostring(profile))
 end
 
 local function discoverModules() return loader.discover("modules") end
 
+local function paintUiError(err)
+    local msg = tostring(err or "unknown UI error")
+    local names = {}
+    local okNames, rawNames = pcall(peripheral.getNames)
+    if okNames and type(rawNames) == "table" then names = rawNames end
+    for _, name in ipairs(names) do
+        local isMon = false
+        local okType, t = pcall(peripheral.getType, name)
+        if okType and t == "monitor" then isMon = true end
+        if not isMon and type(peripheral.hasType) == "function" then
+            local okHas, has = pcall(peripheral.hasType, name, "monitor")
+            isMon = okHas and has == true
+        end
+        if isMon then
+            local okWrap, mon = pcall(peripheral.wrap, name)
+            if okWrap and mon then
+                pcall(mon.setTextScale, 1)
+                pcall(mon.setBackgroundColor, colors.black)
+                pcall(mon.setTextColor, colors.red)
+                pcall(mon.clear)
+                pcall(mon.setCursorPos, 2, 2)
+                pcall(mon.write, "KIMI UI ERROR")
+                pcall(mon.setTextColor, colors.white)
+                local okSize, w, h = pcall(mon.getSize)
+                w, h = okSize and tonumber(w) or 40, okSize and tonumber(h) or 20
+                local width = math.max(8, w - 2)
+                for i = 1, math.min(5, math.ceil(#msg / width)) do
+                    local part = msg:sub((i - 1) * width + 1, i * width)
+                    pcall(mon.setCursorPos, 2, 3 + i)
+                    pcall(mon.write, part)
+                end
+            end
+        end
+    end
+    if not fs.exists(".kimi") then pcall(fs.makeDir, ".kimi") end
+    if not fs.exists(".kimi/logs") then pcall(fs.makeDir, ".kimi/logs") end
+    local f = fs.open(".kimi/logs/ui-error.log", "a")
+    if f then f.writeLine(tostring(os.epoch("utc")) .. " " .. msg); f.close() end
+end
+
 function M.run(cfg)
     network.openAll()
     network.advertise(cfg, "client")
-    local profile, resolvedProfile = loadProfile(cfg.profile)
+    local profile, resolvedProfile, profileLoadErr = loadProfile(cfg.profile)
     local modules = discoverModules()
     local localState = loader.readAll(modules, {})
     local serverId, state, lastSeen = nil, nil, 0
     local lastModuleScan = os.epoch("utc")
-    if profile.init then profile.init(cfg) end
+
+    if profileLoadErr then paintUiError("profile load failed: " .. tostring(profileLoadErr)) end
+    if profile.init then
+        local ok, err = pcall(profile.init, cfg)
+        if not ok then paintUiError("profile init failed: " .. tostring(err)) end
+    end
 
     local function helloPayload()
         return {
@@ -45,7 +92,11 @@ function M.run(cfg)
     end
 
     local function render(connected)
-        if profile.render then profile.render(state, meta(connected)) end
+        if not profile.render then return true end
+        local ok, result = pcall(profile.render, state, meta(connected))
+        if not ok then paintUiError(result); return false, result end
+        if result == false then return false end
+        return true
     end
 
     local function publishNow()
@@ -106,7 +157,10 @@ function M.run(cfg)
 
                 elseif sender==serverId and msg.kind=="state" then
                     state=msg.payload; lastSeen=os.epoch("utc")
-                    if profile.onState then profile.onState(state) end
+                    if profile.onState then
+                        local okState, stateErr = pcall(profile.onState, state)
+                        if not okState then paintUiError("onState failed: " .. tostring(stateErr)) end
+                    end
                     render(true)
 
                 elseif sender==serverId and msg.kind=="update.available" then
@@ -132,15 +186,19 @@ function M.run(cfg)
         elseif e[1]=="peripheral" or e[1]=="peripheral_detach" then
             network.openAll(); network.advertise(cfg,"client")
             serverId=network.findServer(cfg); modules=discoverModules(); localState=loader.readAll(modules,localState); lastModuleScan=os.epoch("utc")
-            if profile.onPeripheralChange then profile.onPeripheralChange() end
+            if profile.onPeripheralChange then
+                local okPer, perErr = pcall(profile.onPeripheralChange)
+                if not okPer then paintUiError("peripheral refresh failed: " .. tostring(perErr)) end
+            end
             publishNow(); render(serverId~=nil)
 
         elseif profile.handleEvent then
-            profile.handleEvent(e,state,function(module,action,args)
+            local okEvent, eventErr = pcall(profile.handleEvent,e,state,function(module,action,args)
                 if module=="__local_doors" then return localDoorCommand(action,args) end
                 if serverId then return network.send(serverId,cfg,"command",{module=module,action=action,args=args}) end
                 return false,"main server offline"
             end)
+            if not okEvent then paintUiError("UI event failed: " .. tostring(eventErr)) end
         end
     end
 end
