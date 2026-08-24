@@ -46,9 +46,31 @@ function M.host(cfg)
     rednet.host(cfg.network.protocol, cfg.network.hostname)
 end
 
+function M.advertise(cfg, role)
+    M.openAll()
+    local hostname = "kimi-" .. tostring(role or "client") .. "-" .. tostring(os.getComputerID())
+    local ok = pcall(rednet.host, cfg.network.protocol, hostname)
+    return ok, hostname
+end
+
 function M.findServer(cfg)
     M.openAll()
     return rednet.lookup(cfg.network.protocol, cfg.network.hostname)
+end
+
+function M.lookupAll(cfg)
+    M.openAll()
+    local raw = { rednet.lookup(cfg.network.protocol) }
+    local out, seen = {}, {}
+    for _, id in ipairs(raw) do
+        id = tonumber(id)
+        if id and id ~= os.getComputerID() and not seen[id] then
+            seen[id] = true
+            out[#out + 1] = id
+        end
+    end
+    table.sort(out)
+    return out
 end
 
 function M.send(id, cfg, kind, payload)

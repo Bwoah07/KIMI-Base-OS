@@ -74,9 +74,7 @@ function M.remoteVersion()
     local body, err = fetchRaw(headSha, "manifest.json")
     if not body then return nil, err end
     local manifest = textutils.unserializeJSON(body)
-    if type(manifest) ~= "table" or type(manifest.version) ~= "string" then
-        return nil, "invalid manifest"
-    end
+    if type(manifest) ~= "table" or type(manifest.version) ~= "string" then return nil, "invalid manifest" end
     manifest._head = headSha
     return manifest.version, manifest
 end
@@ -85,16 +83,17 @@ function M.check()
     local remote, manifestOrErr = M.remoteVersion()
     if not remote then return nil, manifestOrErr end
     local current = M.localVersion()
-    return {
-        current = current,
-        remote = remote,
-        available = current ~= remote,
-        manifest = manifestOrErr
-    }
+    return { current=current, remote=remote, available=current~=remote, manifest=manifestOrErr }
 end
 
 function M.autoEnabled(cfg)
     return cfg and cfg.update and cfg.update.auto ~= false
+end
+
+-- Fleet management is intentionally independent of a machine doing its own
+-- GitHub checks. Normal clients/nodes follow the Command Center by default.
+function M.fleetManaged(cfg)
+    return not (cfg and cfg.update and cfg.update.fleetManaged == false)
 end
 
 function M.checkOnBoot(cfg)
@@ -116,9 +115,7 @@ function M.request(targetVersion, reason, manifest)
     }))
 end
 
-function M.hasPendingProbation()
-    return fs.exists(PENDING)
-end
+function M.hasPendingProbation() return fs.exists(PENDING) end
 
 function M.markHealthy()
     if not fs.exists(PENDING) then return false end
@@ -143,16 +140,12 @@ end
 
 function M.periodic(updateCfg)
     updateCfg = updateCfg or {}
-    if updateCfg.auto == false then
-        while true do sleep(3600) end
-    end
+    if updateCfg.auto == false then while true do sleep(3600) end end
     local interval = math.max(60, tonumber(updateCfg.interval) or 600)
     while true do
         sleep(interval)
         local result = M.check()
-        if result and result.available then
-            M.rebootForUpdate(result.remote, "kernel-periodic-check", result.manifest)
-        end
+        if result and result.available then M.rebootForUpdate(result.remote, "kernel-periodic-check", result.manifest) end
     end
 end
 

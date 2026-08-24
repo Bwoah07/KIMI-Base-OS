@@ -30,8 +30,8 @@ jobs:
         run: |
           find . -name '*.lua' -not -path './mods/*' -print0 | xargs -0 -n1 luac5.2 -p
 
-      - name: Adaptive display smoke test
-        run: lua5.2 tests/adaptive_display_smoke.lua
+      - name: Alpha37 lock-in regression test
+        run: lua5.2 tests/alpha37_lockin_smoke.lua
 
       - name: Validate managed manifest
         run: |
