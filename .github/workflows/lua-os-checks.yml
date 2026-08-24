@@ -36,6 +36,9 @@ jobs:
       - name: Alpha38 lock-in regression test
         run: lua5.2 tests/alpha38_lockin_smoke.lua
 
+      - name: Alpha39 room renderer regression test
+        run: lua5.2 tests/alpha39_room_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
