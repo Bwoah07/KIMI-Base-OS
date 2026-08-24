@@ -1,101 +1,354 @@
-local M={id="doors"}
-local ROOT=".kimi";local LOCAL_PATH=ROOT.."/local_doors"
-local computerSides={"top","bottom","left","right","front","back"}
-local worldSides={"north","south","east","west","up","down"}
-local commandedStates={}
+local M = { id = "doors" }
 
-local function safeCall(obj,method,fallback,...)
- if not obj or type(obj[method])~="function"then return fallback,false end
- local ok,value=pcall(obj[method],...);if not ok then return fallback,false end;return value,true
-end
-local function methodSet(name)local ok,v=pcall(peripheral.getMethods,name);local out={};if ok and type(v)=="table"then for _,m in ipairs(v)do out[m]=true end end;return out end
-local function ptype(name)local ok,v=pcall(peripheral.getType,name);return ok and tostring(v or"unknown")or"unknown"end
-local function norm(v)return tostring(v or""):lower():gsub("[^a-z0-9]","")end
-local function key(target,side)return tostring(target or"").."|"..tostring(side or"")end
-local function allowed(v,list)for _,x in ipairs(list)do if x==v then return true end end;return false end
-local function supportsModes(kind)return kind~="native_door"end
-local function normalizeMode(e)local m=tostring(e and e.mode or"hold");if m~="hold"and m~="invert"and m~="pulse"then m="hold"end;return m end
-local function readFile(path)if not fs.exists(path)or fs.isDir(path)then return nil end;local f=fs.open(path,"r");if not f then return nil end;local b=f.readAll();f.close();return b end
-local function loadDoors()local raw=readFile(LOCAL_PATH);local v=raw and textutils.unserialize(raw)or nil;if type(v)~="table"then return{}end;local out={};for _,e in ipairs(v)do if type(e)=="table"and e.target then e.key=e.key or key(e.target,e.side);e.mode=normalizeMode(e);e.pulseSeconds=math.max(.05,math.min(5,tonumber(e.pulseSeconds)or.5));out[#out+1]=e end end;return out end
-local function saveDoors(v)if not fs.exists(ROOT)then fs.makeDir(ROOT)end;local f=assert(fs.open(LOCAL_PATH,"w"));f.write(textutils.serialize(v or{}));f.close()end
-local function actuatorish(t)local n=norm(t);return n:find("redstone",1,true)or n:find("relay",1,true)or n:find("door",1,true)or n:find("gate",1,true)or n:find("piston",1,true)or n:find("switch",1,true)end
+local ROOT = ".kimi"
+local LOCAL_PATH = ROOT .. "/local_doors"
+local computerSides = { "top", "bottom", "left", "right", "front", "back" }
+local worldSides = { "north", "south", "east", "west", "up", "down" }
 
-local function computerInput(side)local ok,v=pcall(redstone.getInput,side);return ok and v==true,ok end
-local function peripheralOutput(obj,m,side)
- if m.getOutput then local v,ok=safeCall(obj,"getOutput",false,side);if ok then return v==true,true end end
- if m.getAnalogOutput then local v,ok=safeCall(obj,"getAnalogOutput",0,side);if ok then return(tonumber(v)or 0)>0,true end end
- if m.getAnalogueOutput then local v,ok=safeCall(obj,"getAnalogueOutput",0,side);if ok then return(tonumber(v)or 0)>0,true end end
- return false,false
+local function key(target, side)
+    return tostring(target or "") .. "|" .. tostring(side or "")
 end
-local function peripheralInput(obj,m,side)
- if m.getInput then local v,ok=safeCall(obj,"getInput",false,side);if ok then return v==true,true end end
- if m.getAnalogInput then local v,ok=safeCall(obj,"getAnalogInput",0,side);if ok then return(tonumber(v)or 0)>0,true end end
- if m.getAnalogueInput then local v,ok=safeCall(obj,"getAnalogueInput",0,side);if ok then return(tonumber(v)or 0)>0,true end end
- return false,false
+
+local function contains(list, value)
+    for _, v in ipairs(list) do if v == value then return true end end
+    return false
 end
-local function sideChannels(target,obj,m,sides)
- local out={};for _,side in ipairs(sides)do local output,readable=peripheralOutput(obj,m,side);if not readable then output=commandedStates[key(target,side)]==true end;local input,inputReadable=peripheralInput(obj,m,side);out[#out+1]={side=side,label=side,signal=output,readable=readable,input=input,inputReadable=inputReadable}end;return out
+
+local function ensureRoot()
+    if not fs.exists(ROOT) then fs.makeDir(ROOT) end
+end
+
+local function loadDoors()
+    if not fs.exists(LOCAL_PATH) or fs.isDir(LOCAL_PATH) then return {} end
+    local f = fs.open(LOCAL_PATH, "r")
+    if not f then return {} end
+    local raw = f.readAll()
+    f.close()
+    local parsed = textutils.unserialize(raw)
+    if type(parsed) ~= "table" then return {} end
+    local out = {}
+    for _, d in ipairs(parsed) do
+        if type(d) == "table" and d.target then
+            d.key = d.key or key(d.target, d.side)
+            d.mode = tostring(d.mode or "hold")
+            if d.mode ~= "hold" and d.mode ~= "invert" and d.mode ~= "pulse" then d.mode = "hold" end
+            d.pulseSeconds = math.max(0.05, math.min(5, tonumber(d.pulseSeconds) or 0.5))
+            out[#out + 1] = d
+        end
+    end
+    return out
+end
+
+local function saveDoors(doors)
+    ensureRoot()
+    local f = assert(fs.open(LOCAL_PATH, "w"))
+    f.write(textutils.serialize(doors or {}))
+    f.close()
+end
+
+local function methods(name)
+    local out = {}
+    if not peripheral or type(peripheral.getMethods) ~= "function" then return out end
+    local ok, list = pcall(peripheral.getMethods, name)
+    if ok and type(list) == "table" then
+        for _, m in ipairs(list) do out[m] = true end
+    end
+    return out
+end
+
+local function ptype(name)
+    local ok, value = pcall(peripheral.getType, name)
+    if not ok then return "unknown" end
+    if type(value) == "table" then return tostring(value[1] or "unknown") end
+    return tostring(value or "unknown")
+end
+
+-- Deliberately use peripheral.call rather than methods on peripheral.wrap().
+-- This avoids wrapper/metatable incompatibilities between CC:Tweaked peripherals.
+local function callPeripheral(name, method, ...)
+    if not peripheral or type(peripheral.call) ~= "function" then
+        return false, "peripheral.call unavailable"
+    end
+    local args = { ... }
+    local ok, value = pcall(function()
+        return peripheral.call(name, method, unpack(args))
+    end)
+    if not ok then return false, tostring(value) end
+    return true, value
+end
+
+local function computerRead(side)
+    if not contains(computerSides, side) then return false, false end
+    local ok, value = pcall(redstone.getOutput, side)
+    return ok and value == true, ok
+end
+
+local function computerInput(side)
+    if not contains(computerSides, side) then return false, false end
+    local ok, value = pcall(redstone.getInput, side)
+    return ok and value == true, ok
+end
+
+local function readPeripheralOutput(name, m, side)
+    if m.getOutput then
+        local ok, value = callPeripheral(name, "getOutput", side)
+        if ok then return value == true, true end
+    end
+    if m.getAnalogOutput then
+        local ok, value = callPeripheral(name, "getAnalogOutput", side)
+        if ok then return (tonumber(value) or 0) > 0, true end
+    end
+    if m.getAnalogueOutput then
+        local ok, value = callPeripheral(name, "getAnalogueOutput", side)
+        if ok then return (tonumber(value) or 0) > 0, true end
+    end
+    return false, false
+end
+
+local function readPeripheralInput(name, m, side)
+    if m.getInput then
+        local ok, value = callPeripheral(name, "getInput", side)
+        if ok then return value == true, true end
+    end
+    if m.getAnalogInput then
+        local ok, value = callPeripheral(name, "getAnalogInput", side)
+        if ok then return (tonumber(value) or 0) > 0, true end
+    end
+    if m.getAnalogueInput then
+        local ok, value = callPeripheral(name, "getAnalogueInput", side)
+        if ok then return (tonumber(value) or 0) > 0, true end
+    end
+    return false, false
+end
+
+local function classifyPeripheral(name)
+    local m = methods(name)
+    local typ = ptype(name)
+    if m.setOutput then return { target=name, name=name, type=typ, kind="digital_side", priority=1, methods=m } end
+    if m.setAnalogOutput or m.setAnalogueOutput then return { target=name, name=name, type=typ, kind="analog_side", priority=1, methods=m } end
+    if m.setOpen or (m.open and m.close) then return { target=name, name=name, type=typ, kind="native_door", priority=0, methods=m } end
+    if m.setEnabled then return { target=name, name=name, type=typ, kind="enabled_actuator", priority=2, methods=m } end
+    if m.setActive then return { target=name, name=name, type=typ, kind="active_actuator", priority=2, methods=m } end
+    return nil
 end
 
 local function controllers()
- local out={};local names=peripheral.getNames();table.sort(names)
- for _,name in ipairs(names)do local m=methodSet(name);local obj=peripheral.wrap(name);local typ=ptype(name)
-  if obj and m.setOutput then out[#out+1]={target=name,name=name,type=typ,kind="digital_side",priority=1,channels=sideChannels(name,obj,m,worldSides)}
-  elseif obj and(m.setAnalogOutput or m.setAnalogueOutput)then out[#out+1]={target=name,name=name,type=typ,kind="analog_side",priority=1,channels=sideChannels(name,obj,m,worldSides)}
-  elseif obj and((m.open and m.close)or m.setOpen)then local s=commandedStates[name]==true;local r=false;if m.isOpen then s,r=safeCall(obj,"isOpen",false)end;out[#out+1]={target=name,name=name,type=typ,kind="native_door",priority=0,channels={{side=nil,label="DOOR",signal=s==true,readable=r==true,input=s==true,inputReadable=r==true}}}
-  elseif obj and actuatorish(typ)and(m.setEnabled or m.setActive)then local s=commandedStates[name]==true;local r=false;if m.isEnabled then s,r=safeCall(obj,"isEnabled",false)elseif m.isActive then s,r=safeCall(obj,"isActive",false)end;out[#out+1]={target=name,name=name,type=typ,kind=m.setEnabled and"enabled_actuator"or"active_actuator",priority=1,channels={{side=nil,label="ACTUATOR",signal=s==true,readable=r==true,input=s==true,inputReadable=r==true}}}end
- end
- if type(redstone)=="table"and type(redstone.setOutput)=="function"then local ch={};for _,side in ipairs(computerSides)do local o=redstone.getOutput(side)==true;local i,ir=computerInput(side);ch[#ch+1]={side=side,label=side,signal=o,readable=true,input=i,inputReadable=ir}end;out[#out+1]={target="computer",name="THIS COMPUTER",type="computer_redstone",kind="digital_side",priority=9,channels=ch}end
- table.sort(out,function(a,b)if(a.priority or 5)~=(b.priority or 5)then return(a.priority or 5)<(b.priority or 5)end;return tostring(a.target)<tostring(b.target)end);return out
-end
-local function findController(target)for _,c in ipairs(controllers())do if tostring(c.target)==tostring(target)then return c end end end
-local function findCandidate(target,side)local c=findController(target);if not c then return nil end;for _,ch in ipairs(c.channels or{})do if tostring(ch.side or"")==tostring(side or"")then return c,ch end end end
-local function findEntry(entries,target,side)local k=key(target,side);for i,e in ipairs(entries)do if(e.key or key(e.target,e.side))==k then return e,i end end end
+    local out = {}
+    if peripheral and type(peripheral.getNames) == "function" then
+        local ok, names = pcall(peripheral.getNames)
+        if ok and type(names) == "table" then
+            table.sort(names)
+            for _, name in ipairs(names) do
+                local c = classifyPeripheral(name)
+                if c then
+                    c.channels = {}
+                    if c.kind == "digital_side" or c.kind == "analog_side" then
+                        for _, side in ipairs(worldSides) do
+                            local output, readable = readPeripheralOutput(name, c.methods, side)
+                            local input, inputReadable = readPeripheralInput(name, c.methods, side)
+                            c.channels[#c.channels + 1] = {
+                                side=side, label=side, signal=output, readable=readable,
+                                input=input, inputReadable=inputReadable,
+                            }
+                        end
+                    else
+                        local signal, readable = false, false
+                        if c.methods.isOpen then readable, signal = callPeripheral(name, "isOpen")
+                        elseif c.methods.isEnabled then readable, signal = callPeripheral(name, "isEnabled")
+                        elseif c.methods.isActive then readable, signal = callPeripheral(name, "isActive") end
+                        c.channels[1] = { side=nil, label="DOOR", signal=signal == true, readable=readable == true, input=signal == true, inputReadable=readable == true }
+                    end
+                    out[#out + 1] = c
+                end
+            end
+        end
+    end
 
-local function setOutput(target,side,c,value)
- if target=="computer"then if not allowed(side,computerSides)then error("invalid computer redstone side")end;redstone.setOutput(side,value);commandedStates[key(target,side)]=value;return end
- if not peripheral.isPresent(target)then error("door actuator is not attached")end;local obj=peripheral.wrap(target);local m=methodSet(target)
- if c.kind=="digital_side"then if not m.setOutput or not allowed(side,worldSides)then error("invalid redstone actuator")end;local _,ok=safeCall(obj,"setOutput",nil,side,value);if not ok then error("redstone actuator rejected output")end
- elseif c.kind=="analog_side"then local setter=m.setAnalogOutput and"setAnalogOutput"or(m.setAnalogueOutput and"setAnalogueOutput"or nil);if not setter or not allowed(side,worldSides)then error("invalid analog actuator")end;local _,ok=safeCall(obj,setter,nil,side,value and 15 or 0);if not ok then error("analog actuator rejected output")end
- elseif c.kind=="native_door"then local ok;if m.setOpen then _,ok=safeCall(obj,"setOpen",nil,value)elseif value and m.open then _,ok=safeCall(obj,"open",nil)elseif(not value)and m.close then _,ok=safeCall(obj,"close",nil)end;if not ok then error("door peripheral rejected command")end
- elseif c.kind=="enabled_actuator"and m.setEnabled then local _,ok=safeCall(obj,"setEnabled",nil,value);if not ok then error("actuator rejected setEnabled")end
- elseif c.kind=="active_actuator"and m.setActive then local _,ok=safeCall(obj,"setActive",nil,value);if not ok then error("actuator rejected setActive")end
- else error("unsupported door actuator")end
- commandedStates[side and key(target,side)or target]=value
-end
-local function liveSignals(target,side,c)
- if target=="computer"then local o=redstone.getOutput(side)==true;local i,ir=computerInput(side);return o,true,i,ir end
- local obj=peripheral.wrap(target);if not obj then return false,false,false,false end;local m=methodSet(target)
- if c.kind=="digital_side"or c.kind=="analog_side"then local o,orx=peripheralOutput(obj,m,side);if not orx then o=commandedStates[key(target,side)]==true end;local i,ir=peripheralInput(obj,m,side);return o,orx,i,ir end
- if c.kind=="native_door"and m.isOpen then local v,ok=safeCall(obj,"isOpen",false);return v==true,ok,v==true,ok end
- if c.kind=="enabled_actuator"and m.isEnabled then local v,ok=safeCall(obj,"isEnabled",false);return v==true,ok,v==true,ok end
- if c.kind=="active_actuator"and m.isActive then local v,ok=safeCall(obj,"isActive",false);return v==true,ok,v==true,ok end
- local v=commandedStates[side and key(target,side)or target]==true;return v,false,false,false
-end
-local function feedbackSignal(entry,c)
- if not entry.feedbackSide then return nil,false end
- local side=tostring(entry.feedbackSide);if c.target=="computer"then local v,ok=computerInput(side);return v,ok end
- local obj=peripheral.wrap(c.target);if not obj then return nil,false end;local m=methodSet(c.target);local v,ok=peripheralInput(obj,m,side);return v,ok
-end
-local function logicalState(entry,c,output)
- local fb,fbOk=feedbackSignal(entry,c);if fbOk then local v=fb;if entry.feedbackInvert then v=not v end;return v,"feedback" end
- local mode=normalizeMode(entry);if mode=="invert"and supportsModes(c.kind)then return not output,"output"end;if mode=="pulse"then return commandedStates["logical:"..key(entry.target,entry.side)]==true,"command"end;return output,"output"
+    if type(redstone) == "table" and type(redstone.setOutput) == "function" then
+        local c = { target="computer", name="THIS COMPUTER", type="computer_redstone", kind="digital_side", priority=9, channels={} }
+        for _, side in ipairs(computerSides) do
+            local output, readable = computerRead(side)
+            local input, inputReadable = computerInput(side)
+            c.channels[#c.channels + 1] = { side=side, label=side, signal=output, readable=readable, input=input, inputReadable=inputReadable }
+        end
+        out[#out + 1] = c
+    end
+
+    table.sort(out, function(a,b)
+        if a.priority ~= b.priority then return a.priority < b.priority end
+        return tostring(a.target) < tostring(b.target)
+    end)
+    return out
 end
 
-local function buildLists(ctrls,entries)
- local saved={};for _,e in ipairs(entries)do saved[e.key or key(e.target,e.side)]=e end;local candidates,doors={},{}
- for _,c in ipairs(ctrls)do for _,ch in ipairs(c.channels or{})do local k=key(c.target,ch.side);local e=saved[k];local cand={target=c.target,side=ch.side,label=ch.label,controller=c.name,type=c.type,kind=c.kind,priority=c.priority,signal=ch.signal==true,inputSignal=ch.input==true,inputReadable=ch.inputReadable==true,readable=ch.readable==true,localKey=k,localConfigured=e~=nil,localName=e and e.name or nil};candidates[#candidates+1]=cand;if e then local open,source=logicalState(e,c,ch.signal==true);doors[#doors+1]={id="local:"..k,key=k,name=e.name or((ch.label or ch.side or"LOCAL").." DOOR"),target=c.target,side=ch.side,controller=c.name,type=c.type,kind=c.kind,mode=normalizeMode(e),pulseSeconds=tonumber(e.pulseSeconds)or.5,open=open,signal=ch.signal==true,inputSignal=ch.input==true,inputReadable=ch.inputReadable==true,stateSource=source,feedbackSide=e.feedbackSide,feedbackInvert=e.feedbackInvert==true,online=true,localConfigured=true,supportsModes=supportsModes(c.kind)}end end end;return candidates,doors
+local function findController(target)
+    for _, c in ipairs(controllers()) do if tostring(c.target) == tostring(target) then return c end end
 end
 
-function M.read()local cs=controllers();local entries=loadDoors();local candidates,localDoors=buildLists(cs,entries);local n=0;for _,c in ipairs(cs)do n=n+#(c.channels or{})end;return{controllers=cs,controllerCount=#cs,candidates=candidates,candidateCount=#candidates,localDoors=localDoors,localDoorCount=#localDoors,channelCount=n,_status="online",_updated=os.epoch("utc")}end
-
-function M.handleCommand(action,args)
- args=type(args)=="table"and args or{};local target=tostring(args.target or"");local side=args.side and tostring(args.side)or nil
- if action=="register_local"then if target==""then error("local door target is required")end;local c,ch=findCandidate(target,side);if not c or not ch then error("local door actuator is not attached")end;local entries=loadDoors();local existing=findEntry(entries,target,side);if existing then return existing end;local label=tostring(args.name or"");if label==""then local s=tostring(ch.label or side or"DOOR"):upper();label=s=="DOOR"and"LOCAL DOOR"or(s.." DOOR")end;local e={key=key(target,side),name=label,target=target,side=side,kind=c.kind,type=c.type,mode="hold",pulseSeconds=.5};entries[#entries+1]=e;saveDoors(entries);return e end
- if action=="configure_local"then local entries=loadDoors();local e=findEntry(entries,target,side);if not e then error("local door is not configured")end;local c=findController(target);if not c then error("door actuator is not attached")end;local mode=tostring(args.mode or e.mode or"hold");if mode~="hold"and mode~="invert"and mode~="pulse"then error("invalid door mode")end;if not supportsModes(c.kind)and mode~="hold"then mode="hold"end;e.mode=mode;e.pulseSeconds=math.max(.05,math.min(5,tonumber(args.pulseSeconds)or tonumber(e.pulseSeconds)or.5));if args.feedbackSide~=nil then local f=tostring(args.feedbackSide);if f==""or f=="none"then e.feedbackSide=nil else e.feedbackSide=f end end;if args.feedbackInvert~=nil then e.feedbackInvert=args.feedbackInvert==true end;saveDoors(entries);return e end
- if action=="remove_local"then local entries=loadDoors();local _,i=findEntry(entries,target,side);if not i then error("local door is not configured")end;local old=table.remove(entries,i);saveDoors(entries);return old end
- if target==""then error("door target is required")end;if action~="open"and action~="close"and action~="toggle"and action~="pulse"then error("unsupported door action")end;local c=findController(target);if not c then error("door actuator is not attached")end;local entries=loadDoors();local e=findEntry(entries,target,side)or{target=target,side=side,mode="hold",pulseSeconds=.5};local mode=normalizeMode(e)
- if action=="pulse"or mode=="pulse"then local seconds=math.max(.05,math.min(5,tonumber(args.seconds)or tonumber(e.pulseSeconds)or.5));setOutput(target,side,c,true);sleep(seconds);setOutput(target,side,c,false);local k="logical:"..key(target,side);commandedStates[k]=not(commandedStates[k]==true);return{target=target,side=side,kind=c.kind,mode="pulse",open=commandedStates[k],signal=false,action="pulse"}end
- local output=select(1,liveSignals(target,side,c));local current=select(1,logicalState(e,c,output));local desired=action=="open"or(action=="toggle"and not current);local physical=(mode=="invert"and supportsModes(c.kind))and(not desired)or desired;setOutput(target,side,c,physical);return{target=target,side=side,kind=c.kind,mode=mode,open=desired,signal=physical,action=action}
+local function findChannel(c, side)
+    if not c then return nil end
+    for _, ch in ipairs(c.channels or {}) do
+        if tostring(ch.side or "") == tostring(side or "") then return ch end
+    end
 end
+
+local function setActuator(c, side, value)
+    if c.target == "computer" then
+        if not contains(computerSides, side) then return false, "invalid computer redstone side" end
+        local ok, err = pcall(redstone.setOutput, side, value == true)
+        if not ok then return false, tostring(err) end
+        return true
+    end
+
+    local m = c.methods or methods(c.target)
+    if c.kind == "digital_side" then
+        if not contains(worldSides, side) then return false, "invalid redstone actuator side" end
+        local ok, err = callPeripheral(c.target, "setOutput", side, value == true)
+        if not ok then return false, err end
+        return true
+    elseif c.kind == "analog_side" then
+        if not contains(worldSides, side) then return false, "invalid analog actuator side" end
+        local method = m.setAnalogOutput and "setAnalogOutput" or "setAnalogueOutput"
+        local ok, err = callPeripheral(c.target, method, side, value and 15 or 0)
+        if not ok then return false, err end
+        return true
+    elseif c.kind == "native_door" then
+        if m.setOpen then return callPeripheral(c.target, "setOpen", value == true) end
+        if value and m.open then return callPeripheral(c.target, "open") end
+        if not value and m.close then return callPeripheral(c.target, "close") end
+        return false, "native door has no usable command"
+    elseif c.kind == "enabled_actuator" then
+        return callPeripheral(c.target, "setEnabled", value == true)
+    elseif c.kind == "active_actuator" then
+        return callPeripheral(c.target, "setActive", value == true)
+    end
+    return false, "unsupported door actuator"
+end
+
+local function readActuator(c, side)
+    if c.target == "computer" then return computerRead(side) end
+    local m = c.methods or methods(c.target)
+    if c.kind == "digital_side" or c.kind == "analog_side" then return readPeripheralOutput(c.target, m, side) end
+    if c.kind == "native_door" and m.isOpen then local ok,v=callPeripheral(c.target,"isOpen"); return v==true,ok end
+    if c.kind == "enabled_actuator" and m.isEnabled then local ok,v=callPeripheral(c.target,"isEnabled"); return v==true,ok end
+    if c.kind == "active_actuator" and m.isActive then local ok,v=callPeripheral(c.target,"isActive"); return v==true,ok end
+    return false, false
+end
+
+local function findSaved(list, target, side)
+    local k = key(target, side)
+    for i, d in ipairs(list) do if (d.key or key(d.target,d.side)) == k then return d, i end end
+end
+
+function M.read()
+    local cs = controllers()
+    local saved = loadDoors()
+    local savedByKey = {}
+    for _, d in ipairs(saved) do savedByKey[d.key or key(d.target,d.side)] = d end
+    local candidates, localDoors = {}, {}
+
+    for _, c in ipairs(cs) do
+        for _, ch in ipairs(c.channels or {}) do
+            local k = key(c.target, ch.side)
+            local d = savedByKey[k]
+            candidates[#candidates + 1] = {
+                target=c.target, side=ch.side, label=ch.label, controller=c.name,
+                type=c.type, kind=c.kind, priority=c.priority, signal=ch.signal == true,
+                readable=ch.readable == true, inputSignal=ch.input == true,
+                inputReadable=ch.inputReadable == true, localKey=k,
+                localConfigured=d ~= nil, localName=d and d.name or nil,
+            }
+            if d then
+                local physical = ch.signal == true
+                local logical = d.mode == "invert" and not physical or physical
+                localDoors[#localDoors + 1] = {
+                    id="local:"..k, key=k, name=d.name or "LOCAL DOOR",
+                    target=c.target, side=ch.side, controller=c.name, type=c.type, kind=c.kind,
+                    mode=d.mode or "hold", pulseSeconds=d.pulseSeconds or 0.5,
+                    open=logical, signal=physical, inputSignal=ch.input == true,
+                    inputReadable=ch.inputReadable == true, online=true, localConfigured=true,
+                    supportsModes=c.kind ~= "native_door",
+                }
+            end
+        end
+    end
+
+    return {
+        controllers=cs, controllerCount=#cs, candidates=candidates, candidateCount=#candidates,
+        localDoors=localDoors, localDoorCount=#localDoors, _status="online", _updated=os.epoch("utc"),
+    }
+end
+
+function M.handleCommand(action, args)
+    args = type(args) == "table" and args or {}
+    local target = tostring(args.target or "")
+    local side = args.side ~= nil and tostring(args.side) or nil
+
+    if action == "register_local" then
+        if target == "" then error("local door target is required") end
+        local c = findController(target)
+        local ch = findChannel(c, side)
+        if not c or not ch then error("local door actuator is not attached") end
+        local saved = loadDoors()
+        local old = findSaved(saved, target, side)
+        if old then return old end
+        local name = tostring(args.name or "")
+        if name == "" then name = "LOCAL DOOR" end
+        local d = { key=key(target,side), name=name, target=target, side=side, kind=c.kind, type=c.type, mode="hold", pulseSeconds=0.5 }
+        saved[#saved + 1] = d
+        saveDoors(saved)
+        return d
+    end
+
+    if action == "configure_local" then
+        local saved = loadDoors()
+        local d = findSaved(saved, target, side)
+        if not d then error("local door is not configured") end
+        local mode = tostring(args.mode or d.mode or "hold")
+        if mode ~= "hold" and mode ~= "invert" and mode ~= "pulse" then error("invalid door mode") end
+        d.mode = mode
+        d.pulseSeconds = math.max(0.05, math.min(5, tonumber(args.pulseSeconds) or tonumber(d.pulseSeconds) or 0.5))
+        saveDoors(saved)
+        return d
+    end
+
+    if action == "remove_local" then
+        local saved = loadDoors()
+        local _, idx = findSaved(saved, target, side)
+        if not idx then error("local door is not configured") end
+        local old = table.remove(saved, idx)
+        saveDoors(saved)
+        return old
+    end
+
+    if target == "" then error("door target is required") end
+    local c = findController(target)
+    if not c then error("door actuator is not attached") end
+    local saved = loadDoors()
+    local d = findSaved(saved, target, side) or { target=target, side=side, mode="hold", pulseSeconds=0.5 }
+
+    if action == "pulse" or d.mode == "pulse" then
+        local ok, err = setActuator(c, side, true)
+        if not ok then error("door ON failed: " .. tostring(err)) end
+        sleep(math.max(0.05, math.min(5, tonumber(args.seconds) or tonumber(d.pulseSeconds) or 0.5)))
+        ok, err = setActuator(c, side, false)
+        if not ok then error("door OFF failed: " .. tostring(err)) end
+        return { target=target, side=side, mode="pulse", signal=false, action="pulse" }
+    end
+
+    if action ~= "open" and action ~= "close" and action ~= "toggle" then error("unsupported door action") end
+    local physical = select(1, readActuator(c, side))
+    local current = d.mode == "invert" and not physical or physical
+    local desired = action == "open" or (action == "toggle" and not current)
+    local wantedPhysical = d.mode == "invert" and not desired or desired
+    local ok, err = setActuator(c, side, wantedPhysical)
+    if not ok then error("door command failed: " .. tostring(err)) end
+
+    local actual, readable = readActuator(c, side)
+    if readable and actual ~= wantedPhysical then
+        error("door redstone did not change: wanted " .. tostring(wantedPhysical) .. " got " .. tostring(actual))
+    end
+    return { target=target, side=side, kind=c.kind, mode=d.mode, open=desired, signal=readable and actual or wantedPhysical, action=action }
+end
+
 return M
