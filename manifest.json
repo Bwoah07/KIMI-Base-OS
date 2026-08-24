@@ -1,7 +1,7 @@
 {
-  "version": "5.0.0-alpha.44",
+  "version": "5.0.0-alpha.45",
   "channel": "alpha",
-  "ref": "9182225be7adb2710cb229cb9f2e97324e278515",
+  "ref": "9c0f1b6489b86553bf43b4b06e1bf9f2c9ee7f30",
   "entrypoint": "kimi.lua",
   "managed": [
     "startup.lua",
@@ -11,6 +11,7 @@
     "version.txt",
     "core/config.lua",
     "core/door_registry.lua",
+    "core/doors_impl.lua",
     "core/fleet_registry.lua",
     "core/module_loader.lua",
     "core/network.lua",

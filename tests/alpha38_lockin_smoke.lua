@@ -95,10 +95,11 @@ assert(out:find("FLEET LOCKED 3/3",1,true),"overview still trusts stale discover
 assert(not out:find("DISCOVERING FLEET",1,true),"stale fleet-sync status leaked into overview")
 assert(out:find("SENSOR BUS",1,true),"overview does not surface missing detector telemetry")
 
--- Door implementation must keep universal actuator modes.
+-- Door implementation must keep universal actuator modes. Do not rely on the
+-- old minified source formatting: alpha45 deliberately rewrites the module.
 local f=assert(io.open("modules/doors.lua","r")); local doorSource=f:read("*a"); f:close()
-assert(doorSource:find('mode=="pulse"',1,true),"pulse/toggle door mode missing")
-assert(doorSource:find('mode=="invert"',1,true),"inverted-hold door mode missing")
+assert(doorSource:find('"pulse"',1,true) and doorSource:find('"toggle"',1,true),"pulse/toggle door mode missing")
+assert(doorSource:find('"invert"',1,true),"inverted-hold door mode missing")
 assert(doorSource:find('setAnalogOutput',1,true),"analog redstone actuator support missing")
 assert(doorSource:find('setEnabled',1,true) and doorSource:find('setActive',1,true),"relay/piston actuator support missing")
 
