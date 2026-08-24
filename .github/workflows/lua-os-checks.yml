@@ -72,6 +72,9 @@ jobs:
       - name: Alpha50 configured-door dispatch test
         run: lua5.2 tests/alpha50_configured_door_dispatch_smoke.lua
 
+      - name: Alpha51 invert option test
+        run: lua5.2 tests/alpha51_invert_option_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
