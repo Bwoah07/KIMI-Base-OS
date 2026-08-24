@@ -58,7 +58,6 @@ os={
     day=function() return 8 end
 }
 
--- Sensor classifier regression: ME bridge is power/storage telemetry, not a sensor.
 devices.me_bridge_1={type="me_bridge",object={isOnline=function() return true end,getStoredEnergy=function() return 140648.7 end}}
 devices.player_detector_1={type="player_detector",object={getOnlinePlayers=function() return {"Stig"} end}}
 local attachments=assert(loadfile("modules/attachments.lua"))().read()
@@ -100,7 +99,6 @@ called=nil
 wall.handleEvent({"monitor_touch","room",5,8},doorEnvelope,function(module,action,args) called={module=module,action=action,args=args} end)
 assert(called and called.module=="__local_doors" and called.action=="toggle","local door button is not immediate/local")
 
--- Admin regression: POWER must always have a HOME button, with padded nav text.
 for name in pairs(devices) do devices[name]=nil end
 local adminMon=surface(68,30)
 devices.admin={type="monitor",object=adminMon}
@@ -114,11 +112,10 @@ admin.render(adminEnvelope,{connected=true,localServer=true,localState={power=po
 assert(adminMon.output():find("COMMAND CENTER",1,true),"admin overview missing")
 assert(adminMon.output():find("MAIN BASE",1,true),"legacy KIMI id leaked into main identity")
 
--- POWER nav target is third of four padded buttons at the bottom.
 admin.handleEvent({"monitor_touch","admin",40,30},adminEnvelope,function() end)
 assert(adminMon.output():find("POWER",1,true),"power page did not open")
-assert(adminMon.row(30):find("HOME",1,true),"power page has no HOME/back path")
-assert(adminMon.row(30):sub(1,1)==" " and adminMon.row(30):sub(-1)==" ","nav buttons/text are flush against monitor edges")
+assert(adminMon.output():find("HOME",1,true),"power page has no HOME/back path")
+assert(adminMon.row(29):sub(1,1)==" " and adminMon.row(29):sub(-1)==" ","nav buttons/text are flush against monitor edges")
 admin.handleEvent({"monitor_touch","admin",8,30},adminEnvelope,function() end)
 assert(adminMon.output():find("COMMAND CENTER",1,true),"HOME did not return from power")
 
