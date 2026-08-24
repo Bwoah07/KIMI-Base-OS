@@ -1,7 +1,7 @@
 {
-  "version": "5.0.0-alpha.30",
+  "version": "5.0.0-alpha.31",
   "channel": "alpha",
-  "ref": "38d14f194484008dba0f5c6bcb34b3492e291dca",
+  "ref": "a94182d4e39e25dabccca5e9f9333fcc040bceac",
   "entrypoint": "kimi.lua",
   "managed": [
     "startup.lua",
@@ -10,6 +10,7 @@
     "kimi.lua",
     "version.txt",
     "core/config.lua",
+    "core/door_registry.lua",
     "core/module_loader.lua",
     "core/network.lua",
     "core/watchdog.lua",
@@ -35,6 +36,7 @@
   ],
   "preserve": [
     ".kimi/config",
+    ".kimi/doors",
     ".kimi/monitors",
     ".kimi/state",
     ".kimi/logs"
