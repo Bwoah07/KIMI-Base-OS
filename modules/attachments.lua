@@ -41,19 +41,39 @@ local function contains(text, needle)
     return tostring(text or ""):lower():find(needle, 1, true) ~= nil
 end
 
-local function classify(types, methods)
+local sensorWords = {
+    "sensor", "detector", "scanner", "reader", "analyzer", "analyser", "observer",
+    "therm", "barometer", "seismo", "radiation", "weather", "environment", "biome",
+    "player", "entity", "block_reader", "geo", "moon", "light", "humidity", "temperature"
+}
+
+local function methodLooksSensor(method)
+    local value = tostring(method or ""):lower()
+    local words = {
+        "temperature", "humidity", "radiation", "biome", "weather", "rain", "thunder",
+        "light", "moon", "player", "entity", "block", "dimension", "pressure", "range",
+        "scan", "detect", "sense", "measure", "online"
+    }
+    for _, word in ipairs(words) do if value:find(word, 1, true) then return true end end
+    return false
+end
+
+local function classify(types, methods, methodList)
     local joined = table.concat(types, " "):lower()
     local categories, set = {}, {}
     local function add(value)
         if not set[value] then set[value] = true; categories[#categories + 1] = value end
     end
 
-    if contains(joined, "sensor") or contains(joined, "detector") or contains(joined, "scanner") or
-       contains(joined, "reader") or contains(joined, "analyzer") or contains(joined, "analyser") or
-       contains(joined, "thermometer") or contains(joined, "barometer") or contains(joined, "seismometer") or
-       contains(joined, "radiation") or methods.scan or methods.getOnlinePlayers or methods.getPlayersInRange or
+    local sensorType = false
+    for _, word in ipairs(sensorWords) do if contains(joined, word) then sensorType = true; break end end
+    local sensorMethod = false
+    for _, method in ipairs(methodList or {}) do if methodLooksSensor(method) then sensorMethod = true; break end end
+
+    if sensorType or sensorMethod or methods.getOnlinePlayers or methods.getPlayersInRange or
        methods.getEntitiesInRange or methods.getBiome or methods.getBlockData or methods.getTemperature or
-       methods.getRadiation or methods.getHumidity then add("sensor") end
+       methods.getRadiation or methods.getHumidity or methods.getPressure or methods.getDimension then add("sensor") end
+
     if contains(joined, "flux") or contains(joined, "energy") or contains(joined, "induction") or
        methods.getEnergy or methods.getStoredEnergy or methods.getTransferRate then add("power") end
     if contains(joined, "redstone") or contains(joined, "door") or contains(joined, "gate") or
@@ -83,6 +103,8 @@ local function snapshot(obj, methods)
         end
     end
 
+    -- Known cheap, read-only, no-argument calls. Methods which require an
+    -- argument are intentionally left in the method inventory but not invoked.
     add("weatherRaining", "isRaining", false)
     add("weatherThunder", "isThunder", false)
     add("weatherSunny", "isSunny", false)
@@ -97,6 +119,7 @@ local function snapshot(obj, methods)
     add("moonPhase", "getMoonPhase", nil)
     add("slimeChunk", "isSlimeChunk", nil)
     add("block", "getBlockName", nil)
+    add("blockData", "getBlockData", nil)
     add("fuel", "getFuelLevel", nil)
     add("maxScanRadius", "getMaxScanRadius", nil)
     add("energy", "getEnergy", nil)
@@ -109,6 +132,9 @@ local function snapshot(obj, methods)
     add("colonyId", "getColonyID", nil)
     add("owner", "getOwner", nil)
     add("inventorySize", "size", nil)
+    add("playerCount", "getPlayerCount", nil)
+    add("entityCount", "getEntityCount", nil)
+    add("range", "getRange", nil)
 
     if methods.getOnlinePlayers then
         local players, ok = safeCall(obj, "getOnlinePlayers", nil)
@@ -125,16 +151,19 @@ local function summary(metrics)
     if metrics.networkName then return "Network " .. tostring(metrics.networkName) end
     if metrics.biome or metrics.dimension then return tostring(metrics.biome or "?") .. " / " .. tostring(metrics.dimension or "?") end
     if metrics.onlinePlayers ~= nil then return tostring(metrics.onlinePlayers) .. " player(s) online" end
+    if metrics.playerCount ~= nil then return tostring(metrics.playerCount) .. " player(s)" end
+    if metrics.entityCount ~= nil then return tostring(metrics.entityCount) .. " entities" end
     if metrics.temperature ~= nil then return "Temperature " .. tostring(metrics.temperature) end
     if metrics.radiation ~= nil then return "Radiation " .. tostring(metrics.radiation) end
     if metrics.humidity ~= nil then return "Humidity " .. tostring(metrics.humidity) end
+    if metrics.pressure ~= nil then return "Pressure " .. tostring(metrics.pressure) end
     if metrics.block then return "Block " .. tostring(metrics.block) end
     if metrics.transferRate ~= nil then return tostring(metrics.transferRate) .. " FE/t" end
     if metrics.storedEnergy ~= nil or metrics.energy ~= nil then return tostring(metrics.storedEnergy or metrics.energy) .. " FE" end
     if metrics.colonyName then return "Colony " .. tostring(metrics.colonyName) end
     if metrics.fuel ~= nil then return "Fuel " .. tostring(metrics.fuel) end
     if metrics.inventorySize ~= nil then return tostring(metrics.inventorySize) .. " slots" end
-    return "Attached"
+    return "Telemetry peripheral"
 end
 
 function M.read()
@@ -144,17 +173,17 @@ function M.read()
 
     for _, name in ipairs(names) do
         local types = getTypes(name)
-        local methods, methodLookup = getMethods(name)
+        local methodList, methodLookup = getMethods(name)
         local obj = peripheral.wrap(name)
-        local categories = classify(types, methodLookup)
+        local categories = classify(types, methodLookup, methodList)
         local metrics = snapshot(obj, methodLookup)
         local entry = {
             name = name,
             type = types[1],
             types = types,
             categories = categories,
-            methods = methods,
-            methodCount = #methods,
+            methods = methodList,
+            methodCount = #methodList,
             metrics = metrics,
             summary = summary(metrics),
             online = obj ~= nil
