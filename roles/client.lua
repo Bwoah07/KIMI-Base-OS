@@ -3,10 +3,17 @@ local network = require("core.network")
 local loader = require("core.module_loader")
 local updates = require("core.update_service")
 
+local function normalizedProfile(name)
+    local n = tostring(name or "terminal")
+    if n == "wall" or n == "room" or n:match("^adaptive") then return "wall" end
+    return n
+end
+
 local function loadProfile(name)
-    local ok, profile = pcall(require, "clients." .. tostring(name or "terminal"))
-    if ok and type(profile) == "table" then return profile end
-    return require("clients.terminal")
+    local resolved = normalizedProfile(name)
+    local ok, profile = pcall(require, "clients." .. resolved)
+    if ok and type(profile) == "table" then return profile, resolved end
+    return require("clients.terminal"), "terminal"
 end
 
 local function discoverModules() return loader.discover("modules") end
@@ -14,7 +21,7 @@ local function discoverModules() return loader.discover("modules") end
 function M.run(cfg)
     network.openAll()
     network.advertise(cfg, "client")
-    local profile = loadProfile(cfg.profile)
+    local profile, resolvedProfile = loadProfile(cfg.profile)
     local modules = discoverModules()
     local localState = loader.readAll(modules, {})
     local serverId, state, lastSeen = nil, nil, 0
@@ -24,7 +31,7 @@ function M.run(cfg)
     local function helloPayload()
         return {
             clientId=os.getComputerID(), sourceId=os.getComputerID(), role="client",
-            name=cfg.name, profile=cfg.profile, version=updates.localVersion(),
+            name=cfg.name, profile=resolvedProfile, version=updates.localVersion(),
             generated=os.epoch("utc")
         }
     end
@@ -33,7 +40,7 @@ function M.run(cfg)
         return {
             connected=connected, lastSeen=lastSeen, serverId=serverId,
             localState=localState, localVersion=updates.localVersion(),
-            clientName=cfg.name, localServer=false
+            clientName=cfg.name, localServer=false, profile=resolvedProfile
         }
     end
 
@@ -50,7 +57,6 @@ function M.run(cfg)
 
     local function localDoorCommand(action, args)
         args = type(args) == "table" and args or {}
-        -- Registration creates ownership, so it cannot require _source yet.
         if action ~= "register_local" and action ~= "remove_local" and
            tostring(args._source or "") ~= tostring(os.getComputerID()) then
             return false, "door is not owned by this computer"
