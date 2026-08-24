@@ -47,8 +47,6 @@ local monitors = {
 }
 for name, mon in pairs(monitors) do devices[name] = { type = "monitor", object = mon } end
 
--- Regression fixture from the live alpha.33 screenshot: an ME bridge may expose
--- isOnline/getStoredEnergy but it is not a sensor.
 devices.me_bridge_1 = {
     type = "me_bridge",
     object = {
@@ -76,9 +74,10 @@ peripheral.getMethods = function(name) return methodsOf(devices[name] and device
 term = { clear = function() end, setCursorPos = function() end }
 
 local epoch = 1000000
+local computerLabel = "Front Gate"
 os = {
     getComputerID = function() return 42 end,
-    getComputerLabel = function() return "Front Gate" end,
+    getComputerLabel = function() return computerLabel end,
     epoch = function() epoch = epoch + 1; return epoch end,
     time = function() return 12.5 end,
     day = function() return 8 end
@@ -174,8 +173,6 @@ assert(called, "door touch produced no action")
 assert(called.module == "__local_doors" and called.action == "toggle", "remote local door did not use immediate local command path")
 assert(called.args and tostring(called.args._source) == "42" and called.args.side == "right", "local door target data was lost")
 
--- Generic sensor telemetry without a dedicated environment module must be
--- acknowledged without inventing weather data.
 local onlyStatus = surface(34, 18)
 devices.big, devices.medium, devices.small = nil, nil, nil
 devices.status = { type = "monitor", object = onlyStatus }
@@ -194,11 +191,10 @@ statusWall.render(statusEnvelope, { connected=true, localState={ attachments={ s
 assert(onlyStatus.output():find("1 SENSOR ONLINE", 1, true), "status screen did not surface generic sensor telemetry")
 assert(not onlyStatus.output():find("NO WEATHER SENSOR", 1, true), "status screen contradicted available sensors")
 
--- Admin overview must avoid the alpha.33 empty door-card wording when no door
--- exists and should render a real command-center layout.
 local adminMon = surface(68, 30)
 for name in pairs(devices) do devices[name] = nil end
 devices.admin = { type="monitor", object=adminMon }
+computerLabel = nil
 local admin = adaptive.create({ mode="admin" })
 admin.init({ name="KIMI-7" })
 local adminEnvelope = {
