@@ -9,6 +9,7 @@ local function surface(w,h)
   s.setTextColor=function()end
   s.clear=function() rows={}; x,y=1,1 end
   s.setCursorPos=function(nx,ny) x,y=nx,ny end
+  s.getCursorPos=function() return x,y end
   s.getSize=function() return w,h end
   s.write=function(v)
     v=tostring(v or "")
@@ -29,6 +30,13 @@ end
 local mon=surface(42,24)
 local computerTerm=surface(26,20)
 term=computerTerm
+print=function(...)
+  local parts={}
+  for i=1,select("#",...) do parts[#parts+1]=tostring(select(i,...)) end
+  term.write(table.concat(parts,"\t"))
+  local _,cy=term.getCursorPos()
+  term.setCursorPos(1,cy+1)
+end
 
 local devices={monitor={type="monitor",object=mon}}
 peripheral={}
