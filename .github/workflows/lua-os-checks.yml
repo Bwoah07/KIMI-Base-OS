@@ -48,6 +48,9 @@ jobs:
       - name: Alpha42 crash-proof room regression test
         run: lua5.2 tests/alpha42_room_crashproof_smoke.lua
 
+      - name: Alpha43 installer/profile stability test
+        run: lua5.2 tests/alpha43_stability_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
@@ -67,6 +70,14 @@ jobs:
               raise SystemExit('manifest contains duplicate managed paths')
           if set(manifest.get('managed', ())) & set(manifest.get('remove', ())):
               raise SystemExit('a path is both managed and removed')
+
+          profiles = ['terminal', 'admin', 'wall', 'pocket']
+          for profile in profiles:
+              path = Path('clients') / f'{profile}.lua'
+              if not path.is_file():
+                  raise SystemExit(f'installer profile file missing: {path}')
+              if str(path).replace('\\','/') not in manifest['managed']:
+                  raise SystemExit(f'installer profile not managed: {path}')
 
           print('manifest OK:', manifest['version'], len(manifest['managed']), 'managed files')
           PY
