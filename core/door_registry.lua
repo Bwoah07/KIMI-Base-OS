@@ -13,9 +13,7 @@ local function readFile(path)
     if not fs.exists(path) or fs.isDir(path) then return nil end
     local file = fs.open(path, "r")
     if not file then return nil end
-    local body = file.readAll()
-    file.close()
-    return body
+    local body = file.readAll(); file.close(); return body
 end
 
 function M.key(source, target, side)
@@ -36,8 +34,7 @@ end
 function M.save(entries)
     if not fs.exists(ROOT) then fs.makeDir(ROOT) end
     local file = assert(fs.open(PATH, "w"))
-    file.write(textutils.serialize(entries or {}))
-    file.close()
+    file.write(textutils.serialize(entries or {})); file.close()
 end
 
 function M.candidates(values)
@@ -53,8 +50,6 @@ function M.candidates(values)
                 out[#out + 1] = item
             end
         else
-            -- Alpha.30 and older nodes reported controllers directly. Treat their
-            -- channels as setup candidates, never as configured doors.
             for _, controller in ipairs(reported.controllers or {}) do
                 for _, channel in ipairs(controller.channels or {}) do
                     local item = {
@@ -74,9 +69,7 @@ function M.candidates(values)
             end
         end
     end
-    table.sort(out, function(a, b)
-        return tostring(a.key) < tostring(b.key)
-    end)
+    table.sort(out, function(a, b) return tostring(a.key) < tostring(b.key) end)
     return out
 end
 
@@ -84,8 +77,7 @@ function M.snapshot(entries, candidates)
     local byKey = {}
     for _, candidate in ipairs(candidates or {}) do byKey[candidate.key] = candidate end
 
-    local doors = {}
-    local configured = {}
+    local doors, configured = {}, {}
     for _, entry in ipairs(entries or {}) do
         local key = entry.key or M.key(entry.source, entry.target, entry.side)
         local live = byKey[key]
@@ -101,6 +93,26 @@ function M.snapshot(entries, candidates)
         configured[key] = true
     end
 
+    -- Room panels can safely configure their own physically attached output.
+    -- Those local registrations are reported as telemetry and automatically
+    -- become fleet-visible doors without forcing the user through the central
+    -- raw-output wizard again.
+    for _, candidate in ipairs(candidates or {}) do
+        if candidate.localConfigured == true and not configured[candidate.key] then
+            local item = copy(candidate)
+            item.id = "local:" .. tostring(candidate.key)
+            item.name = candidate.localName or ((tostring(candidate.label or candidate.side or "LOCAL")):upper() .. " DOOR")
+            item.source = tostring(candidate._source or "server")
+            item._source = item.source
+            item.online = true
+            item.open = candidate.open == true
+            item.readable = candidate.readable == true
+            item.origin = "room"
+            doors[#doors + 1] = item
+            configured[candidate.key] = true
+        end
+    end
+
     local available = {}
     for _, candidate in ipairs(candidates or {}) do
         local item = copy(candidate)
@@ -109,7 +121,11 @@ function M.snapshot(entries, candidates)
     end
 
     table.sort(doors, function(a, b)
-        return (tonumber(a.id) or 0) < (tonumber(b.id) or 0)
+        local an, bn = tonumber(a.id), tonumber(b.id)
+        if an and bn then return an < bn end
+        if an then return true end
+        if bn then return false end
+        return tostring(a.key or a.id) < tostring(b.key or b.id)
     end)
 
     return {
@@ -131,16 +147,14 @@ function M.add(entries, candidates, wantedKey)
     end
 
     local selected
-    for _, candidate in ipairs(candidates or {}) do
-        if candidate.key == wantedKey then selected = candidate; break end
-    end
+    for _, candidate in ipairs(candidates or {}) do if candidate.key == wantedKey then selected = candidate; break end end
     if not selected then return nil, "door candidate is no longer online" end
 
     local nextId = 1
     for _, entry in ipairs(entries or {}) do nextId = math.max(nextId, (tonumber(entry.id) or 0) + 1) end
     local entry = {
         id = nextId,
-        name = string.format("DOOR %02d", nextId),
+        name = selected.localName or string.format("DOOR %02d", nextId),
         key = selected.key,
         source = tostring(selected._source or "server"),
         target = selected.target,
@@ -157,10 +171,7 @@ function M.remove(entries, id)
     id = tonumber(id)
     if not id then return nil, "door id is required" end
     for index, entry in ipairs(entries or {}) do
-        if tonumber(entry.id) == id then
-            table.remove(entries, index)
-            return entry
-        end
+        if tonumber(entry.id) == id then table.remove(entries, index); return entry end
     end
     return nil, "configured door was not found"
 end
