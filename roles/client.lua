@@ -22,6 +22,37 @@ function M.run(cfg)
     local lastModuleScan = os.epoch("utc")
     if profile.init then profile.init(cfg) end
 
+    local function meta(connected)
+        return {
+            connected = connected,
+            lastSeen = lastSeen,
+            serverId = serverId,
+            localState = localState,
+            localVersion = updates.localVersion(),
+            clientName = cfg.name,
+            localServer = false
+        }
+    end
+
+    local function render(connected)
+        if profile.render then profile.render(state, meta(connected)) end
+    end
+
+    local function localDoorCommand(action, args)
+        args = type(args) == "table" and args or {}
+        if tostring(args._source or "") ~= tostring(os.getComputerID()) then
+            return false, "door is not owned by this computer"
+        end
+        local target = modules.doors
+        if not target or type(target.handleCommand) ~= "function" then
+            return false, "local door module unavailable"
+        end
+        local ok, result = pcall(target.handleCommand, action, args, localState.doors)
+        localState = loader.readAll(modules, localState)
+        render(serverId ~= nil)
+        return ok, result
+    end
+
     local pollTimer = os.startTimer(0.1)
     local probationTimer = updates.hasPendingProbation() and os.startTimer(15) or nil
 
@@ -47,9 +78,6 @@ function M.run(cfg)
                     version = updates.localVersion()
                 })
 
-                -- Every client is also a telemetry source. If it has no useful
-                -- peripherals the module state is simply empty/offline; if it has
-                -- sensors, that data becomes available to the entire KIMI fleet.
                 network.send(serverId, cfg, "telemetry.state", {
                     sourceId = os.getComputerID(),
                     role = "client",
@@ -61,15 +89,7 @@ function M.run(cfg)
                 })
             end
 
-            if profile.render then
-                profile.render(state, {
-                    connected = serverId ~= nil,
-                    lastSeen = lastSeen,
-                    serverId = serverId,
-                    localState = localState,
-                    localVersion = updates.localVersion()
-                })
-            end
+            render(serverId ~= nil)
             pollTimer = os.startTimer(1)
 
         elseif e[1] == "timer" and e[2] == probationTimer then
@@ -83,15 +103,7 @@ function M.run(cfg)
                     state = msg.payload
                     lastSeen = os.epoch("utc")
                     if profile.onState then profile.onState(state) end
-                    if profile.render then
-                        profile.render(state, {
-                            connected = true,
-                            lastSeen = lastSeen,
-                            serverId = serverId,
-                            localState = localState,
-                            localVersion = updates.localVersion()
-                        })
-                    end
+                    render(true)
 
                 elseif sender == serverId and msg.kind == "update.available" and type(msg.payload) == "table" then
                     local target = tostring(msg.payload.version or "")
@@ -103,8 +115,9 @@ function M.run(cfg)
                             status = "accepted"
                         })
                         sleep((os.getComputerID() % 4) + 1)
-                        updates.rebootForUpdate(target, "server-announcement")
+                        updates.rebootForUpdate(target, "server-announcement", msg.payload.manifest)
                     end
+
                 elseif sender == serverId and msg.kind == "module.command" and type(msg.payload) == "table" then
                     local payload = msg.payload
                     local target = modules[payload.module]
@@ -122,6 +135,7 @@ function M.run(cfg)
                         action = payload.action,
                         sourceId = os.getComputerID()
                     })
+                    render(true)
                 end
             end
 
@@ -130,14 +144,20 @@ function M.run(cfg)
             serverId = network.findServer(cfg)
             modules = discoverModules()
             localState = loader.readAll(modules, localState)
+            lastModuleScan = os.epoch("utc")
             if profile.onPeripheralChange then profile.onPeripheralChange() end
+            render(serverId ~= nil)
 
         else
             if profile.handleEvent then
                 profile.handleEvent(e, state, function(module, action, args)
-                    if serverId then
-                        network.send(serverId, cfg, "command", { module = module, action = action, args = args })
+                    if module == "__local_doors" then
+                        return localDoorCommand(action, args)
                     end
+                    if serverId then
+                        return network.send(serverId, cfg, "command", { module = module, action = action, args = args })
+                    end
+                    return false
                 end)
             end
         end

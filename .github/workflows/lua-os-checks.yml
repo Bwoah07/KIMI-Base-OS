@@ -1,0 +1,57 @@
+name: KIMI Lua OS Checks
+
+on:
+  push:
+    branches:
+      - main
+      - feature/auto-display-overhaul
+    paths:
+      - '**/*.lua'
+      - 'manifest.json'
+      - 'version.txt'
+      - '.github/workflows/lua-os-checks.yml'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lua-os:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Lua 5.2
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.2
+
+      - name: Syntax check Lua files
+        run: |
+          find . -name '*.lua' -not -path './mods/*' -print0 | xargs -0 -n1 luac5.2 -p
+
+      - name: Adaptive display smoke test
+        run: lua5.2 tests/adaptive_display_smoke.lua
+
+      - name: Validate managed manifest
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          manifest = json.loads(Path('manifest.json').read_text())
+          missing = [p for p in manifest['managed'] if not Path(p).is_file()]
+          if missing:
+              raise SystemExit('managed files missing: ' + ', '.join(missing))
+
+          version = Path('version.txt').read_text().strip()
+          if version != manifest['version']:
+              raise SystemExit(f'version mismatch: version.txt={version!r} manifest={manifest["version"]!r}')
+
+          if len(manifest['managed']) != len(set(manifest['managed'])):
+              raise SystemExit('manifest contains duplicate managed paths')
+          if set(manifest.get('managed', ())) & set(manifest.get('remove', ())):
+              raise SystemExit('a path is both managed and removed')
+
+          print('manifest OK:', manifest['version'], len(manifest['managed']), 'managed files')
+          PY

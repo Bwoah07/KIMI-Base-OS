@@ -61,6 +61,16 @@ local function decodeManifest(raw)
     return m
 end
 
+local function validManifest(m)
+    return type(m) == "table" and type(m.version) == "string" and type(m.managed) == "table" and type(m.ref) == "string" and m.ref ~= ""
+end
+
+local function readRequest()
+    local raw = readFile(REQUESTED)
+    local req = raw and textutils.unserialize(raw) or nil
+    return type(req) == "table" and req or nil
+end
+
 local function localVersion()
     return ((readFile("version.txt") or "not-installed"):gsub("%s+$", ""))
 end
@@ -124,33 +134,55 @@ if mode == "rollback" then
     if rollback() then return else error("rollback unavailable") end
 end
 
-if mode == "auto" then print("[KIMI] checking GitHub for updates...") end
+if mode == "auto" then print("[KIMI] checking for requested/server release...") end
 
-local headSha, headErr = getHeadSha()
-if not headSha then
-    if mode == "auto" or mode == "check" then
-        print("[KIMI] update check skipped: " .. tostring(headErr))
+local requested = readRequest()
+local headSha, manifestRaw, manifest
+local authorityPinned = false
+
+if mode == "auto" and requested and requested.target then
+    if validManifest(requested.manifest) and tostring(requested.manifest.version) == tostring(requested.target) then
+        manifest = requested.manifest
+        manifestRaw = textutils.serializeJSON(manifest)
+        headSha = manifest.ref
+        authorityPinned = true
+        print("[KIMI] using server-authority release " .. tostring(manifest.version))
+    elseif requested.manifest ~= nil then
+        print("[KIMI] requested release manifest is invalid/mismatched; keeping installed version")
         return
     end
-    error("GitHub head lookup failed: " .. tostring(headErr))
 end
 
-local manifestRaw, manifestErr = fetchFrom(headSha, "manifest.json")
-if not manifestRaw then
-    if mode == "auto" or mode == "check" then
-        print("[KIMI] update check skipped: " .. tostring(manifestErr))
-        return
+if not manifest then
+    headSha = getHeadSha()
+    if not headSha then
+        if mode == "auto" or mode == "check" then
+            print("[KIMI] update check skipped: GitHub head unavailable")
+            return
+        end
+        error("GitHub head lookup failed")
     end
-    error("manifest download failed: " .. tostring(manifestErr))
+
+    local manifestErr
+    manifestRaw, manifestErr = fetchFrom(headSha, "manifest.json")
+    if not manifestRaw then
+        if mode == "auto" or mode == "check" then
+            print("[KIMI] update check skipped: " .. tostring(manifestErr))
+            return
+        end
+        error("manifest download failed: " .. tostring(manifestErr))
+    end
+
+    local decodeErr
+    manifest, decodeErr = decodeManifest(manifestRaw)
+    if not manifest then error(decodeErr) end
 end
 
-local manifest, manifestDecodeErr = decodeManifest(manifestRaw)
-if not manifest then error(manifestDecodeErr) end
 local current = localVersion()
 local releaseRef = manifest.ref or headSha
 
 print("[KIMI] local " .. current .. " / remote " .. tostring(manifest.version))
-print("[KIMI] discovery head: " .. tostring(headSha))
+print("[KIMI] release ref: " .. tostring(releaseRef) .. (authorityPinned and " (server authority)" or ""))
 
 if mode == "check" then
     if current == manifest.version then print("KIMI is up to date: " .. current)
@@ -165,7 +197,6 @@ if current == manifest.version and mode ~= "force" then
 end
 
 print("[KIMI] updating " .. current .. " -> " .. manifest.version)
-print("[KIMI] release ref: " .. tostring(releaseRef))
 clearDir(STAGE)
 
 for _, path in ipairs(manifest.managed) do
@@ -210,7 +241,7 @@ local ok, installErr = pcall(function()
         from = current,
         to = manifest.version,
         ref = releaseRef,
-        discoveryHead = headSha,
+        discoveryHead = authorityPinned and "server-authority" or headSha,
         installed = os.epoch("utc"),
         crashes = 0
     }))

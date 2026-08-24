@@ -3,6 +3,7 @@ local M = {}
 local ROOT = ".kimi"
 local PENDING = ROOT .. "/update_pending"
 local REQUESTED = ROOT .. "/update_requested"
+local INSTALLED_MANIFEST = ROOT .. "/installed_manifest.json"
 local OWNER, REPO, BRANCH = "Bwoah07", "KIMI-Base-OS", "main"
 local API_HEAD = "https://api.github.com/repos/" .. OWNER .. "/" .. REPO .. "/commits/" .. BRANCH
 local RAW_ROOT = "https://raw.githubusercontent.com/" .. OWNER .. "/" .. REPO .. "/"
@@ -50,9 +51,24 @@ function M.localVersion()
     return ((readFile("version.txt") or "not-installed"):gsub("%s+$", ""))
 end
 
+function M.localManifest()
+    local raw = readFile(INSTALLED_MANIFEST)
+    local manifest = raw and textutils.unserializeJSON(raw) or nil
+    if type(manifest) ~= "table" or type(manifest.version) ~= "string" or type(manifest.managed) ~= "table" then return nil end
+    return manifest
+end
+
+function M.releaseNotice(reason)
+    local manifest = M.localManifest()
+    return {
+        version = M.localVersion(),
+        manifest = manifest,
+        issuedBy = os.getComputerID(),
+        reason = reason or "fleet"
+    }
+end
+
 function M.remoteVersion()
-    -- Resolve the branch head through GitHub's API first, then fetch manifest.json
-    -- from that immutable commit. This avoids stale raw.githubusercontent.com/main cache.
     local headSha, headErr = getHeadSha()
     if not headSha then return nil, headErr end
     local body, err = fetchRaw(headSha, "manifest.json")
@@ -81,16 +97,21 @@ function M.autoEnabled(cfg)
     return cfg and cfg.update and cfg.update.auto ~= false
 end
 
+function M.checkOnBoot(cfg)
+    return not (cfg and cfg.update and cfg.update.checkOnBoot == false)
+end
+
 function M.interval(cfg)
     local n = cfg and cfg.update and tonumber(cfg.update.interval) or 600
     return math.max(60, n)
 end
 
-function M.request(targetVersion, reason)
+function M.request(targetVersion, reason, manifest)
     if not fs.exists(ROOT) then fs.makeDir(ROOT) end
     writeFile(REQUESTED, textutils.serialize({
         target = targetVersion,
         reason = reason or "fleet",
+        manifest = type(manifest) == "table" and manifest or nil,
         requested = os.epoch("utc")
     }))
 end
@@ -111,8 +132,8 @@ function M.markHealthy()
     return true
 end
 
-function M.rebootForUpdate(targetVersion, reason)
-    M.request(targetVersion, reason)
+function M.rebootForUpdate(targetVersion, reason, manifest)
+    M.request(targetVersion, reason, manifest)
     term.setTextColor(colors.yellow)
     print("[KIMI] rebooting for update" .. (targetVersion and (" -> " .. tostring(targetVersion)) or ""))
     term.setTextColor(colors.white)
@@ -130,7 +151,7 @@ function M.periodic(updateCfg)
         sleep(interval)
         local result = M.check()
         if result and result.available then
-            M.rebootForUpdate(result.remote, "kernel-periodic-check")
+            M.rebootForUpdate(result.remote, "kernel-periodic-check", result.manifest)
         end
     end
 end
