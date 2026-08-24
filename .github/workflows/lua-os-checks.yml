@@ -54,6 +54,9 @@ jobs:
       - name: Alpha44 monitor-touch redstone test
         run: lua5.2 tests/alpha44_touch_door_smoke.lua
 
+      - name: Alpha45 peripheral.call door test
+        run: lua5.2 tests/alpha45_door_peripheral_call_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
