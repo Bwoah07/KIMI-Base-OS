@@ -1,7 +1,7 @@
 {
-  "version": "5.0.0-alpha.45",
+  "version": "5.0.0-alpha.46",
   "channel": "alpha",
-  "ref": "9c0f1b6489b86553bf43b4b06e1bf9f2c9ee7f30",
+  "ref": "6f2fb9675f29d77b43922b5b6ce587b7550ce217",
   "entrypoint": "kimi.lua",
   "managed": [
     "startup.lua",
@@ -32,7 +32,8 @@
     "modules/ae2.lua",
     "modules/power.lua",
     "modules/attachments.lua",
-    "modules/doors.lua"
+    "modules/doors.lua",
+    "modules/remote_doors.lua"
   ],
   "remove": [
     "server.lua",
