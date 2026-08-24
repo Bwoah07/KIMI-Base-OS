@@ -1,7 +1,7 @@
 {
-  "version": "5.0.0-alpha.46",
+  "version": "5.0.0-alpha.47",
   "channel": "alpha",
-  "ref": "6f2fb9675f29d77b43922b5b6ce587b7550ce217",
+  "ref": "7556ec03e9b8e81e58dda4e07f5125e8ecb5c2bf",
   "entrypoint": "kimi.lua",
   "managed": [
     "startup.lua",
