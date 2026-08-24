@@ -1,2 +1,2 @@
-local adaptive = require("clients.adaptive_v2")
+local adaptive = require("clients.adaptive_v3")
 return adaptive.create({ mode = "admin" })
