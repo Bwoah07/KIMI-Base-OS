@@ -20,9 +20,17 @@ Remote clients/nodes can contribute telemetry from anywhere the KIMI network rea
 
 ## Modules
 
-The server and remote nodes discover `modules/*.lua` dynamically. Current integrations include environment/weather/moon, AE2, Flux Networks, and Mekanism Induction Matrix power telemetry, with room for doors/redstone, RFTools, quarry/mining, factories, and other peripherals.
+The server and remote nodes discover `modules/*.lua` dynamically. Current integrations include environment/weather/moon, AE2, complete attachment/sensor discovery, Flux Networks, Mekanism Induction Matrix power telemetry, and door/redstone control.
 
-Flux Networks telemetry is shown directly on Command Center, wall, and terminal clients, including network storage, live input/output, internal buffer, device counts, security mode, and average tick cost when the peripheral exposes those fields.
+Every attached peripheral is reported with all of its CC:Tweaked types and methods. Detectors, scanners, readers, environment sensors, player detectors, energy detectors, block readers, Geo Scanners, and future sensor types are classified automatically. KIMI takes only safe, read-only summary samples; expensive world scans and methods requiring arguments remain visible in the method list without being invoked automatically.
+
+Flux Networks telemetry is shown directly on Command Center, wall, and terminal clients. The native `flux_controller` API from the KIMI Flux Networks fork is supported, including exact large-FE values, all devices, health warnings, storage, live input/output/net flow, device counts, and average tick cost. Legacy `flux_device` integrations remain compatible. Flux networks, Mekanism Induction Matrices, and energy detectors are collected at the same time, so attaching Flux no longer hides Matrix telemetry.
+
+## Door control
+
+The local Command Center admin monitor has a `DOORS` button. It discovers all six output channels on the computer and every attached Advanced Peripherals Redstone Integrator, plus direct door/gate peripherals exposing safe `open`/`close` or `setOpen` methods. Touch a channel to toggle it between `OPEN` and `CLOSED`.
+
+Door controllers may be attached to the server or any connected KIMI client/node. Commands are routed back to the computer that owns that attachment. For safety, door commands are accepted only from the server's local Command Center touchscreen; ordinary remote clients cannot issue them over rednet.
 
 ## cc-mek-scada / Nuclear
 
@@ -59,7 +67,7 @@ The network core opens every attached CC modem, allowing wired and wireless netw
 
 ## Current version
 
-`5.0.0-alpha.28`
+`5.0.0-alpha.29`
 
 The repository is public so CC:Tweaked can perform unauthenticated HTTPS downloads from GitHub.
 

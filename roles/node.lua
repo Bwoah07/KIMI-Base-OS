@@ -92,6 +92,23 @@ function M.run(cfg)
                         nodeId = os.getComputerID(),
                         version = updates.localVersion()
                     })
+                elseif sender == serverId and msg.kind == "module.command" and type(msg.payload) == "table" then
+                    local payload = msg.payload
+                    local target = modules[payload.module]
+                    local ok, result
+                    if target and type(target.handleCommand) == "function" then
+                        ok, result = pcall(target.handleCommand, payload.action, payload.args, state[payload.module])
+                    else
+                        ok, result = false, "unsupported module/action"
+                    end
+                    state = loader.readAll(modules, state)
+                    network.send(serverId, cfg, "module.command.result", {
+                        ok = ok,
+                        result = result,
+                        module = payload.module,
+                        action = payload.action,
+                        sourceId = os.getComputerID()
+                    })
                 end
             end
 

@@ -147,10 +147,11 @@ local function panelOperations(mon,envelope)
     local w,h=mon.getSize()
     local divY=math.min(h-7,20)
 
-    if p and (p.status=="ONLINE" or p._status=="online") then
+    local powerStatus=tostring(p and (p._status or p.status) or ""):lower()
+    if p and p.sourceType and powerStatus~="offline" and powerStatus~="error" and powerStatus~="disconnected" then
         local pct=percentOf(p.filledPercentage)
         if not pct and tonumber(p.stored) and tonumber(p.capacity) and tonumber(p.capacity)>0 then pct=tonumber(p.stored)/tonumber(p.capacity)*100 end
-        line(mon,3,"POWER","ONLINE",colors.lime)
+        line(mon,3,"POWER",p.healthy==false and "WARNING" or "ONLINE",p.healthy==false and colors.yellow or colors.lime)
 
         local gaugeX=3
         local gaugeY=6
@@ -242,7 +243,52 @@ local function panelUpdate(mon,envelope)
     local up=stateOf(envelope).update or {}; line(mon,3,"SERVER OS",envelope and envelope.version or "?"); line(mon,4,"AUTHORITY",up.authority or "server"); divider(mon,5); line(mon,6,"LAST CHECK",age(up.lastCheck)); line(mon,7,"RESULT",up.lastResult or "not checked",statusColor(up.lastResult)); line(mon,8,"REMOTE",up.remoteVersion or "?"); line(mon,9,"TARGET",up.targetVersion or "none")
 end
 
-local panels={panelOverview,panelEnvironment,panelOperations,panelFleet,panelSources,panelSystem,panelNetwork,panelModules,panelUpdate}
+local function panelPowerSources(mon,envelope)
+    prep(mon); header(mon,"FLUX + MATRIX")
+    local p=stateOf(envelope).power or {}; local flux=p.fluxNetworks or {}; local matrices=p.matrices or {}; local detectors=p.energyDetectors or {}
+    line(mon,3,"ONLINE",#flux+#matrices+#detectors,(#flux+#matrices+#detectors)>0 and colors.lime or colors.red)
+    line(mon,4,"FOUND","Flux:"..#flux.." Matrix:"..#matrices.." Detect:"..#detectors); divider(mon,5)
+    local y=6; local _,h=mon.getSize()
+    for _,v in ipairs(flux) do if y>h then break end line(mon,y,"FLUX",tostring(v.networkName or v.peripheral).." "..fmtFE(v.stored,false),v.healthy==false and colors.yellow or colors.lime); y=y+1 if y<=h then line(mon,y,"","+"..fmtFE(v.input,true).." -"..fmtFE(v.output,true).." warn:"..tostring(v.warningCount or 0),colors.lightGray); y=y+1 end end
+    for _,v in ipairs(matrices) do if y>h then break end line(mon,y,"MATRIX",tostring(v.peripheral).." "..fmtFE(v.stored,false),colors.lime); y=y+1 if y<=h then line(mon,y,"","+"..fmtFE(v.input,true).." -"..fmtFE(v.output,true).." cells:"..tostring(v.installedCells or "?"),colors.lightGray); y=y+1 end end
+    if y==6 then line(mon,7,"","Waiting for power peripherals",colors.yellow) end
+end
+
+local function panelAttachments(mon,envelope)
+    prep(mon); header(mon,"ALL ATTACHMENTS")
+    local a=stateOf(envelope).attachments or {}; local c=a.categories or {}
+    line(mon,3,"ATTACHED",a.count or 0,(a.count or 0)>0 and colors.lime or colors.yellow)
+    line(mon,4,"KINDS","S:"..tostring(c.sensor or 0).." P:"..tostring(c.power or 0).." C:"..tostring(c.control or 0).." ST:"..tostring(c.storage or 0)); divider(mon,5)
+    local y=6; local _,h=mon.getSize()
+    for _,v in ipairs(a.devices or {}) do if y>h then break end line(mon,y,"",tostring(v.name).." ["..tostring(v.type).."]",v.online==false and colors.red or colors.lime); y=y+1 if y<=h then line(mon,y,"",tostring(v.summary or "Attached").." src:"..tostring(v._source or "server"),colors.lightGray); y=y+1 end end
+    if (a.count or 0)==0 then line(mon,7,"","No peripherals attached",colors.yellow) end
+end
+
+local function panelSensors(mon,envelope)
+    prep(mon); header(mon,"ALL SENSORS")
+    local a=stateOf(envelope).attachments or {}
+    line(mon,3,"SENSORS",a.sensorCount or 0,(a.sensorCount or 0)>0 and colors.lime or colors.yellow); divider(mon,4)
+    local y=5; local _,h=mon.getSize()
+    for _,v in ipairs(a.sensors or {}) do if y>h then break end line(mon,y,"",tostring(v.name).." ["..tostring(v.type).."]",colors.lime); y=y+1 if y<=h then line(mon,y,"",tostring(v.summary or "Attached").." src:"..tostring(v._source or "server"),colors.lightGray); y=y+1 end end
+    if (a.sensorCount or 0)==0 then line(mon,6,"","Waiting for detector/scanner/reader",colors.yellow) end
+end
+
+local function panelDoors(mon,envelope)
+    prep(mon); header(mon,"DOOR CHANNELS")
+    local d=stateOf(envelope).doors or {}
+    line(mon,3,"CONTROL",tostring(d.controllerCount or 0).." controller / "..tostring(d.channelCount or 0).." channel"); divider(mon,4)
+    local y=5; local _,h=mon.getSize()
+    for _,controller in ipairs(d.controllers or {}) do
+        if y>h then break end
+        line(mon,y,"",tostring(controller.name).." src:"..tostring(controller._source or "server"),colors.lime); y=y+1
+        for _,channel in ipairs(controller.channels or {}) do
+            if y>h then break end
+            line(mon,y,"",tostring(channel.label or channel.side or "door"):upper().."  "..(channel.open and "OPEN" or "CLOSED"),channel.open and colors.lime or colors.lightGray); y=y+1
+        end
+    end
+end
+
+local panels={panelOverview,panelEnvironment,panelOperations,panelPowerSources,panelAttachments,panelSensors,panelDoors,panelFleet,panelSources,panelSystem,panelNetwork,panelModules,panelUpdate}
 
 function M.init() monitors=getMonitors(); term.clear(); term.setCursorPos(1,1); print("KIMI Wall Client"); print("Monitors detected: "..tostring(#monitors)) end
 function M.render(envelope,meta) monitors=getMonitors(); meta=meta or {}; for i,entry in ipairs(monitors) do panels[((i-1)%#panels)+1](entry.mon,envelope,meta) end end

@@ -23,7 +23,9 @@
     "modules/environment.lua",
     "modules/system.lua",
     "modules/ae2.lua",
-    "modules/power.lua"
+    "modules/power.lua",
+    "modules/attachments.lua",
+    "modules/doors.lua"
   ],
   "remove": [
     "server.lua",

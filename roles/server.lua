@@ -43,6 +43,96 @@ local function betterTelemetry(candidate, current)
     return candidate.stamp > current.stamp
 end
 
+local function moduleValues(localState, sources, moduleId)
+    local out = {}
+    if type(localState and localState[moduleId]) == "table" then
+        out[#out + 1] = { sourceId = "server", value = localState[moduleId] }
+    end
+    for sourceId, source in pairs(sources or {}) do
+        local value = source.online ~= false and source.state and source.state[moduleId] or nil
+        if type(value) == "table" then out[#out + 1] = { sourceId = tostring(sourceId), value = value } end
+    end
+    table.sort(out, function(a, b) return tostring(a.sourceId) < tostring(b.sourceId) end)
+    return out
+end
+
+local function hasCategory(device, wanted)
+    for _, category in ipairs(device and device.categories or {}) do
+        if category == wanted then return true end
+    end
+    return false
+end
+
+local function aggregateAttachments(localState, sources)
+    local devices, sensors, categories = {}, {}, {}
+    local values = moduleValues(localState, sources, "attachments")
+    for _, source in ipairs(values) do
+        for _, device in ipairs(source.value.devices or {}) do
+            local item = copyTable(device)
+            item._source = source.sourceId
+            devices[#devices + 1] = item
+            if hasCategory(item, "sensor") then sensors[#sensors + 1] = item end
+            for _, category in ipairs(item.categories or {}) do
+                categories[category] = (categories[category] or 0) + 1
+            end
+        end
+    end
+    return {
+        count = #devices,
+        sensorCount = #sensors,
+        devices = devices,
+        sensors = sensors,
+        categories = categories,
+        sourceCount = #values,
+        _status = "online",
+        _updated = os.epoch("utc")
+    }
+end
+
+local function aggregateDoors(localState, sources)
+    local controllers, channels = {}, 0
+    for _, source in ipairs(moduleValues(localState, sources, "doors")) do
+        for _, controller in ipairs(source.value.controllers or {}) do
+            local item = copyTable(controller)
+            item._source = source.sourceId
+            controllers[#controllers + 1] = item
+            channels = channels + #(item.channels or {})
+        end
+    end
+    return {
+        controllers = controllers,
+        controllerCount = #controllers,
+        channelCount = channels,
+        _status = "online",
+        _updated = os.epoch("utc")
+    }
+end
+
+local function aggregatePower(primary, localState, sources)
+    local out = copyTable(primary)
+    local flux, matrices, detectors = {}, {}, {}
+    local function append(target, values, sourceId)
+        for _, value in ipairs(values or {}) do
+            local item = copyTable(value)
+            item._source = sourceId
+            target[#target + 1] = item
+        end
+    end
+    for _, source in ipairs(moduleValues(localState, sources, "power")) do
+        append(flux, source.value.fluxNetworks, source.sourceId)
+        append(matrices, source.value.matrices, source.sourceId)
+        append(detectors, source.value.energyDetectors, source.sourceId)
+    end
+    out.fluxNetworks = flux
+    out.matrices = matrices
+    out.energyDetectors = detectors
+    out.fluxCount = #flux
+    out.matrixCount = #matrices
+    out.detectorCount = #detectors
+    out.onlineSources = #flux + #matrices + #detectors
+    return out
+end
+
 local function canonicalState(localState, sources, machines, updateInfo)
     local combined = copyTable(localState)
     local selected = {}
@@ -83,6 +173,10 @@ local function canonicalState(localState, sources, machines, updateInfo)
         end
     end
 
+    combined.attachments = aggregateAttachments(localState, sources)
+    combined.doors = aggregateDoors(localState, sources)
+    combined.power = aggregatePower(combined.power or {}, localState, sources)
+
     combined.sources = sources
     combined.fleet = machines
     combined.update = updateInfo
@@ -109,6 +203,22 @@ function M.run(cfg)
     end
 
     local function executeCommand(moduleId, action, args)
+        local sourceId = type(args) == "table" and args._source or nil
+        if sourceId and tostring(sourceId) ~= "server" and tostring(sourceId) ~= tostring(os.getComputerID()) then
+            local targetId = tonumber(sourceId)
+            local source = targetId and sources[tostring(targetId)] or nil
+            if not targetId or not source or source.online == false then
+                return { ok = false, error = "target telemetry node is offline", module = moduleId }
+            end
+            local sent = network.send(targetId, cfg, "module.command", {
+                module = moduleId,
+                action = action,
+                args = args,
+                issuedBy = os.getComputerID()
+            })
+            return { ok = sent == true, result = { queued = sent == true, sourceId = targetId }, module = moduleId }
+        end
+
         local target = modules[moduleId]
         if target and type(target.handleCommand) == "function" then
             local ok, result = pcall(target.handleCommand, action, args, state[moduleId])
@@ -273,7 +383,9 @@ function M.run(cfg)
                 elseif msg.kind == "command" then
                     touchMachine(sender, payload, "client")
                     local result
-                    if payload.module == "server" and payload.action == "scada_update" then
+                    if payload.module == "doors" then
+                        result = { ok = false, error = "door controls are restricted to the local Command Center", module = "doors" }
+                    elseif payload.module == "server" and payload.action == "scada_update" then
                         result = { ok = true, result = requestScadaUpdates("remote-command"), module = "server" }
                     else
                         result = executeCommand(payload.module, payload.action, payload.args)

@@ -2,6 +2,7 @@ local M = {}
 
 local monitors = {}
 local touchTargets = {}
+local monitorViews = {}
 
 local function getMonitors()
     local out = {}
@@ -104,7 +105,9 @@ local function fmtFE(value,rate)
 end
 
 local function powerOnline(power)
-    return type(power)=="table" and (power.status=="ONLINE" or power._status=="online")
+    if type(power)~="table" or not power.sourceType then return false end
+    local status=tostring(power._status or power.status or ""):lower()
+    return status~="offline" and status~="error" and status~="disconnected"
 end
 
 local function uptime(startedAt)
@@ -159,7 +162,7 @@ local function scadaSummary(sources)
     return online,total,pending
 end
 
-local function button(mon,name,x1,y1,x2,y2,text,enabled)
+local function button(mon,name,x1,y1,x2,y2,text,enabled,data)
     local w,h=mon.getSize()
     x1=math.max(1,x1); x2=math.min(w,x2); y1=math.max(1,y1); y2=math.min(h,y2)
     if x2<x1 or y2<y1 then return end
@@ -171,7 +174,7 @@ local function button(mon,name,x1,y1,x2,y2,text,enabled)
     local peripheralName=peripheral.getName(mon)
     if peripheralName then
         touchTargets[peripheralName]=touchTargets[peripheralName] or {}
-        touchTargets[peripheralName][#touchTargets[peripheralName]+1]={name=name,x1=x1,y1=y1,x2=x2,y2=y2,enabled=enabled~=false}
+        touchTargets[peripheralName][#touchTargets[peripheralName]+1]={name=name,x1=x1,y1=y1,x2=x2,y2=y2,enabled=enabled~=false,data=data}
     end
 end
 
@@ -220,9 +223,15 @@ local function drawComposite(mon,envelope,meta)
 
     local checking=tostring(update.lastResult or ""):lower()=="checking..."
     local bx1=math.max(36,math.floor(w*0.58)); local bx2=w-3
-    if bx2-bx1>=20 then
-        button(mon,"check_updates",bx1,10,bx2,12,checking and "CHECKING..." or "CHECK KIMI UPDATES",not checking)
-        button(mon,"scada_update",bx1,14,bx2,15,scadaPending>0 and "UPDATE SCADA" or "SCADA CURRENT",scadaPending>0)
+    if bx2-bx1>=10 then
+        button(mon,"check_updates",bx1,10,bx2,12,checking and "CHECKING..." or "CHECK UPDATE",not checking)
+        if bx2-bx1>=20 then
+            local split=math.floor((bx1+bx2)/2)
+            button(mon,"door_panel",bx1,14,split-1,15,"DOORS",true)
+            button(mon,"scada_update",split+1,14,bx2,15,scadaPending>0 and "SCADA!" or "SCADA",scadaPending>0)
+        else
+            button(mon,"door_panel",bx1,14,bx2,15,"DOORS",true)
+        end
     end
 
     if h < 18 then return end
@@ -304,7 +313,7 @@ local function panelPower(mon,envelope,meta)
         return
     end
 
-    line(mon,3,"STATUS",power.status or "ONLINE",colors.lime)
+    line(mon,3,"STATUS",power.status or "ONLINE",power.healthy==false and colors.yellow or colors.lime)
     line(mon,4,"NETWORK",power.networkName or "---",colors.white)
     hline(mon,5,2,select(1,mon.getSize())-1)
     line(mon,6,"STORED",fmtFE(power.stored,false))
@@ -329,6 +338,95 @@ local function panelPower(mon,envelope,meta)
     end
     local _,h=mon.getSize()
     if h>=20 then line(mon,h-1,"SOURCE",power._source or power.peripheral or "server",colors.lightGray) end
+end
+
+local function panelPowerSources(mon,envelope)
+    prep(mon); header(mon,"FLUX + MATRIX SOURCES")
+    local power=envelope and envelope.state and envelope.state.power or {}
+    local flux=power.fluxNetworks or {}; local matrices=power.matrices or {}; local detectors=power.energyDetectors or {}
+    line(mon,3,"ONLINE",#flux+ #matrices + #detectors, (#flux+#matrices+#detectors)>0 and colors.lime or colors.red)
+    line(mon,4,"FOUND","Flux:"..#flux.." Matrix:"..#matrices.." Detector:"..#detectors)
+    hline(mon,5,2,select(1,mon.getSize())-1)
+    local y=6; local _,h=mon.getSize()
+    for _,value in ipairs(flux) do
+        if y>h then break end
+        line(mon,y,"FLUX",tostring(value.networkName or value.peripheral).."  "..fmtFE(value.stored,false),value.healthy==false and colors.yellow or colors.lime)
+        y=y+1
+        if y<=h then line(mon,y,"","+"..fmtFE(value.input,true).." -"..fmtFE(value.output,true).." dev:"..tostring(value.deviceCount or "?").." warn:"..tostring(value.warningCount or 0),colors.lightGray); y=y+1 end
+    end
+    for _,value in ipairs(matrices) do
+        if y>h then break end
+        line(mon,y,"MATRIX",tostring(value.peripheral).."  "..fmtFE(value.stored,false),colors.lime)
+        y=y+1
+        if y<=h then line(mon,y,"","+"..fmtFE(value.input,true).." -"..fmtFE(value.output,true).." cells:"..tostring(value.installedCells or "?"),colors.lightGray); y=y+1 end
+    end
+    for _,value in ipairs(detectors) do
+        if y>h then break end
+        line(mon,y,"DETECTOR",tostring(value.peripheral).."  "..fmtFE(value.transferRate,true),colors.lime); y=y+1
+    end
+    if y==6 then line(mon,7,"","Waiting for Flux Controller / Matrix",colors.yellow) end
+end
+
+local function panelAttachments(mon,envelope)
+    prep(mon); header(mon,"ALL ATTACHMENTS")
+    local value=envelope and envelope.state and envelope.state.attachments or {}
+    local categories=value.categories or {}
+    line(mon,3,"ATTACHED",value.count or 0,(value.count or 0)>0 and colors.lime or colors.yellow)
+    line(mon,4,"KINDS","sensor:"..tostring(categories.sensor or 0).." power:"..tostring(categories.power or 0).." storage:"..tostring(categories.storage or 0))
+    hline(mon,5,2,select(1,mon.getSize())-1)
+    local y=6; local _,h=mon.getSize()
+    for _,device in ipairs(value.devices or {}) do
+        if y>h then break end
+        line(mon,y,"",tostring(device.name).."  ["..tostring(device.type).."]",device.online==false and colors.red or colors.lime)
+        y=y+1
+        if y<=h then line(mon,y,"","src:"..tostring(device._source or "server").."  methods:"..tostring(device.methodCount or 0).."  "..tostring(device.summary or ""),colors.lightGray); y=y+1 end
+    end
+    if (value.count or 0)==0 then line(mon,7,"","No peripherals attached",colors.yellow) end
+end
+
+local function panelSensors(mon,envelope)
+    prep(mon); header(mon,"ALL SENSORS")
+    local value=envelope and envelope.state and envelope.state.attachments or {}
+    line(mon,3,"SENSORS",value.sensorCount or 0,(value.sensorCount or 0)>0 and colors.lime or colors.yellow)
+    hline(mon,4,2,select(1,mon.getSize())-1)
+    local y=5; local _,h=mon.getSize()
+    for _,device in ipairs(value.sensors or {}) do
+        if y>h then break end
+        line(mon,y,"",tostring(device.name).."  ["..tostring(device.type).."]",colors.lime); y=y+1
+        if y<=h then line(mon,y,"",tostring(device.summary or "Attached").."  src:"..tostring(device._source or "server"),colors.lightGray); y=y+1 end
+    end
+    if (value.sensorCount or 0)==0 then line(mon,6,"","Attach any detector/scanner/reader",colors.yellow) end
+end
+
+local function panelDoors(mon,envelope,meta,showBack)
+    prep(mon); header(mon,"DOOR CONTROL")
+    local value=envelope and envelope.state and envelope.state.doors or {}
+    local w,h=mon.getSize()
+    local y=3
+    if showBack then
+        button(mon,"door_back",3,3,11,4,"BACK",true)
+        put(mon,14,3,tostring(value.controllerCount or 0).." controller(s)",colors.lightGray)
+        y=6
+    else
+        line(mon,3,"CONTROL",tostring(value.controllerCount or 0).." / "..tostring(value.channelCount or 0).." channels")
+        y=5
+    end
+    for _,controller in ipairs(value.controllers or {}) do
+        if y>h then break end
+        line(mon,y,"",tostring(controller.name).."  src:"..tostring(controller._source or "server"),colors.lime); y=y+1
+        for _,channel in ipairs(controller.channels or {}) do
+            if y>h then break end
+            local side=tostring(channel.label or channel.side or "door")
+            local state=channel.open and "OPEN" or "CLOSED"
+            button(mon,"door_toggle",3,y,w-2,y,side:upper().."  "..state,true,{
+                _source=controller._source or "server",
+                target=controller.target,
+                side=channel.side
+            })
+            y=y+1
+        end
+    end
+    if (value.controllerCount or 0)==0 then line(mon,y,"","No redstone or door controller",colors.yellow) end
 end
 
 local function panelFleet(mon,envelope,meta)
@@ -405,7 +503,7 @@ local function panelScada(mon,envelope,meta)
     if pending>0 and h2>=4 and w2>=28 then button(mon,"scada_update",3,h2-2,w2-2,h2,"UPDATE SCADA",true) end
 end
 
-local extraPanels={panelPower,panelFleet,panelUpdates,panelSources,panelScada}
+local extraPanels={panelPower,panelPowerSources,panelAttachments,panelSensors,panelDoors,panelFleet,panelUpdates,panelSources,panelScada}
 
 function M.init()
     monitors=getMonitors()
@@ -418,7 +516,9 @@ function M.render(envelope,meta)
     monitors=getMonitors(); meta=meta or {}; touchTargets={}
     for i,entry in ipairs(monitors) do
         local w,h=entry.mon.getSize()
-        if i==1 and w>=50 and h>=20 then
+        if monitorViews[entry.name]=="doors" then
+            panelDoors(entry.mon,envelope,meta,true)
+        elseif i==1 and w>=50 and h>=20 then
             drawComposite(entry.mon,envelope,meta)
         else
             extraPanels[((i-2)%#extraPanels)+1](entry.mon,envelope,meta)
@@ -437,6 +537,12 @@ function M.handleEvent(e,envelope,action)
                 action("server","check_updates",{})
             elseif target.name=="scada_update" and action then
                 action("server","scada_update",{})
+            elseif target.name=="door_panel" then
+                monitorViews[name]="doors"
+            elseif target.name=="door_back" then
+                monitorViews[name]=nil
+            elseif target.name=="door_toggle" and action then
+                action("doors","toggle",target.data or {})
             end
             return
         end
