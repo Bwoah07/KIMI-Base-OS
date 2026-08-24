@@ -1,7 +1,7 @@
 {
-  "version": "5.0.0-alpha.40",
+  "version": "5.0.0-alpha.41",
   "channel": "alpha",
-  "ref": "f95b300f1b9a87a538b6f3ceaeaf2371a572f551",
+  "ref": "c03758bcee6af90927e309e6f9232f14af10b39a",
   "entrypoint": "kimi.lua",
   "managed": [
     "startup.lua",
@@ -21,9 +21,9 @@
     "roles/client.lua",
     "roles/node.lua",
     "clients/terminal.lua",
-    "clients/admin_v9.lua",
+    "clients/admin_v10.lua",
     "clients/admin.lua",
-    "clients/room_v8.lua",
+    "clients/room_v10.lua",
     "clients/wall.lua",
     "modules/environment.lua",
     "modules/system.lua",
@@ -43,7 +43,9 @@
     "clients/adaptive_v4.lua",
     "clients/adaptive_v5.lua",
     "clients/adaptive_v6.lua",
-    "clients/adaptive_v7.lua"
+    "clients/adaptive_v7.lua",
+    "clients/admin_v9.lua",
+    "clients/room_v8.lua"
   ],
   "preserve": [
     ".kimi/config",
