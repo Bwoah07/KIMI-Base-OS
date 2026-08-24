@@ -69,6 +69,9 @@ jobs:
       - name: Alpha49 saved-kind redstone fastpath test
         run: lua5.2 tests/alpha49_saved_kind_fastpath_smoke.lua
 
+      - name: Alpha50 configured-door dispatch test
+        run: lua5.2 tests/alpha50_configured_door_dispatch_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
