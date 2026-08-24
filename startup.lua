@@ -24,13 +24,13 @@ local function readPending()
     return raw and textutils.unserialize(raw) or nil
 end
 
-local function readRole()
+local function readConfig()
     local raw = readFile(CONFIG)
     local cfg = raw and textutils.unserialize(raw) or nil
-    return type(cfg) == "table" and cfg.role or "client"
+    return type(cfg) == "table" and cfg or {}
 end
 
-local function refreshUpdater()
+local function refreshUpdaterEmergency()
     local url = UPDATER_URL .. "?kimi_cb=" .. tostring(os.epoch("utc"))
     local r = http.get(url)
     if not r then return false end
@@ -71,7 +71,10 @@ local function directRollback()
 end
 
 local function tryUpdate()
-    pcall(refreshUpdater)
+    -- updater.lua is itself transactionally managed. Do not replace a known-good
+    -- updater from mutable GitHub main on every boot. Fetch from main only as an
+    -- emergency bootstrap if the installed updater is missing entirely.
+    if not fs.exists("updater.lua") then pcall(refreshUpdaterEmergency) end
     if not fs.exists("updater.lua") then return end
     local ok, result = pcall(function() return shell.run("updater", "auto") end)
     if not ok or result == false then
@@ -83,12 +86,15 @@ end
 
 if not fs.exists(ROOT) then fs.makeDir(ROOT) end
 
--- Only servers independently check GitHub. Clients/nodes touch GitHub only after
--- the server has explicitly requested a fleet update and rebooted them.
-local role = readRole()
-if role == "server" or fs.exists(REQUESTED) then
-    tryUpdate()
-end
+local cfg = readConfig()
+local role = cfg.role or "client"
+local updateCfg = type(cfg.update) == "table" and cfg.update or {}
+local requested = fs.exists(REQUESTED)
+local bootCheck = role == "server" and updateCfg.auto ~= false and updateCfg.checkOnBoot ~= false
+
+-- Requested fleet updates always run. Otherwise only the server may perform an
+-- independent GitHub boot check, and only when its policy allows it.
+if requested or bootCheck then tryUpdate() end
 
 while true do
     term.setBackgroundColor(colors.black)
