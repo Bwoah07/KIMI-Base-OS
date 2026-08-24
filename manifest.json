@@ -1,7 +1,7 @@
 {
-  "version": "5.0.0-alpha.35",
+  "version": "5.0.0-alpha.36",
   "channel": "alpha",
-  "ref": "aba450eea8d3dda015ccd56a017624e2573a5e55",
+  "ref": "2d2d86cb49f0e54a31d8efae7e5d0c9dfd5466d6",
   "entrypoint": "kimi.lua",
   "managed": [
     "startup.lua",
@@ -24,6 +24,7 @@
     "clients/adaptive_v2.lua",
     "clients/adaptive_v3.lua",
     "clients/adaptive_v4.lua",
+    "clients/adaptive_v5.lua",
     "clients/admin.lua",
     "clients/wall.lua",
     "modules/environment.lua",
