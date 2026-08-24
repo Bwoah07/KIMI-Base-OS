@@ -40,9 +40,6 @@ function M.run(cfg)
 
     local function localDoorCommand(action, args)
         args = type(args) == "table" and args or {}
-        -- The wall UI may only drive a configured door whose registry says this
-        -- computer owns the output. It cannot use this path as a generic remote
-        -- redstone console.
         if tostring(args._source or "") ~= tostring(os.getComputerID()) then
             return false, "door is not owned by this computer"
         end
@@ -118,7 +115,7 @@ function M.run(cfg)
                             status = "accepted"
                         })
                         sleep((os.getComputerID() % 4) + 1)
-                        updates.rebootForUpdate(target, "server-announcement")
+                        updates.rebootForUpdate(target, "server-announcement", msg.payload.manifest)
                     end
 
                 elseif sender == serverId and msg.kind == "module.command" and type(msg.payload) == "table" then
