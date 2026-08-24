@@ -24,23 +24,29 @@ The server and remote nodes discover `modules/*.lua` dynamically. Current integr
 
 Every attached peripheral is reported with all of its CC:Tweaked types and methods. Detectors, scanners, readers, environment sensors, player detectors, energy detectors, block readers, Geo Scanners, and future sensor types are classified automatically. KIMI takes only safe, read-only summary samples; expensive world scans and methods requiring arguments remain visible in the method list without being invoked automatically.
 
-Flux Networks telemetry is shown directly on Command Center, wall, and terminal clients. The native `flux_controller` API from the KIMI Flux Networks fork is supported, including exact large-FE values, all devices, health warnings, storage, live input/output/net flow, device counts, and average tick cost. Legacy `flux_device` integrations remain compatible. Flux networks, Mekanism Induction Matrices, and energy detectors are collected at the same time, so attaching Flux no longer hides Matrix telemetry.
+Flux Networks telemetry is shown directly on Command Center, wall, and terminal clients. The native `flux_controller` API from the KIMI Flux Networks fork is supported, including exact large-FE values, all devices, health warnings, storage, live input/output/net flow, device counts, and average tick cost. Legacy `flux_device` integrations remain compatible. Every attached Flux controller remains visible even if multiple networks have the same name or omit a network ID. Flux networks, Mekanism Induction Matrices, and energy detectors are collected at the same time.
 
-The Command Center reserves its first extra monitor for a large horizontal Induction Matrix battery. The fill changes from red to orange to green, shows the exact percentage, and reports stored/capacity, input/output, Matrix cell/provider counts, and charge/drain time. The next monitor shows Flux telemetry separately, so both power systems remain readable.
+The monitor planner measures every attached monitor after applying its text scale and assigns the largest screen to the combined energy dashboard. It adapts cards, columns, navigation, and paging to the available width/height instead of depending on peripheral names. Additional monitors automatically receive the clock/weather overview, all-sensors view, door manager, fleet updater, and attachment inventory in that order.
+
+The energy dashboard combines a large Induction Matrix battery with a status banner, exact percentage, stored/capacity, live flow, cell/provider counts, mode, and charge/drain ETA. Every Flux controller gets a separate named card beside it. A single-monitor Command Center can reach every view through the persistent touchscreen navigation bar.
 
 ## Door control
 
-The local Command Center admin monitor has a `DOORS` button. It discovers all six output channels on the computer and every attached Advanced Peripherals Redstone Integrator, plus direct door/gate peripherals exposing safe `open`/`close` or `setOpen` methods. Touch a channel to toggle it between `OPEN` and `CLOSED`.
+The local Command Center admin monitor has a saved door manager. Raw computer/redstone-integrator outputs and real door/gate peripherals are discovered only as setup candidates; they are never guessed to be doors. Touch `ADD DOOR`, choose the exact computer/controller and side, and KIMI creates a persistent `DOOR 01`, `DOOR 02`, and so on. Configured doors can be toggled or removed from the touchscreen.
 
 Door controllers may be attached to the server or any connected KIMI client/node. Commands are routed back to the computer that owns that attachment. For safety, door commands are accepted only from the server's local Command Center touchscreen; ordinary remote clients cannot issue them over rednet.
 
-Door outputs use compact neutral tiles instead of full-screen alarm bars. Closed channels are gray and open channels are green.
+Only configured doors appear as control tiles. Closed doors are blue, open doors are green, and detached controllers show as offline. The registry is stored under `.kimi/doors` on the main server and survives OS updates.
+
+## Adaptive dashboards and sensors
+
+The Command Center overview includes a large in-game clock, Minecraft day, weather, biome, dimension, moon phase, light levels, fleet health, sensor totals, and update status. The all-sensors panel pages through every sensor contributed by the server, wall clients, and remote nodes. Detector/scanner/reader/analyzer types and common temperature, humidity, radiation, player, block, biome, power, and environment method signatures are classified automatically; safe no-argument metrics are shown with each device.
 
 ## Fleet synchronization
 
 The main server is the version authority for every normal KIMI computer. It checks the reported version of every connected wall client, pocket, and sensor node, automatically retries outdated machines every 15 seconds, and catches up computers that reconnect later. Clients acknowledge the update and reboot through the transactional updater.
 
-The Command Center has a `SYNC FLEET` touchscreen control. Fleet and update panels show how many computers are current, updating, or offline; wall monitors also show their local OS version against the server version.
+The Command Center has `UPDATE MAIN SERVER` and `SYNC ALL COMPUTERS` touchscreen controls. The main server updates first, then automatically pushes its exact local version to every connected KIMI client/node every 15 seconds. Reconnecting computers are caught immediately. Touch actions redraw the affected monitor at once and show a visible acknowledgement.
 
 ## cc-mek-scada / Nuclear
 
@@ -77,7 +83,7 @@ The network core opens every attached CC modem, allowing wired and wireless netw
 
 ## Current version
 
-`5.0.0-alpha.30`
+`5.0.0-alpha.31`
 
 The repository is public so CC:Tweaked can perform unauthenticated HTTPS downloads from GitHub.
 

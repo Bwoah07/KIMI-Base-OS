@@ -123,7 +123,6 @@ end
 
 local function fluxControllers()
     local out = {}
-    local grouped = {}
     for _, name in ipairs(peripheral.getNames()) do
         local methods = methodSet(name)
         local isFork = hasType(name, "flux_controller") or hasMethods(methods, { "getNetworkStats", "getDevices", "getWarnings" })
@@ -132,27 +131,17 @@ local function fluxControllers()
             local wrapped = peripheral.wrap(name)
             if wrapped then
                 local value = readFluxController(wrapped, name)
-                local key = tostring(value.networkId or value.networkName or name)
-                local existing = grouped[key]
-                if existing then
-                    existing.peripherals[#existing.peripherals + 1] = name
-                    if (value.warningCount or 0) > (existing.warningCount or 0) then
-                        existing.warnings = value.warnings
-                        existing.warningCount = value.warningCount
-                        existing.healthy = value.healthy
-                        existing.status = value.status
-                        existing._status = value._status
-                    end
-                    if countList(value.devices) > countList(existing.devices) then existing.devices = value.devices end
-                else
-                    grouped[key] = value
-                    out[#out + 1] = value
-                end
+                -- Every attached controller gets a card. Grouping by name used to
+                -- hide separate networks when their API did not expose a unique ID.
+                value.networkKey = tostring(value.networkId or name)
+                out[#out + 1] = value
             end
         end
     end
     table.sort(out, function(a, b)
-        return tostring(a.networkName or a.peripheral) < tostring(b.networkName or b.peripheral)
+        local an, bn = tostring(a.networkName or ""), tostring(b.networkName or "")
+        if an ~= bn then return an < bn end
+        return tostring(a.peripheral or "") < tostring(b.peripheral or "")
     end)
     return out
 end

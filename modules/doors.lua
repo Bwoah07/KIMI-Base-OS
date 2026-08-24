@@ -137,12 +137,29 @@ end
 
 function M.read()
     local controllers = readControllers()
-    local channels = 0
-    for _, controller in ipairs(controllers) do channels = channels + #(controller.channels or {}) end
+    local candidates = {}
+    for _, controller in ipairs(controllers) do
+        for _, channel in ipairs(controller.channels or {}) do
+            candidates[#candidates + 1] = {
+                target = controller.target,
+                side = channel.side,
+                label = channel.label or channel.side,
+                controller = controller.name,
+                type = controller.type,
+                kind = controller.kind,
+                open = channel.open == true,
+                readable = channel.readable == true
+            }
+        end
+    end
     return {
         controllers = controllers,
         controllerCount = #controllers,
-        channelCount = channels,
+        candidates = candidates,
+        candidateCount = #candidates,
+        -- Raw redstone channels are setup candidates. A channel becomes a door
+        -- only after it is explicitly added at the main Command Center.
+        channelCount = 0,
         _status = "online",
         _updated = os.epoch("utc")
     }

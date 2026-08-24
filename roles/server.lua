@@ -2,6 +2,7 @@ local M = {}
 local network = require("core.network")
 local loader = require("core.module_loader")
 local updates = require("core.update_service")
+local doorRegistry = require("core.door_registry")
 
 local function countTable(t)
     local n = 0
@@ -19,12 +20,6 @@ local function copyTable(src)
     local out = {}
     for k, v in pairs(src or {}) do out[k] = v end
     return out
-end
-
-local function versionRank(v)
-    local major, minor, patch, alpha = tostring(v or ""):match("^(%d+)%.(%d+)%.(%d+)%-alpha%.(%d+)$")
-    if not major then return nil end
-    return tonumber(major) * 1000000000 + tonumber(minor) * 1000000 + tonumber(patch) * 1000 + tonumber(alpha)
 end
 
 local function healthRank(value)
@@ -89,23 +84,9 @@ local function aggregateAttachments(localState, sources)
     }
 end
 
-local function aggregateDoors(localState, sources)
-    local controllers, channels = {}, 0
-    for _, source in ipairs(moduleValues(localState, sources, "doors")) do
-        for _, controller in ipairs(source.value.controllers or {}) do
-            local item = copyTable(controller)
-            item._source = source.sourceId
-            controllers[#controllers + 1] = item
-            channels = channels + #(item.channels or {})
-        end
-    end
-    return {
-        controllers = controllers,
-        controllerCount = #controllers,
-        channelCount = channels,
-        _status = "online",
-        _updated = os.epoch("utc")
-    }
+local function aggregateDoors(localState, sources, entries)
+    local candidates = doorRegistry.candidates(moduleValues(localState, sources, "doors"))
+    return doorRegistry.snapshot(entries, candidates)
 end
 
 local function aggregatePower(primary, localState, sources)
@@ -133,7 +114,7 @@ local function aggregatePower(primary, localState, sources)
     return out
 end
 
-local function canonicalState(localState, sources, machines, updateInfo)
+local function canonicalState(localState, sources, machines, updateInfo, doorEntries)
     local combined = copyTable(localState)
     local selected = {}
 
@@ -174,7 +155,7 @@ local function canonicalState(localState, sources, machines, updateInfo)
     end
 
     combined.attachments = aggregateAttachments(localState, sources)
-    combined.doors = aggregateDoors(localState, sources)
+    combined.doors = aggregateDoors(localState, sources, doorEntries)
     combined.power = aggregatePower(combined.power or {}, localState, sources)
 
     combined.sources = sources
@@ -183,8 +164,8 @@ local function canonicalState(localState, sources, machines, updateInfo)
     return combined
 end
 
-local function makeEnvelope(localState, sources, machines, updateInfo)
-    return { schema = 2, serverId = os.getComputerID(), version = updates.localVersion(), generated = os.epoch("utc"), state = canonicalState(localState, sources, machines, updateInfo) }
+local function makeEnvelope(localState, sources, machines, updateInfo, doorEntries)
+    return { schema = 2, serverId = os.getComputerID(), version = updates.localVersion(), generated = os.epoch("utc"), state = canonicalState(localState, sources, machines, updateInfo, doorEntries) }
 end
 
 function M.run(cfg)
@@ -192,6 +173,7 @@ function M.run(cfg)
     local modules = loader.discover("modules")
     local state = loader.readAll(modules, {})
     local machines, sources = {}, {}
+    local doorEntries = doorRegistry.load()
     local lastModuleScan = os.epoch("utc")
     local startedAt = os.epoch("utc")
     local updateInfo = {
@@ -215,6 +197,20 @@ function M.run(cfg)
     end
 
     local function executeCommand(moduleId, action, args)
+        args = type(args) == "table" and args or {}
+        if moduleId == "doors" and action == "register" then
+            local snapshot = aggregateDoors(state, sources, doorEntries)
+            local entry, err = doorRegistry.add(doorEntries, snapshot.candidates, args.key)
+            if not entry then return { ok = false, error = err, module = moduleId } end
+            doorRegistry.save(doorEntries)
+            return { ok = true, result = entry, module = moduleId }
+        elseif moduleId == "doors" and action == "remove" then
+            local entry, err = doorRegistry.remove(doorEntries, args.id)
+            if not entry then return { ok = false, error = err, module = moduleId } end
+            doorRegistry.save(doorEntries)
+            return { ok = true, result = entry, module = moduleId }
+        end
+
         local sourceId = type(args) == "table" and args._source or nil
         if sourceId and tostring(sourceId) ~= "server" and tostring(sourceId) ~= tostring(os.getComputerID()) then
             local targetId = tonumber(sourceId)
@@ -239,7 +235,7 @@ function M.run(cfg)
         return { ok = false, error = "unsupported module/action", module = moduleId }
     end
 
-    local function env() return makeEnvelope(state, sources, machines, updateInfo) end
+    local function env() return makeEnvelope(state, sources, machines, updateInfo, doorEntries) end
 
     local function renderLocal()
         if profile and profile.render then
@@ -282,8 +278,7 @@ function M.run(cfg)
     local function offerCatchup(sender, machine)
         if machine and machine.role == "scada" then return end
         local serverVersion = updates.localVersion()
-        local sr, mr = versionRank(serverVersion), versionRank(machine and machine.version)
-        if sr and mr and mr < sr then
+        if machine and machine.version ~= serverVersion then
             local sent = network.send(sender, cfg, "update.available", { version = serverVersion, issuedBy = os.getComputerID(), reason = "fleet-catchup" })
             machine.updateTarget = serverVersion
             machine.updateStatus = sent and "notified" or "send failed"
@@ -335,9 +330,9 @@ function M.run(cfg)
         updateInfo.fleetCurrent = current
         updateInfo.fleetOutdated = outdated
         updateInfo.fleetOffline = offline
+        updateInfo.lastSync = os.epoch("utc")
+        updateInfo.syncResult = tostring(current) .. " current / " .. tostring(notified) .. " notified / " .. tostring(offline) .. " offline"
         if visible ~= false then
-            updateInfo.lastSync = os.epoch("utc")
-            updateInfo.syncResult = tostring(current) .. " current / " .. tostring(notified) .. " notified / " .. tostring(offline) .. " offline"
             print("[KIMI] fleet sync: " .. updateInfo.syncResult)
             renderLocal()
         end

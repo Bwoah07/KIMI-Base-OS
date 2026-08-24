@@ -49,7 +49,11 @@ local function classify(types, methods)
     end
 
     if contains(joined, "sensor") or contains(joined, "detector") or contains(joined, "scanner") or
-       contains(joined, "reader") or methods.scan or methods.getOnlinePlayers or methods.getBiome then add("sensor") end
+       contains(joined, "reader") or contains(joined, "analyzer") or contains(joined, "analyser") or
+       contains(joined, "thermometer") or contains(joined, "barometer") or contains(joined, "seismometer") or
+       contains(joined, "radiation") or methods.scan or methods.getOnlinePlayers or methods.getPlayersInRange or
+       methods.getEntitiesInRange or methods.getBiome or methods.getBlockData or methods.getTemperature or
+       methods.getRadiation or methods.getHumidity then add("sensor") end
     if contains(joined, "flux") or contains(joined, "energy") or contains(joined, "induction") or
        methods.getEnergy or methods.getStoredEnergy or methods.getTransferRate then add("power") end
     if contains(joined, "redstone") or contains(joined, "door") or contains(joined, "gate") or
@@ -86,6 +90,12 @@ local function snapshot(obj, methods)
     add("dimension", "getDimension", nil)
     add("blockLight", "getBlockLightLevel", nil)
     add("skyLight", "getSkyLightLevel", nil)
+    add("temperature", "getTemperature", nil)
+    add("humidity", "getHumidity", nil)
+    add("pressure", "getPressure", nil)
+    add("radiation", "getRadiation", nil)
+    add("moonPhase", "getMoonPhase", nil)
+    add("slimeChunk", "isSlimeChunk", nil)
     add("block", "getBlockName", nil)
     add("fuel", "getFuelLevel", nil)
     add("maxScanRadius", "getMaxScanRadius", nil)
@@ -115,6 +125,9 @@ local function summary(metrics)
     if metrics.networkName then return "Network " .. tostring(metrics.networkName) end
     if metrics.biome or metrics.dimension then return tostring(metrics.biome or "?") .. " / " .. tostring(metrics.dimension or "?") end
     if metrics.onlinePlayers ~= nil then return tostring(metrics.onlinePlayers) .. " player(s) online" end
+    if metrics.temperature ~= nil then return "Temperature " .. tostring(metrics.temperature) end
+    if metrics.radiation ~= nil then return "Radiation " .. tostring(metrics.radiation) end
+    if metrics.humidity ~= nil then return "Humidity " .. tostring(metrics.humidity) end
     if metrics.block then return "Block " .. tostring(metrics.block) end
     if metrics.transferRate ~= nil then return tostring(metrics.transferRate) .. " FE/t" end
     if metrics.storedEnergy ~= nil or metrics.energy ~= nil then return tostring(metrics.storedEnergy or metrics.energy) .. " FE" end

@@ -6,10 +6,17 @@ local function getMonitors()
     for _, name in ipairs(peripheral.getNames()) do
         if peripheral.hasType(name, "monitor") then
             local mon = peripheral.wrap(name)
-            if mon then out[#out+1] = { name=name, mon=mon } end
+            if mon then
+                pcall(mon.setTextScale,0.5)
+                local w,h=mon.getSize()
+                out[#out+1] = { name=name, mon=mon, w=w, h=h, area=w*h }
+            end
         end
     end
-    table.sort(out,function(a,b) return a.name<b.name end)
+    table.sort(out,function(a,b)
+        if a.area~=b.area then return a.area>b.area end
+        return a.name<b.name
+    end)
     return out
 end
 
@@ -141,9 +148,9 @@ end
 
 local function panelOperations(mon,envelope)
     prep(mon)
-    local s=stateOf(envelope); local allPower=s.power; local p=allPower and allPower.matrices and allPower.matrices[1] or allPower; local ae=s.ae2 or s.storage
+    local s=stateOf(envelope); local allPower=s.power or {}; local flux=allPower.fluxNetworks or {}; local matrices=allPower.matrices or {}; local p=matrices[1] or flux[1] or allPower
     local isFlux=p and p.sourceType=="flux_network"
-    header(mon,isFlux and "FLUX NETWORKS" or "INDUCTION MATRIX")
+    header(mon,"ENERGY COMMAND",gameTime())
     local w,h=mon.getSize()
     local divY=math.min(h-7,20)
 
@@ -152,6 +159,7 @@ local function panelOperations(mon,envelope)
         local pct=percentOf(p.filledPercentage)
         if not pct and tonumber(p.stored) and tonumber(p.capacity) and tonumber(p.capacity)>0 then pct=tonumber(p.stored)/tonumber(p.capacity)*100 end
         line(mon,3,"POWER",p.healthy==false and "WARNING" or "ONLINE",p.healthy==false and colors.yellow or colors.lime)
+        line(mon,4,"FOUND","Matrix:"..tostring(#matrices).." Flux:"..tostring(#flux),colors.lightGray)
 
         local gaugeX=3
         local gaugeY=6
@@ -167,7 +175,7 @@ local function panelOperations(mon,envelope)
             local txt=tostring(label)..string.rep(" ",math.max(1,10-#tostring(label)))..tostring(value)
             mon.write(txt:sub(1,math.max(0,w-infoX+1)))
         end
-        info(4,"STATUS",statusText,statusCol)
+        info(5,"STATUS",statusText,statusCol)
         info(6,"STORED",fmtFE(p.stored,false))
         info(7,"CAPACITY",fmtFE(p.capacity,false))
         info(8,"INPUT",fmtFE(p.input,true),colors.lime)
@@ -190,17 +198,12 @@ local function panelOperations(mon,envelope)
     end
 
     if divY>=15 then divider(mon,divY) end
-    if ae and ae._status=="online" then
-        local y=divY+1
-        line(mon,y,"AE2","ONLINE",colors.lime)
-        line(mon,y+1,"ITEMS",fmtNumber(ae.items))
-        line(mon,y+2,"TYPES",ae.itemTypes or "?")
-        line(mon,y+3,"CRAFTING",ae.craftingJobs or 0)
-        line(mon,y+4,"STORAGE",ae.usedItemStorage and (fmtNumber(ae.usedItemStorage).." / "..fmtNumber(ae.totalItemStorage)) or "?")
-        line(mon,y+5,"POWER",fmtFE(ae.storedEnergy,false))
-        line(mon,y+6,"SOURCE",ae._source or "server",colors.lightGray)
-    else
-        line(mon,divY+1,"AE2",ae and tostring(ae._status or "offline") or "WAITING",colors.yellow)
+    local y=divY+1
+    line(mon,y,"FLUX",tostring(#flux).." controller(s)",#flux>0 and colors.lime or colors.yellow); y=y+1
+    for index,value in ipairs(flux) do
+        if y>h then break end
+        line(mon,y,"#"..tostring(index),tostring(value.networkName or value.peripheral).."  "..fmtFE(value.stored,false),value.healthy==false and colors.yellow or colors.lime); y=y+1
+        if y<=h then line(mon,y,"","+"..fmtFE(value.input,true).."  -"..fmtFE(value.output,true).."  "..tostring(value.peripheral or "?"),colors.lightGray); y=y+1 end
     end
 end
 
@@ -277,21 +280,18 @@ local function panelSensors(mon,envelope)
 end
 
 local function panelDoors(mon,envelope)
-    prep(mon); header(mon,"DOOR CHANNELS")
+    prep(mon); header(mon,"CONFIGURED DOORS")
     local d=stateOf(envelope).doors or {}
-    line(mon,3,"CONTROL",tostring(d.controllerCount or 0).." controller / "..tostring(d.channelCount or 0).." channel"); divider(mon,4)
+    line(mon,3,"DOORS",tostring(d.doorCount or 0).." configured / "..tostring(d.candidateCount or 0).." candidates"); divider(mon,4)
     local y=5; local _,h=mon.getSize()
-    for _,controller in ipairs(d.controllers or {}) do
+    for _,door in ipairs(d.doors or {}) do
         if y>h then break end
-        line(mon,y,"",tostring(controller.name).." src:"..tostring(controller._source or "server"),colors.lime); y=y+1
-        for _,channel in ipairs(controller.channels or {}) do
-            if y>h then break end
-            line(mon,y,"",tostring(channel.label or channel.side or "door"):upper().."  "..(channel.open and "OPEN" or "CLOSED"),channel.open and colors.lime or colors.lightGray); y=y+1
-        end
+        line(mon,y,"",tostring(door.name or ("DOOR "..tostring(door.id or "?"))).."  "..(door.online==false and "OFFLINE" or (door.open and "OPEN" or "CLOSED")),door.online==false and colors.red or (door.open and colors.lime or colors.lightGray)); y=y+1
     end
+    if (d.doorCount or 0)==0 then line(mon,6,"","Add doors explicitly at the main Command Center",colors.yellow) end
 end
 
-local panels={panelOverview,panelEnvironment,panelOperations,panelPowerSources,panelAttachments,panelSensors,panelDoors,panelFleet,panelSources,panelSystem,panelNetwork,panelModules,panelUpdate}
+local panels={panelOperations,panelOverview,panelSensors,panelEnvironment,panelPowerSources,panelAttachments,panelDoors,panelFleet,panelUpdate,panelSources,panelSystem,panelNetwork,panelModules}
 
 function M.init() monitors=getMonitors(); term.clear(); term.setCursorPos(1,1); print("KIMI Wall Client"); print("Monitors detected: "..tostring(#monitors)) end
 function M.render(envelope,meta) monitors=getMonitors(); meta=meta or {}; for i,entry in ipairs(monitors) do panels[((i-1)%#panels)+1](entry.mon,envelope,meta) end end
