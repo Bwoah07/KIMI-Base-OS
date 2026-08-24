@@ -9,8 +9,8 @@ colors = {
 local function surface(width, height)
     local rows = {}
     local x, y = 1, 1
-    local s = {}
-    s.setTextScale = function() end
+    local s = { lastScale = nil }
+    s.setTextScale = function(value) s.lastScale = value end
     s.setBackgroundColor = function() end
     s.setTextColor = function() end
     s.clear = function() rows = {}; x, y = 1, 1 end
@@ -61,9 +61,9 @@ os = {
     day = function() return 8 end
 }
 
-local adaptive = assert(loadfile("clients/adaptive.lua"))()
+local adaptive = assert(loadfile("clients/adaptive_v2.lua"))()
 local wall = adaptive.create({ mode = "wall" })
-wall.init({ name = "Front Gate" })
+wall.init({ name = "KIMI-42" })
 
 local localDoor = {
     id = 1,
@@ -84,27 +84,37 @@ local localSensor = {
     _source = "42"
 }
 
-local localPower = {
-    onlineSources = 1,
-    matrixCount = 1,
-    fluxCount = 0,
+-- Deliberately make the aggregate/root power values useless. The UI must pick
+-- the healthy real source instead of rendering a giant 0/0 dashboard.
+local goodMatrix = {
+    sourceType = "mekanism_induction_port",
     stored = 750,
     capacity = 1000,
     input = 50,
     output = 20,
-    filledPercentage = 0.75,
-    matrices = {},
-    fluxNetworks = {}
+    filledPercentage = 0.75
+}
+local localPower = {
+    onlineSources = 1,
+    matrixCount = 1,
+    fluxCount = 0,
+    stored = 0,
+    capacity = 0,
+    input = 0,
+    output = 0,
+    matrices = { goodMatrix },
+    fluxNetworks = {},
+    energyDetectors = {}
 }
 
 local envelope = {
-    version = "5.0.0-alpha.32",
+    version = "5.0.0-alpha.33",
     state = {
         environment = { _status = "online", weather = "SUNNY", biome = "minecraft:plains", moon = "FULL MOON" },
         doors = { doors = { localDoor }, candidates = {}, candidateCount = 0 },
         attachments = { sensors = { localSensor }, sensorCount = 1, devices = { localSensor }, count = 1 },
         power = localPower,
-        fleet = { [42] = { name = "Front Gate", role = "client", version = "5.0.0-alpha.32", online = true } },
+        fleet = { [42] = { name = "Front Gate", role = "client", version = "5.0.0-alpha.33", online = true } },
         sources = { ["42"] = { name = "Front Gate", role = "client", online = true } },
         update = { syncResult = "1 current" }
     }
@@ -123,10 +133,12 @@ local meta = {
 
 wall.render(envelope, meta)
 assert(monitors.big.output():find("LOCAL DOORS", 1, true), "largest screen did not auto-select local doors")
-assert(monitors.big.output():find("FRONT GATE", 1, true), "friendly computer label was not used for generic door name")
+assert(monitors.big.output():find("FRONT GATE", 1, true), "friendly ComputerCraft label was not used")
 assert(monitors.medium.output():find("LOCAL POWER", 1, true), "second screen did not auto-select local power")
+assert(monitors.medium.output():find("75.0%%"), "power screen chose the useless 0/0 aggregate instead of a real source")
 assert(monitors.small.output():find("LOCAL SENSORS", 1, true), "third screen did not auto-select local sensors")
 assert(monitors.small.output():find("ENVIRONMENT_DETECTOR_1", 1, true), "local sensor did not render")
+assert(monitors.big.lastScale == 1.0 and monitors.medium.lastScale == 1.0 and monitors.small.lastScale == 1.0, "normal monitors should prefer readable text scale 1.0")
 
 local called
 wall.handleEvent({ "monitor_touch", "big", 5, 8 }, envelope, function(module, action, args)
@@ -136,4 +148,24 @@ assert(called, "door touch produced no action")
 assert(called.module == "__local_doors" and called.action == "toggle", "remote local door did not use immediate local command path")
 assert(called.args and tostring(called.args._source) == "42" and called.args.side == "right", "local door target data was lost")
 
-realPrint("adaptive display smoke test OK")
+-- A status-only wall client with generic sensor telemetry but no dedicated
+-- environment module must not contradict itself with 'NO WEATHER SENSOR'.
+local onlyStatus = surface(34, 18)
+devices.big, devices.medium, devices.small = nil, nil, nil
+devices.status = { type = "monitor", object = onlyStatus }
+local statusWall = adaptive.create({ mode = "wall" })
+statusWall.init({ name = "Hallway" })
+local statusEnvelope = {
+    version = "5.0.0-alpha.33",
+    state = {
+        attachments = { sensors = { { name="player_detector", type="player_detector", metrics={ onlinePlayers=2 }, _source="server" } } },
+        doors = { doors = {}, candidates = {} },
+        power = { onlineSources = 0 },
+        fleet = { [1] = { name="Main", online=true } }
+    }
+}
+statusWall.render(statusEnvelope, { connected=true, localState={ attachments={ sensors={} }, power={ onlineSources=0 } } })
+assert(onlyStatus.output():find("1 SENSOR ONLINE", 1, true), "status screen did not surface generic sensor telemetry")
+assert(not onlyStatus.output():find("NO WEATHER SENSOR", 1, true), "status screen contradicted available sensors")
+
+realPrint("adaptive display v2 smoke test OK")
