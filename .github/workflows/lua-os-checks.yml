@@ -63,6 +63,9 @@ jobs:
       - name: Alpha47 CC/redstone propagation test
         run: lua5.2 tests/alpha47_cc_unpack_door_smoke.lua
 
+      - name: Alpha48 direct room redstone test
+        run: lua5.2 tests/alpha48_direct_room_redstone_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
