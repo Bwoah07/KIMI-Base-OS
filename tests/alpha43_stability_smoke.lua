@@ -10,7 +10,6 @@ local function exists(path)
   local f=io.open(path,"r"); if f then f:close(); return true end; return false
 end
 
--- Installer contract: every advertised profile must exist and ship in manifest.
 local installer=read("installer.lua")
 local manifest=read("manifest.json")
 local contracts={
@@ -29,7 +28,6 @@ for _,path in ipairs({"roles/server_v2.lua","roles/client.lua","roles/node.lua",
   assert(exists(path),"runtime contract missing: "..path)
 end
 
--- Pocket terminal mock.
 local W,H=26,20
 local rows,x,y={},1,1
 term={}
@@ -50,42 +48,23 @@ local function output()
   local o={}; for i=1,H do o[i]=rows[i] or string.rep(" ",W) end
   return table.concat(o,"\n")
 end
-os={
-  getComputerID=function()return 88 end,
-  getComputerLabel=function()return "Pocket Ops" end,
-  time=function()return 12.5 end,
-  epoch=function()return 1000 end,
-}
+os={getComputerID=function()return 88 end,getComputerLabel=function()return "Pocket Ops" end,time=function()return 12.5 end,epoch=function()return 1000 end}
 
 local pocket=assert(loadfile("clients/pocket.lua"))()
 pocket.init({name="KIMI-88"})
-local env={
-  version="5.0.0-alpha.43",
-  state={
-    fleet={
-      [1]={online=true,version="5.0.0-alpha.43",name="Main Base"},
-      [88]={online=true,version="5.0.0-alpha.43",name="Pocket Ops"},
-    },
-    doors={doors={{name="Front Gate",open=false}}},
-    attachments={sensors={{type="environment_detector",summary="plains",metrics={temperature=21.5}}}},
-    power={stored=900,capacity=1000,input=40,output=10,filledPercentage=.9},
-  }
-}
+local env={version="5.0.0-alpha.43",state={fleet={[1]={online=true,version="5.0.0-alpha.43",name="Main Base"},[88]={online=true,version="5.0.0-alpha.43",name="Pocket Ops"}},doors={doors={{name="Front Gate",open=false}}},attachments={sensors={{type="environment_detector",summary="plains",metrics={temperature=21.5}}}},power={stored=900,capacity=1000,input=40,output=10,filledPercentage=.9}}}
 local meta={connected=true,localVersion="5.0.0-alpha.43"}
 assert(pocket.render(env,meta)~=false,"pocket render failed")
 local out=output()
 assert(out:find("POCKET OPS",1,true),"pocket title missing")
 assert(out:find("BASE ONLINE",1,true),"pocket server state missing")
-assert(out:find("Fleet",1,true),"pocket fleet summary missing")
+assert(out:find("FLEET",1,true),"pocket fleet summary missing")
 assert(out:find("90.0%%"),"pocket power summary missing")
 assert(out:find("< HOME >",1,true),"pocket footer/navigation missing")
-
--- Navigate to doors and sensors using the real handleEvent path.
 assert(pocket.handleEvent({"key",keys.right},env,function()end)==true,"pocket right navigation failed")
 out=output(); assert(out:find("DOORS  1",1,true),"pocket doors page did not render")
 assert(pocket.handleEvent({"key",keys.right},env,function()end)==true,"pocket second navigation failed")
 out=output(); assert(out:find("POWER",1,true),"pocket power page did not render")
 assert(pocket.handleEvent({"key",keys.right},env,function()end)==true,"pocket third navigation failed")
 out=output(); assert(out:find("SENSORS  1",1,true),"pocket sensors page did not render")
-
 realPrint("alpha43 stability smoke test OK")
