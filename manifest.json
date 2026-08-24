@@ -21,6 +21,7 @@
     "roles/client.lua",
     "roles/node.lua",
     "clients/terminal.lua",
+    "clients/pocket.lua",
     "clients/admin_v10.lua",
     "clients/admin.lua",
     "clients/room_v11.lua",
