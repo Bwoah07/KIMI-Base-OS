@@ -60,6 +60,9 @@ jobs:
       - name: Alpha46 pocket remote/juice test
         run: lua5.2 tests/alpha46_pocket_remote_smoke.lua
 
+      - name: Alpha47 CC/redstone propagation test
+        run: lua5.2 tests/alpha47_cc_unpack_door_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
