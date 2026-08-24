@@ -35,20 +35,40 @@ local function contains(text, needle)
     return tostring(text or ""):lower():find(needle, 1, true) ~= nil
 end
 
+local function normalized(text)
+    return tostring(text or ""):lower():gsub("[^a-z0-9]", "")
+end
+
 local sensorTypeWords = {
     "sensor", "detector", "scanner", "reader", "analyzer", "analyser", "observer",
     "thermometer", "barometer", "seismometer", "radiation", "weather", "environment",
-    "biome", "player_detector", "entity_detector", "block_reader", "geo_scanner"
+    "biome", "playerdetector", "entitydetector", "blockreader", "geoscanner"
 }
 
 local sensorMethods = {
-    getTemperature=true, getHumidity=true, getRadiation=true, getPressure=true,
+    getTemperature=true, getHumidity=true, getRadiation=true, getRadiationRaw=true, getPressure=true,
     getBiome=true, getDimension=true, getBlockLightLevel=true, getSkyLightLevel=true,
-    isRaining=true, isThunder=true, isSunny=true, getMoonPhase=true,
+    getDayLightLevel=true, getMoonPhase=true, isRaining=true, isThunder=true, isSunny=true,
     getOnlinePlayers=true, getPlayersInRange=true, getPlayerCount=true,
-    getEntitiesInRange=true, getEntityCount=true, getBlockData=true, getBlockName=true,
-    getMaxScanRadius=true
+    getEntitiesInRange=true, getEntityCount=true, scanEntities=true, scanShips=true,
+    getBlockData=true, getBlockName=true, getMaxScanRadius=true
 }
+
+local function isSensorType(types)
+    local joined = table.concat(types or {}, " "):lower()
+    local compact = normalized(joined)
+    for _, word in ipairs(sensorTypeWords) do
+        if contains(joined, word) or contains(compact, normalized(word)) then return true end
+    end
+    return false
+end
+
+local function primaryType(types)
+    for _, value in ipairs(types or {}) do
+        if isSensorType({ value }) then return value end
+    end
+    return types and types[1] or "unknown"
+end
 
 local function classify(types, methods)
     local joined = table.concat(types, " "):lower()
@@ -57,11 +77,9 @@ local function classify(types, methods)
         if not set[value] then set[value] = true; categories[#categories + 1] = value end
     end
 
-    local sensorType = false
-    for _, word in ipairs(sensorTypeWords) do if contains(joined, word) then sensorType = true; break end end
     local sensorMethod = false
     for method in pairs(sensorMethods) do if methods[method] then sensorMethod = true; break end end
-    if sensorType or sensorMethod then add("sensor") end
+    if isSensorType(types) or sensorMethod then add("sensor") end
 
     if contains(joined, "flux") or contains(joined, "energy") or contains(joined, "induction") or
        methods.getEnergy or methods.getStoredEnergy or methods.getTransferRate then add("power") end
@@ -99,10 +117,12 @@ local function snapshot(obj, methods)
     add("dimension", "getDimension", nil)
     add("blockLight", "getBlockLightLevel", nil)
     add("skyLight", "getSkyLightLevel", nil)
+    add("dayLight", "getDayLightLevel", nil)
     add("temperature", "getTemperature", nil)
     add("humidity", "getHumidity", nil)
     add("pressure", "getPressure", nil)
     add("radiation", "getRadiation", nil)
+    add("radiationRaw", "getRadiationRaw", nil)
     add("moonPhase", "getMoonPhase", nil)
     add("slimeChunk", "isSlimeChunk", nil)
     add("block", "getBlockName", nil)
@@ -127,6 +147,11 @@ local function snapshot(obj, methods)
         local players, ok = safeCall(obj, "getOnlinePlayers", nil)
         if ok and type(players) == "table" then metrics.onlinePlayers = countTable(players); metrics.players = players end
     end
+
+    if type(metrics.radiation) == "table" then
+        metrics.radiationUnit = metrics.radiation.unit
+        metrics.radiationText = metrics.radiation.radiation
+    end
     return metrics
 end
 
@@ -136,9 +161,13 @@ local function summary(metrics)
     if metrics.playerCount ~= nil then return tostring(metrics.playerCount) .. " player(s)" end
     if metrics.entityCount ~= nil then return tostring(metrics.entityCount) .. " entities" end
     if metrics.temperature ~= nil then return "Temperature " .. tostring(metrics.temperature) end
-    if metrics.radiation ~= nil then return "Radiation " .. tostring(metrics.radiation) end
+    if metrics.radiationRaw ~= nil then return "Radiation " .. tostring(metrics.radiationRaw) end
+    if metrics.radiationText ~= nil then return "Radiation " .. tostring(metrics.radiationText) end
     if metrics.humidity ~= nil then return "Humidity " .. tostring(metrics.humidity) end
     if metrics.pressure ~= nil then return "Pressure " .. tostring(metrics.pressure) end
+    if metrics.weatherThunder then return "Thunder" end
+    if metrics.weatherRaining then return "Raining" end
+    if metrics.weatherSunny then return "Sunny" end
     if metrics.block then return "Block " .. tostring(metrics.block) end
     if metrics.networkName then return "Network " .. tostring(metrics.networkName) end
     if metrics.transferRate ~= nil then return tostring(metrics.transferRate) .. " FE/t" end
@@ -159,7 +188,7 @@ function M.read()
         local categories = classify(types, methodLookup)
         local metrics = snapshot(obj, methodLookup)
         local entry = {
-            name=name, type=types[1], types=types, categories=categories,
+            name=name, type=primaryType(types), types=types, categories=categories,
             methods=methodList, methodCount=#methodList, metrics=metrics,
             summary=summary(metrics), online=obj ~= nil
         }
