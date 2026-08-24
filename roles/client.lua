@@ -106,12 +106,88 @@ function M.run(cfg)
         return network.send(serverId, cfg, "telemetry.state", payload)
     end
 
+    local function methodSet(name)
+        local out={}
+        if not peripheral or type(peripheral.getMethods)~="function" then return out end
+        local ok,list=pcall(peripheral.getMethods,name)
+        if ok and type(list)=="table" then for _,m in ipairs(list) do out[m]=true end end
+        return out
+    end
+
+    local function currentLocalDoor(args)
+        local doors=localState and localState.doors and localState.doors.localDoors or {}
+        for _,d in ipairs(doors or {}) do
+            if tostring(d.target or "")==tostring(args.target or "") and tostring(d.side or "")==tostring(args.side or "") then return d end
+        end
+        return nil
+    end
+
+    local function directLocalRedstone(action,args)
+        local target=tostring(args.target or "")
+        local side=args.side~=nil and tostring(args.side) or nil
+        local d=currentLocalDoor(args)
+        local mode=tostring((d and d.mode) or "hold")
+        if action~="toggle" and action~="open" and action~="close" and action~="pulse" then return nil end
+
+        local function desiredFrom(current)
+            if action=="open" then return true end
+            if action=="close" then return false end
+            if action=="toggle" then return not current end
+            return true
+        end
+
+        if target=="computer" then
+            if type(redstone)~="table" or type(redstone.setOutput)~="function" then return false,"computer redstone unavailable" end
+            local okRead,current=pcall(redstone.getOutput,side)
+            if not okRead then current=d and d.signal==true or false end
+            if action=="pulse" or mode=="pulse" then
+                local ok,err=pcall(redstone.setOutput,side,true); if not ok then return false,"redstone ON failed: "..tostring(err) end
+                sleep(math.max(.05,math.min(5,tonumber(d and d.pulseSeconds) or .5)))
+                ok,err=pcall(redstone.setOutput,side,false); if not ok then return false,"redstone OFF failed: "..tostring(err) end
+                return true,{target=target,side=side,signal=false,open=false,action="pulse",direct=true}
+            end
+            local desired=desiredFrom(current==true)
+            local physical=mode=="invert" and not desired or desired
+            local ok,err=pcall(redstone.setOutput,side,physical)
+            if not ok then return false,"redstone write failed: "..tostring(err) end
+            return true,{target=target,side=side,signal=physical,open=desired,action=action,direct=true}
+        end
+
+        if target~="" and peripheral and type(peripheral.call)=="function" then
+            local methods=methodSet(target)
+            if methods.setOutput then
+                local current=d and d.signal==true or false
+                if methods.getOutput then local ok,v=pcall(peripheral.call,target,"getOutput",side); if ok then current=v==true end end
+                if action=="pulse" or mode=="pulse" then
+                    local ok,err=pcall(peripheral.call,target,"setOutput",side,true); if not ok then return false,"integrator ON failed: "..tostring(err) end
+                    sleep(math.max(.05,math.min(5,tonumber(d and d.pulseSeconds) or .5)))
+                    ok,err=pcall(peripheral.call,target,"setOutput",side,false); if not ok then return false,"integrator OFF failed: "..tostring(err) end
+                    return true,{target=target,side=side,signal=false,open=false,action="pulse",direct=true}
+                end
+                local desired=desiredFrom(current)
+                local physical=mode=="invert" and not desired or desired
+                local ok,err=pcall(peripheral.call,target,"setOutput",side,physical)
+                if not ok then return false,"integrator write failed: "..tostring(err) end
+                return true,{target=target,side=side,signal=physical,open=desired,action=action,direct=true}
+            end
+        end
+        return nil
+    end
+
     local function localDoorCommand(action, args)
         args = type(args) == "table" and args or {}
         if action ~= "register_local" and action ~= "remove_local" and
            tostring(args._source or "") ~= tostring(os.getComputerID()) then
             return false, "door is not owned by this computer"
         end
+
+        local directOk,directResult=directLocalRedstone(action,args)
+        if directOk~=nil then
+            localState=loader.readAll(modules,localState)
+            publishNow(); render(serverId~=nil)
+            return directOk,directResult
+        end
+
         local target = modules.doors
         if not target or type(target.handleCommand) ~= "function" then return false, "local door module unavailable" end
         local ok, result = pcall(target.handleCommand, action, args, localState.doors)
@@ -174,7 +250,9 @@ function M.run(cfg)
                 elseif sender==serverId and msg.kind=="module.command" then
                     local target=modules[payload.module]
                     local ok,result
-                    if target and type(target.handleCommand)=="function" then
+                    if payload.module=="doors" then
+                        ok,result=localDoorCommand(payload.action,payload.args)
+                    elseif target and type(target.handleCommand)=="function" then
                         ok,result=pcall(target.handleCommand,payload.action,payload.args,localState[payload.module])
                     else ok,result=false,"unsupported module/action" end
                     localState=loader.readAll(modules,localState)
