@@ -7,16 +7,28 @@ colors = {
 }
 
 local function newSurface(width, height)
-    local writes = {}
+    local rows = {}
+    local cursorX, cursorY = 1, 1
     local surface = {}
     surface.setTextScale = function() end
     surface.setBackgroundColor = function() end
     surface.setTextColor = function() end
-    surface.clear = function() writes = {} end
-    surface.setCursorPos = function() end
-    surface.write = function(value) writes[#writes + 1] = tostring(value) end
+    surface.clear = function() rows = {}; cursorX, cursorY = 1, 1 end
+    surface.setCursorPos = function(x, y) cursorX, cursorY = x, y end
+    surface.write = function(value)
+        local text = tostring(value):sub(1, math.max(0, width-cursorX+1))
+        if cursorY>=1 and cursorY<=height and cursorX<=width then
+            local row = rows[cursorY] or string.rep(" ", width)
+            rows[cursorY] = row:sub(1, cursorX-1) .. text .. row:sub(cursorX+#text)
+        end
+        cursorX = cursorX + #text
+    end
     surface.getSize = function() return width, height end
-    surface.output = function() return table.concat(writes, "\n") end
+    surface.output = function()
+        local out = {}
+        for y=1,height do out[y] = rows[y] or string.rep(" ", width) end
+        return table.concat(out, "\n")
+    end
     return surface
 end
 
@@ -184,34 +196,50 @@ doorsModule.handleCommand("close", { target="access_gate_1" })
 assert(gateOpen == false, "direct gate peripheral did not close")
 
 local envelope = {
-    version="5.0.0-alpha.29", schema=2, generated=1900000,
+    version="5.0.0-alpha.30", schema=2, generated=1900000,
     state={
         environment={ weather="SUNNY", biome="minecraft:plains", moon="FULL" },
         system={ computerId=84, ingameDay=12, uptime=3600, peripherals={} },
-        fleet={}, sources={}, update={}, power=power, attachments=attachments, doors=doors
+        fleet={}, sources={}, update={ fleetCurrent=2, fleetOutdated=1, fleetOffline=0 }, power=power, attachments=attachments, doors=doors
     }
 }
-local meta = { connected=true, serverId=84, startedAt=1000000, machines={}, sources={}, update={} }
+local meta = { connected=true, serverId=84, startedAt=1000000, localVersion="5.0.0-alpha.30", machines={}, sources={}, update={ fleetCurrent=2, fleetOutdated=1, fleetOffline=0 } }
 
 useMonitors(7)
 local admin = assert(loadfile("clients/admin.lua"))()
 admin.init()
 admin.render(envelope, meta)
-assert(monitors.monitor_3.output():find("FLUX + MATRIX SOURCES", 1, true), "admin did not render combined power sources")
-assert(monitors.monitor_4.output():find("ALL ATTACHMENTS", 1, true), "admin did not render attachments")
-assert(monitors.monitor_5.output():find("ALL SENSORS", 1, true), "admin did not render sensors")
-assert(monitors.monitor_6.output():find("DOOR CONTROL", 1, true), "admin did not render door controls")
+assert(monitors.monitor_2.output():find("INDUCTION MATRIX", 1, true), "admin did not reserve a monitor for the Matrix battery")
+assert(monitors.monitor_2.output():find("75.0%%"), "admin Matrix battery percentage missing")
+assert(monitors.monitor_2.output():find("+%-%-%-"), "admin Matrix battery outline missing")
+assert(monitors.monitor_3.output():find("FLUX NETWORK", 1, true), "admin did not render the Flux network")
+assert(monitors.monitor_4.output():find("FLUX + MATRIX SOURCES", 1, true), "admin did not render combined power sources")
+assert(monitors.monitor_5.output():find("ALL ATTACHMENTS", 1, true), "admin did not render attachments")
+assert(monitors.monitor_6.output():find("ALL SENSORS", 1, true), "admin did not render sensors")
+assert(monitors.monitor_7.output():find("DOOR CONTROL", 1, true), "admin did not render door controls")
+assert(monitors.monitor_7.output():find("TOP:SHUT", 1, true), "door channels were not rendered as compact tiles")
 
 local actionCall
 admin.handleEvent({ "monitor_touch", "monitor_1", 50, 14 }, envelope, function(...) actionCall={...} end)
 admin.render(envelope, meta)
+assert(monitors.monitor_1.output():find("INDUCTION MATRIX", 1, true), "PWR navigation did not open the Matrix battery")
+admin.handleEvent({ "monitor_touch", "monitor_1", 5, 3 }, envelope, function(...) actionCall={...} end)
+admin.render(envelope, meta)
+admin.handleEvent({ "monitor_touch", "monitor_1", 70, 14 }, envelope, function(...) actionCall={...} end)
+admin.render(envelope, meta)
 assert(monitors.monitor_1.output():find("DOOR CONTROL", 1, true), "DOORS navigation did not open")
 admin.handleEvent({ "monitor_touch", "monitor_1", 5, 7 }, envelope, function(...) actionCall={...} end)
 assert(actionCall and actionCall[1] == "doors" and actionCall[2] == "toggle", "door touchscreen did not issue a toggle command")
+admin.handleEvent({ "monitor_touch", "monitor_1", 5, 3 }, envelope, function(...) actionCall={...} end)
+admin.render(envelope, meta)
+admin.handleEvent({ "monitor_touch", "monitor_1", 50, 12 }, envelope, function(...) actionCall={...} end)
+assert(actionCall and actionCall[1] == "server" and actionCall[2] == "sync_fleet", "SYNC FLEET did not issue a server sync command")
 
 useMonitors(7)
 local wall = assert(loadfile("clients/wall.lua"))()
 wall.init(); wall.render(envelope, meta)
+assert(monitors.monitor_3.output():find("INDUCTION MATRIX", 1, true), "wall did not prioritize the Matrix battery")
+assert(monitors.monitor_3.output():find("75.00%%"), "wall Matrix battery percentage missing")
 assert(monitors.monitor_4.output():find("FLUX + MATRIX", 1, true), "wall did not render combined power")
 assert(monitors.monitor_5.output():find("ALL ATTACHMENTS", 1, true), "wall did not render attachments")
 assert(monitors.monitor_6.output():find("ALL SENSORS", 1, true), "wall did not render sensors")

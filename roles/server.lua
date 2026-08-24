@@ -194,7 +194,19 @@ function M.run(cfg)
     local machines, sources = {}, {}
     local lastModuleScan = os.epoch("utc")
     local startedAt = os.epoch("utc")
-    local updateInfo = { authority = os.getComputerID(), lastCheck = nil, lastResult = "not checked", remoteVersion = nil, targetVersion = nil }
+    local updateInfo = {
+        authority = os.getComputerID(),
+        lastCheck = nil,
+        lastResult = "not checked",
+        remoteVersion = nil,
+        targetVersion = nil,
+        fleetTarget = updates.localVersion(),
+        fleetCurrent = 0,
+        fleetOutdated = 0,
+        fleetOffline = 0,
+        lastSync = nil,
+        syncResult = "waiting for fleet"
+    }
 
     local profile = nil
     if cfg.localUI then
@@ -272,7 +284,12 @@ function M.run(cfg)
         local serverVersion = updates.localVersion()
         local sr, mr = versionRank(serverVersion), versionRank(machine and machine.version)
         if sr and mr and mr < sr then
-            network.send(sender, cfg, "update.available", { version = serverVersion, issuedBy = os.getComputerID(), reason = "fleet-catchup" })
+            local sent = network.send(sender, cfg, "update.available", { version = serverVersion, issuedBy = os.getComputerID(), reason = "fleet-catchup" })
+            machine.updateTarget = serverVersion
+            machine.updateStatus = sent and "notified" or "send failed"
+        elseif machine and machine.version == serverVersion then
+            machine.updateTarget = nil
+            machine.updateStatus = "current"
         end
     end
 
@@ -287,6 +304,44 @@ function M.run(cfg)
         machines[sender] = m
         offerCatchup(sender, m)
         return m
+    end
+
+    local function syncFleet(reason, visible)
+        local target = updates.localVersion()
+        local current, outdated, offline, notified = 0, 0, 0, 0
+        for id, machine in pairs(machines) do
+            if machine.role ~= "scada" then
+                if machine.online == false then
+                    offline = offline + 1
+                elseif machine.version == target then
+                    current = current + 1
+                    machine.updateTarget = nil
+                    machine.updateStatus = "current"
+                else
+                    outdated = outdated + 1
+                    local sent = network.send(id, cfg, "update.available", {
+                        version = target,
+                        issuedBy = os.getComputerID(),
+                        reason = reason or "fleet-sync"
+                    })
+                    machine.updateTarget = target
+                    machine.updateStatus = sent and "notified" or "send failed"
+                    if sent then notified = notified + 1 end
+                end
+            end
+        end
+
+        updateInfo.fleetTarget = target
+        updateInfo.fleetCurrent = current
+        updateInfo.fleetOutdated = outdated
+        updateInfo.fleetOffline = offline
+        if visible ~= false then
+            updateInfo.lastSync = os.epoch("utc")
+            updateInfo.syncResult = tostring(current) .. " current / " .. tostring(notified) .. " notified / " .. tostring(offline) .. " offline"
+            print("[KIMI] fleet sync: " .. updateInfo.syncResult)
+            renderLocal()
+        end
+        return { target = target, current = current, outdated = outdated, notified = notified, offline = offline }
     end
 
     local function checkForUpdates(reason)
@@ -346,6 +401,7 @@ function M.run(cfg)
 
     local refreshTimer = os.startTimer(0.5)
     local updateTimer = os.startTimer(updates.interval(cfg))
+    local fleetSyncTimer = os.startTimer(5)
     local probationTimer = updates.hasPendingProbation() and os.startTimer(15) or nil
 
     while true do
@@ -366,6 +422,10 @@ function M.run(cfg)
         elseif e[1] == "timer" and e[2] == updateTimer then
             checkForUpdates("server-periodic-check")
             updateTimer = os.startTimer(updates.interval(cfg))
+
+        elseif e[1] == "timer" and e[2] == fleetSyncTimer then
+            syncFleet("server-auto-sync", false)
+            fleetSyncTimer = os.startTimer(15)
 
         elseif e[1] == "rednet_message" then
             local sender, msg, protocol = e[2], e[3], e[4]
@@ -412,6 +472,8 @@ function M.run(cfg)
                     return checkForUpdates("server-manual-check")
                 elseif moduleId == "server" and action == "scada_update" then
                     return requestScadaUpdates("command-center")
+                elseif moduleId == "server" and action == "sync_fleet" then
+                    return syncFleet("command-center", true)
                 end
                 return executeCommand(moduleId, action, args)
             end)

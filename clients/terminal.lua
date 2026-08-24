@@ -36,7 +36,7 @@ function M.render(envelope, meta)
     local power = envelope and envelope.state and envelope.state.power or nil
     local attachments = envelope and envelope.state and envelope.state.attachments or nil
     local doors = envelope and envelope.state and envelope.state.doors or nil
-    local signature = table.concat({ tostring(meta.connected), gameTime(), tostring(env and env.weather), tostring(env and env.biome), tostring(env and env.moon), tostring(sys and sys.computerId), tostring(power and power.sourceType), tostring(power and power.networkName), tostring(power and power.stored), tostring(power and power.input), tostring(power and power.output), tostring(power and power.fluxCount), tostring(power and power.matrixCount), tostring(attachments and attachments.count), tostring(attachments and attachments.sensorCount), tostring(doors and doors.channelCount) }, "|")
+    local signature = table.concat({ tostring(meta.connected), tostring(meta.localVersion), gameTime(), tostring(env and env.weather), tostring(env and env.biome), tostring(env and env.moon), tostring(sys and sys.computerId), tostring(power and power.sourceType), tostring(power and power.networkName), tostring(power and power.stored), tostring(power and power.input), tostring(power and power.output), tostring(power and power.fluxCount), tostring(power and power.matrixCount), tostring(attachments and attachments.count), tostring(attachments and attachments.sensorCount), tostring(doors and doors.channelCount) }, "|")
     if signature == lastDraw then return end
     lastDraw = signature
 
@@ -56,6 +56,9 @@ function M.render(envelope, meta)
     term.setTextColor(colors.lime)
     print("SERVER ONLINE")
     term.setTextColor(colors.white)
+    local osState="?"
+    if meta.localVersion then osState=tostring(meta.localVersion)..((envelope.version and meta.localVersion~=envelope.version) and (" -> "..tostring(envelope.version)) or " CURRENT") end
+    print("OS:      " .. osState)
     print("Weather: " .. tostring(env and env.weather or "UNKNOWN"))
     print("Biome:   " .. tostring(env and env.biome or "UNKNOWN"))
     print("Moon:    " .. tostring(env and env.moon or "UNKNOWN"))

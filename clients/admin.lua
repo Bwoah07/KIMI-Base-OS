@@ -104,6 +104,79 @@ local function fmtFE(value,rate)
     return text=="?" and text or (text.." FE"..(rate and "/t" or ""))
 end
 
+local function percentOf(value)
+    local n=tonumber(value)
+    if not n then return nil end
+    if n<=1 then n=n*100 end
+    return math.max(0,math.min(100,n))
+end
+
+local function firstMatrix(power)
+    return type(power)=="table" and type(power.matrices)=="table" and power.matrices[1] or nil
+end
+
+local function firstFlux(power)
+    return type(power)=="table" and type(power.fluxNetworks)=="table" and power.fluxNetworks[1] or nil
+end
+
+local function shortDuration(seconds)
+    seconds=math.max(0,math.floor(tonumber(seconds) or 0))
+    local hours=math.floor(seconds/3600)
+    local minutes=math.floor((seconds%3600)/60)
+    if hours>0 then return tostring(hours).."h "..tostring(minutes).."m" end
+    if minutes>0 then return tostring(minutes).."m "..tostring(seconds%60).."s" end
+    return tostring(seconds).."s"
+end
+
+local function matrixState(matrix)
+    local stored=tonumber(matrix and matrix.stored)
+    local capacity=tonumber(matrix and matrix.capacity)
+    local net=tonumber(matrix and matrix.net)
+    if not stored or not capacity or capacity<=0 or not net then return "WAITING FOR COMPLETE MATRIX DATA",colors.yellow end
+    if stored>=capacity*0.999999 and net>=-0.5 then return "FULL - HOLDING",colors.lime end
+    if math.abs(net)<=0.5 then return "STABLE - HOLDING",colors.lightGray end
+    if net>0 then return "CHARGING - FULL IN "..shortDuration((capacity-stored)/(net*20)),colors.lime end
+    return "DRAINING - EMPTY IN "..shortDuration(stored/(math.abs(net)*20)),colors.orange
+end
+
+local function batteryColor(percent)
+    if percent>=60 then return colors.lime end
+    if percent>=25 then return colors.orange end
+    return colors.red
+end
+
+local function drawBattery(mon,x1,y1,x2,y2,percent)
+    local w,h=mon.getSize()
+    x1=math.max(2,x1); x2=math.min(w-3,x2); y1=math.max(2,y1); y2=math.min(h-1,y2)
+    if x2-x1<8 or y2-y1<3 then return false end
+    percent=math.max(0,math.min(100,tonumber(percent) or 0))
+    local inner=x2-x1-1
+    local filled=math.floor(inner*percent/100+0.5)
+    local fillColor=batteryColor(percent)
+
+    put(mon,x1,y1,"+"..string.rep("-",inner).."+",colors.lightGray)
+    for y=y1+1,y2-1 do
+        put(mon,x1,y,"|",colors.lightGray)
+        if filled>0 then put(mon,x1+1,y,string.rep(" ",filled),colors.black,fillColor) end
+        if filled<inner then put(mon,x1+1+filled,y,string.rep(" ",inner-filled),colors.white,colors.black) end
+        put(mon,x2,y,"|",colors.lightGray)
+    end
+    put(mon,x1,y2,"+"..string.rep("-",inner).."+",colors.lightGray)
+
+    local capTop=math.max(y1+1,math.floor((y1+y2)/2)-1)
+    if x2+2<=w then
+        put(mon,x2+1,capTop,"  ",colors.black,colors.lightGray)
+        put(mon,x2+1,capTop+1,"  ",colors.black,colors.lightGray)
+    end
+
+    local label=string.format("%.1f%%",percent)
+    local labelX=math.max(x1+1,math.floor((x1+x2-#label+1)/2))
+    local labelY=math.floor((y1+y2)/2)
+    local labelInFill=(labelX+math.floor(#label/2)-x1)<=filled
+    put(mon,labelX,labelY,label,labelInFill and colors.black or colors.white,labelInFill and fillColor or colors.black)
+    return true
+end
+
 local function powerOnline(power)
     if type(power)~="table" or not power.sourceType then return false end
     local status=tostring(power._status or power.status or ""):lower()
@@ -162,15 +235,16 @@ local function scadaSummary(sources)
     return online,total,pending
 end
 
-local function button(mon,name,x1,y1,x2,y2,text,enabled,data)
+local function button(mon,name,x1,y1,x2,y2,text,enabled,data,style)
     local w,h=mon.getSize()
     x1=math.max(1,x1); x2=math.min(w,x2); y1=math.max(1,y1); y2=math.min(h,y2)
     if x2<x1 or y2<y1 then return end
-    local bg=enabled==false and colors.gray or colors.red
-    for y=y1,y2 do put(mon,x1,y,string.rep(" ",x2-x1+1),colors.white,bg) end
+    local bg=enabled==false and colors.gray or (style and style.bg or colors.red)
+    local fg=style and style.fg or colors.white
+    for y=y1,y2 do put(mon,x1,y,string.rep(" ",x2-x1+1),fg,bg) end
     local tx=math.max(x1,math.floor((x1+x2-#text+1)/2))
     local ty=math.floor((y1+y2)/2)
-    put(mon,tx,ty,text,colors.white,bg)
+    put(mon,tx,ty,text,fg,bg)
     local peripheralName=peripheral.getName(mon)
     if peripheralName then
         touchTargets[peripheralName]=touchTargets[peripheralName] or {}
@@ -216,22 +290,18 @@ local function drawComposite(mon,envelope,meta)
     put(mon,2,11,"REMOTE",colors.lightGray); put(mon,14,11,update.remoteVersion or "unknown")
     put(mon,2,12,"LAST CHECK",colors.lightGray); put(mon,14,12,age(update.lastCheck))
     put(mon,2,13,"RESULT",colors.lightGray); put(mon,14,13,update.lastResult or "not checked",colorFor(update.lastResult))
-    put(mon,2,14,"TARGET",colors.lightGray); put(mon,14,14,update.targetVersion or "none")
-    local scadaText=scadaOnline.."/"..scadaTotal.." online"
-    if scadaPending>0 then scadaText=scadaText.." / "..scadaPending.." update"..(scadaPending==1 and "" or "s") end
-    put(mon,2,15,"SCADA",colors.lightGray); put(mon,14,15,scadaText,scadaPending>0 and colors.yellow or (scadaTotal>0 and colors.lime or colors.gray))
+    local fleetTracked=(tonumber(update.fleetCurrent) or 0)+(tonumber(update.fleetOutdated) or 0)
+    put(mon,2,14,"FLEET OS",colors.lightGray); put(mon,14,14,tostring(update.fleetCurrent or 0).."/"..tostring(fleetTracked).." current",fleetTracked>0 and update.fleetOutdated==0 and colors.lime or colors.yellow)
+    put(mon,2,15,"SYNC",colors.lightGray); put(mon,14,15,update.lastSync and age(update.lastSync) or "automatic",colors.lightGray)
 
     local checking=tostring(update.lastResult or ""):lower()=="checking..."
     local bx1=math.max(36,math.floor(w*0.58)); local bx2=w-3
     if bx2-bx1>=10 then
-        button(mon,"check_updates",bx1,10,bx2,12,checking and "CHECKING..." or "CHECK UPDATE",not checking)
-        if bx2-bx1>=20 then
-            local split=math.floor((bx1+bx2)/2)
-            button(mon,"door_panel",bx1,14,split-1,15,"DOORS",true)
-            button(mon,"scada_update",split+1,14,bx2,15,scadaPending>0 and "SCADA!" or "SCADA",scadaPending>0)
-        else
-            button(mon,"door_panel",bx1,14,bx2,15,"DOORS",true)
-        end
+        button(mon,"check_updates",bx1,10,bx2,11,checking and "CHECKING" or "CHECK UPDATE",not checking)
+        button(mon,"sync_fleet",bx1,12,bx2,13,"SYNC FLEET",true,nil,{bg=colors.orange,fg=colors.black})
+        local split=math.floor((bx1+bx2)/2)
+        button(mon,"matrix_panel",bx1,14,split-1,15,"PWR",true,nil,{bg=colors.lime,fg=colors.black})
+        button(mon,"door_panel",split+1,14,bx2,15,"DOORS",true,nil,{bg=colors.gray,fg=colors.white})
     end
 
     if h < 18 then return end
@@ -301,15 +371,52 @@ local function drawComposite(mon,envelope,meta)
     end
 end
 
+local function panelMatrixBattery(mon,envelope,meta,showBack)
+    prep(mon); header(mon,"INDUCTION MATRIX")
+    local power=envelope and envelope.state and envelope.state.power or {}
+    local matrix=firstMatrix(power)
+    local w,h=mon.getSize()
+    local top=3
+    if showBack then
+        button(mon,"matrix_back",3,3,11,4,"BACK",true,nil,{bg=colors.gray})
+        top=6
+    end
+    if not matrix then
+        line(mon,top,"STATUS","NO MATRIX",colors.red)
+        line(mon,top+2,"","Attach a Mekanism Induction Port",colors.yellow)
+        line(mon,top+3,"","to any synced KIMI computer.",colors.lightGray)
+        return
+    end
+
+    local percent=percentOf(matrix.filledPercentage)
+    if not percent and tonumber(matrix.stored) and tonumber(matrix.capacity) and tonumber(matrix.capacity)>0 then
+        percent=tonumber(matrix.stored)/tonumber(matrix.capacity)*100
+    end
+    percent=percent or 0
+    local stateText,stateColor=matrixState(matrix)
+    line(mon,top,"STATUS",stateText,stateColor)
+    local batteryTop=top+2
+    local batteryBottom=math.min(h-7,batteryTop+10)
+    if batteryBottom-batteryTop<4 then batteryBottom=math.min(h-4,batteryTop+4) end
+    drawBattery(mon,4,batteryTop,w-6,batteryBottom,percent)
+
+    local y=batteryBottom+2
+    line(mon,y,"STORED",fmtFE(matrix.stored,false)); y=y+1
+    line(mon,y,"CAPACITY",fmtFE(matrix.capacity,false)); y=y+1
+    line(mon,y,"FLOW","+"..fmtFE(matrix.input,true).."  -"..fmtFE(matrix.output,true)); y=y+1
+    if y<=h then line(mon,y,"MATRIX","cells:"..tostring(matrix.installedCells or "?").." providers:"..tostring(matrix.installedProviders or "?"),colors.lightGray); y=y+1 end
+    if y<=h then line(mon,y,"SOURCE",tostring(matrix._source or matrix.peripheral or "server"),colors.lightGray) end
+end
+
 local function panelPower(mon,envelope,meta)
     prep(mon)
-    local power=envelope and envelope.state and envelope.state.power or nil
-    local isFlux=power and power.sourceType=="flux_network"
-    header(mon,isFlux and "FLUX NETWORKS" or "POWER NETWORK")
+    local allPower=envelope and envelope.state and envelope.state.power or {}
+    local power=firstFlux(allPower)
+    header(mon,"FLUX NETWORK")
 
     if not powerOnline(power) then
         line(mon,3,"STATUS","OFFLINE",colors.red)
-        line(mon,5,"","Waiting for Flux / power peripheral",colors.yellow)
+        line(mon,5,"","Waiting for Flux Controller",colors.yellow)
         return
     end
 
@@ -322,20 +429,14 @@ local function panelPower(mon,envelope,meta)
     line(mon,9,"OUTPUT",fmtFE(power.output,true),colors.orange)
     line(mon,10,"NET",fmtFE(power.net,true),tonumber(power.net or 0)>=0 and colors.lime or colors.orange)
 
-    if isFlux then
-        line(mon,11,"BUFFER",fmtFE(power.buffer,false))
-        hline(mon,12,2,select(1,mon.getSize())-1)
-        line(mon,13,"PLUGS",power.plugs or "?")
-        line(mon,14,"POINTS",power.points or "?")
-        line(mon,15,"STORAGES",power.storages or "?")
-        line(mon,16,"CONTROLLERS",power.controllers or "?")
-        line(mon,17,"SECURITY",power.security or "?")
-        line(mon,18,"AVG TICK",power.avgTickUs and (string.format("%.1f",tonumber(power.avgTickUs)).." us/t") or "?")
-    else
-        line(mon,11,"TRANSFER",fmtFE(power.transferCap,true))
-        line(mon,12,"CELLS",power.installedCells or "?")
-        line(mon,13,"MODE",power.mode or "?")
-    end
+    line(mon,11,"DEVICES",power.deviceCount or "?")
+    hline(mon,12,2,select(1,mon.getSize())-1)
+    line(mon,13,"PLUGS",power.plugs or "?")
+    line(mon,14,"POINTS",power.points or "?")
+    line(mon,15,"STORAGES",power.storages or "?")
+    line(mon,16,"CONTROLLERS",power.controllers or "?")
+    line(mon,17,"WARNINGS",power.warningCount or 0,(power.warningCount or 0)>0 and colors.yellow or colors.lime)
+    line(mon,18,"AVG TICK",power.avgTickUs and (string.format("%.1f",tonumber(power.avgTickUs)).." us/t") or "?")
     local _,h=mon.getSize()
     if h>=20 then line(mon,h-1,"SOURCE",power._source or power.peripheral or "server",colors.lightGray) end
 end
@@ -404,7 +505,7 @@ local function panelDoors(mon,envelope,meta,showBack)
     local w,h=mon.getSize()
     local y=3
     if showBack then
-        button(mon,"door_back",3,3,11,4,"BACK",true)
+        button(mon,"door_back",3,3,11,4,"BACK",true,nil,{bg=colors.gray})
         put(mon,14,3,tostring(value.controllerCount or 0).." controller(s)",colors.lightGray)
         y=6
     else
@@ -414,17 +515,27 @@ local function panelDoors(mon,envelope,meta,showBack)
     for _,controller in ipairs(value.controllers or {}) do
         if y>h then break end
         line(mon,y,"",tostring(controller.name).."  src:"..tostring(controller._source or "server"),colors.lime); y=y+1
-        for _,channel in ipairs(controller.channels or {}) do
-            if y>h then break end
+        local channels=controller.channels or {}
+        local columns=w>=66 and 6 or (w>=34 and 3 or 2)
+        local gap=1
+        local usable=w-4
+        local cellWidth=math.floor((usable-gap*(columns-1))/columns)
+        for index,channel in ipairs(channels) do
+            local column=(index-1)%columns
+            local row=math.floor((index-1)/columns)
+            local buttonY=y+row
+            if buttonY>h then break end
+            local x1=3+column*(cellWidth+gap)
+            local x2=x1+cellWidth-1
             local side=tostring(channel.label or channel.side or "door")
-            local state=channel.open and "OPEN" or "CLOSED"
-            button(mon,"door_toggle",3,y,w-2,y,side:upper().."  "..state,true,{
+            local state=channel.open and "OPEN" or "SHUT"
+            button(mon,"door_toggle",x1,buttonY,x2,buttonY,side:upper()..":"..state,true,{
                 _source=controller._source or "server",
                 target=controller.target,
                 side=channel.side
-            })
-            y=y+1
+            },channel.open and {bg=colors.lime,fg=colors.black} or {bg=colors.gray,fg=colors.white})
         end
+        y=y+math.max(1,math.ceil(#channels/columns))+1
     end
     if (value.controllerCount or 0)==0 then line(mon,y,"","No redstone or door controller",colors.yellow) end
 end
@@ -454,10 +565,12 @@ local function panelUpdates(mon,envelope,meta)
     line(mon,6,"CHECKED",age(up.lastCheck))
     line(mon,8,"TARGET",up.targetVersion or "none")
     line(mon,9,"AUTHORITY",up.authority or meta.serverId or "?")
+    line(mon,10,"FLEET",tostring(up.fleetCurrent or 0).." current / "..tostring(up.fleetOutdated or 0).." updating / "..tostring(up.fleetOffline or 0).." offline")
     local w,h=mon.getSize()
     if h>=13 and w>=28 then
         local checking=tostring(up.lastResult or ""):lower()=="checking..."
-        button(mon,"check_updates",3,11,w-2,13,checking and "CHECKING..." or "CHECK FOR UPDATES",not checking)
+        button(mon,"check_updates",3,12,w-2,14,checking and "CHECKING..." or "CHECK FOR UPDATES",not checking)
+        if h>=18 then button(mon,"sync_fleet",3,16,w-2,18,"SYNC ALL COMPUTERS",true,nil,{bg=colors.orange,fg=colors.black}) end
     end
 end
 
@@ -503,7 +616,7 @@ local function panelScada(mon,envelope,meta)
     if pending>0 and h2>=4 and w2>=28 then button(mon,"scada_update",3,h2-2,w2-2,h2,"UPDATE SCADA",true) end
 end
 
-local extraPanels={panelPower,panelPowerSources,panelAttachments,panelSensors,panelDoors,panelFleet,panelUpdates,panelSources,panelScada}
+local extraPanels={panelMatrixBattery,panelPower,panelPowerSources,panelAttachments,panelSensors,panelDoors,panelFleet,panelUpdates,panelSources,panelScada}
 
 function M.init()
     monitors=getMonitors()
@@ -518,6 +631,8 @@ function M.render(envelope,meta)
         local w,h=entry.mon.getSize()
         if monitorViews[entry.name]=="doors" then
             panelDoors(entry.mon,envelope,meta,true)
+        elseif monitorViews[entry.name]=="matrix" then
+            panelMatrixBattery(entry.mon,envelope,meta,true)
         elseif i==1 and w>=50 and h>=20 then
             drawComposite(entry.mon,envelope,meta)
         else
@@ -535,8 +650,14 @@ function M.handleEvent(e,envelope,action)
         if target.enabled and x>=target.x1 and x<=target.x2 and y>=target.y1 and y<=target.y2 then
             if target.name=="check_updates" and action then
                 action("server","check_updates",{})
+            elseif target.name=="sync_fleet" and action then
+                action("server","sync_fleet",{})
             elseif target.name=="scada_update" and action then
                 action("server","scada_update",{})
+            elseif target.name=="matrix_panel" then
+                monitorViews[name]="matrix"
+            elseif target.name=="matrix_back" then
+                monitorViews[name]=nil
             elseif target.name=="door_panel" then
                 monitorViews[name]="doors"
             elseif target.name=="door_back" then

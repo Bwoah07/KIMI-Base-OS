@@ -66,7 +66,8 @@ function M.run(cfg)
                     connected = serverId ~= nil,
                     lastSeen = lastSeen,
                     serverId = serverId,
-                    localState = localState
+                    localState = localState,
+                    localVersion = updates.localVersion()
                 })
             end
             pollTimer = os.startTimer(1)
@@ -87,7 +88,8 @@ function M.run(cfg)
                             connected = true,
                             lastSeen = lastSeen,
                             serverId = serverId,
-                            localState = localState
+                            localState = localState,
+                            localVersion = updates.localVersion()
                         })
                     end
 

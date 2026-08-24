@@ -26,11 +26,21 @@ Every attached peripheral is reported with all of its CC:Tweaked types and metho
 
 Flux Networks telemetry is shown directly on Command Center, wall, and terminal clients. The native `flux_controller` API from the KIMI Flux Networks fork is supported, including exact large-FE values, all devices, health warnings, storage, live input/output/net flow, device counts, and average tick cost. Legacy `flux_device` integrations remain compatible. Flux networks, Mekanism Induction Matrices, and energy detectors are collected at the same time, so attaching Flux no longer hides Matrix telemetry.
 
+The Command Center reserves its first extra monitor for a large horizontal Induction Matrix battery. The fill changes from red to orange to green, shows the exact percentage, and reports stored/capacity, input/output, Matrix cell/provider counts, and charge/drain time. The next monitor shows Flux telemetry separately, so both power systems remain readable.
+
 ## Door control
 
 The local Command Center admin monitor has a `DOORS` button. It discovers all six output channels on the computer and every attached Advanced Peripherals Redstone Integrator, plus direct door/gate peripherals exposing safe `open`/`close` or `setOpen` methods. Touch a channel to toggle it between `OPEN` and `CLOSED`.
 
 Door controllers may be attached to the server or any connected KIMI client/node. Commands are routed back to the computer that owns that attachment. For safety, door commands are accepted only from the server's local Command Center touchscreen; ordinary remote clients cannot issue them over rednet.
+
+Door outputs use compact neutral tiles instead of full-screen alarm bars. Closed channels are gray and open channels are green.
+
+## Fleet synchronization
+
+The main server is the version authority for every normal KIMI computer. It checks the reported version of every connected wall client, pocket, and sensor node, automatically retries outdated machines every 15 seconds, and catches up computers that reconnect later. Clients acknowledge the update and reboot through the transactional updater.
+
+The Command Center has a `SYNC FLEET` touchscreen control. Fleet and update panels show how many computers are current, updating, or offline; wall monitors also show their local OS version against the server version.
 
 ## cc-mek-scada / Nuclear
 
@@ -67,7 +77,7 @@ The network core opens every attached CC modem, allowing wired and wireless netw
 
 ## Current version
 
-`5.0.0-alpha.29`
+`5.0.0-alpha.30`
 
 The repository is public so CC:Tweaked can perform unauthenticated HTTPS downloads from GitHub.
 

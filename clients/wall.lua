@@ -141,9 +141,9 @@ end
 
 local function panelOperations(mon,envelope)
     prep(mon)
-    local s=stateOf(envelope); local p=s.power; local ae=s.ae2 or s.storage
+    local s=stateOf(envelope); local allPower=s.power; local p=allPower and allPower.matrices and allPower.matrices[1] or allPower; local ae=s.ae2 or s.storage
     local isFlux=p and p.sourceType=="flux_network"
-    header(mon,isFlux and "FLUX NETWORKS" or "POWER + STORAGE")
+    header(mon,isFlux and "FLUX NETWORKS" or "INDUCTION MATRIX")
     local w,h=mon.getSize()
     local divY=math.min(h-7,20)
 
@@ -238,9 +238,12 @@ local function panelModules(mon,envelope)
     line(mon,3,"MODULES",#names); divider(mon,4); local y=5; local _,h=mon.getSize(); for _,id in ipairs(names) do if y>h then break end local v=s[id]; local st=v._status or (v.online==false and "offline" or "online") line(mon,y,"",string.upper(id).."  "..tostring(st).."  "..age(v._updated),statusColor(st)); y=y+1 end
 end
 
-local function panelUpdate(mon,envelope)
+local function panelUpdate(mon,envelope,meta)
     prep(mon); header(mon,"KIMI STATUS")
-    local up=stateOf(envelope).update or {}; line(mon,3,"SERVER OS",envelope and envelope.version or "?"); line(mon,4,"AUTHORITY",up.authority or "server"); divider(mon,5); line(mon,6,"LAST CHECK",age(up.lastCheck)); line(mon,7,"RESULT",up.lastResult or "not checked",statusColor(up.lastResult)); line(mon,8,"REMOTE",up.remoteVersion or "?"); line(mon,9,"TARGET",up.targetVersion or "none")
+    meta=meta or {}
+    local up=stateOf(envelope).update or {}; local serverVersion=envelope and envelope.version or "?"; local localVersion=meta.localVersion or "?"; local synced=serverVersion==localVersion
+    line(mon,3,"LOCAL OS",localVersion,synced and colors.lime or colors.yellow); line(mon,4,"SERVER OS",serverVersion); line(mon,5,"SYNC",synced and "CURRENT" or "UPDATE REQUIRED",synced and colors.lime or colors.yellow); divider(mon,6)
+    line(mon,7,"AUTHORITY",up.authority or "server"); line(mon,8,"LAST CHECK",age(up.lastCheck)); line(mon,9,"RESULT",up.lastResult or "not checked",statusColor(up.lastResult)); line(mon,10,"FLEET",tostring(up.fleetCurrent or 0).." current / "..tostring(up.fleetOutdated or 0).." updating / "..tostring(up.fleetOffline or 0).." offline")
 end
 
 local function panelPowerSources(mon,envelope)
