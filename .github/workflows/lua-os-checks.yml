@@ -45,6 +45,9 @@ jobs:
       - name: Alpha41 profile/sensor regression test
         run: lua5.2 tests/alpha41_profile_sensor_smoke.lua
 
+      - name: Alpha42 crash-proof room regression test
+        run: lua5.2 tests/alpha42_room_crashproof_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
