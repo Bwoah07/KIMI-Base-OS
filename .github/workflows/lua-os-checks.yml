@@ -57,6 +57,9 @@ jobs:
       - name: Alpha45 peripheral.call door test
         run: lua5.2 tests/alpha45_door_peripheral_call_smoke.lua
 
+      - name: Alpha46 pocket remote/juice test
+        run: lua5.2 tests/alpha46_pocket_remote_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
