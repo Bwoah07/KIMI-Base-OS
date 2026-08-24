@@ -43,9 +43,6 @@ function M.run(cfg)
             state = loader.readAll(modules, state)
 
             local now = os.epoch("utc")
-            -- A Mekanism multiblock can temporarily invalidate its peripheral without
-            -- producing a useful attach/detach event. While anything is unhealthy,
-            -- actively re-open the network and rediscover modules every publish cycle.
             if hasUnhealthyState(state) or now - lastModuleScan >= 10000 then
                 network.openAll()
                 modules = loader.discover("modules")
@@ -84,7 +81,7 @@ function M.run(cfg)
                             status = "accepted"
                         })
                         sleep((os.getComputerID() % 4) + 1)
-                        updates.rebootForUpdate(target, "server-announcement")
+                        updates.rebootForUpdate(target, "server-announcement", msg.payload.manifest)
                     end
                 elseif sender == serverId and msg.kind == "ping" then
                     network.send(serverId, cfg, "pong", {
