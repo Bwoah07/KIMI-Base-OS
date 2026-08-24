@@ -1,7 +1,7 @@
 {
-  "version": "5.0.0-alpha.43",
+  "version": "5.0.0-alpha.44",
   "channel": "alpha",
-  "ref": "93de3405e82a4b6115206d68d1cb6217cf4c6892",
+  "ref": "9182225be7adb2710cb229cb9f2e97324e278515",
   "entrypoint": "kimi.lua",
   "managed": [
     "startup.lua",
@@ -24,7 +24,7 @@
     "clients/pocket.lua",
     "clients/admin_v10.lua",
     "clients/admin.lua",
-    "clients/room_v11.lua",
+    "clients/room_v12.lua",
     "clients/wall.lua",
     "modules/environment.lua",
     "modules/system.lua",
@@ -47,7 +47,8 @@
     "clients/adaptive_v7.lua",
     "clients/admin_v9.lua",
     "clients/room_v8.lua",
-    "clients/room_v10.lua"
+    "clients/room_v10.lua",
+    "clients/room_v11.lua"
   ],
   "preserve": [
     ".kimi/config",
