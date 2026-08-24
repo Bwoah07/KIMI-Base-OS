@@ -66,6 +66,9 @@ jobs:
       - name: Alpha48 direct room redstone test
         run: lua5.2 tests/alpha48_direct_room_redstone_smoke.lua
 
+      - name: Alpha49 saved-kind redstone fastpath test
+        run: lua5.2 tests/alpha49_saved_kind_fastpath_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
