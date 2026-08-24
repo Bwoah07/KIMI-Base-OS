@@ -182,10 +182,16 @@ function Adaptive.create(options)
     local function drawRoomSensor(e,meta,y)
         local linked,text,color=sensorLink(meta); local a=attachmentsLocal(meta); rule(e,y,2,e.w-1); y=y+1
         put(e,2,y,"SENSOR LINK",C.dim); put(e,14,y,text,color)
-        if linked then local s=(a.sensors or {})[1]; local k,v=sensorMetric(s); put(e,2,y+1,sensorTitle(s),C.text); put(e,2,y+2,k.."  "..v,C.good)
+        if linked then
+            local s=(a.sensors or {})[1]; local k,v=sensorMetric(s); put(e,2,y+1,sensorTitle(s),C.text); put(e,2,y+2,k.."  "..v,C.good)
         else
-            local diag=a.diagnostics or {}; local msg=diag.onlyInfrastructure and "CONNECT DETECTOR TO COMPUTER OR WIRED MODEM" or (diag.hint or "NO SENSOR TELEMETRY")
-            put(e,2,y+1,msg:sub(1,e.w-3),C.warn)
+            local diag=a.diagnostics or {}
+            if diag.onlyInfrastructure then
+                put(e,2,y+1,"WIRE DETECTOR TO THIS COMPUTER",C.warn)
+                put(e,2,y+2,"OR USE A WIRED MODEM",C.warn)
+            else
+                local msg=tostring(diag.hint or "NO SENSOR TELEMETRY"); put(e,2,y+1,msg:sub(1,e.w-3),C.warn)
+            end
         end
     end
 
@@ -261,7 +267,7 @@ function Adaptive.create(options)
         if #sensors==0 then
             center(e,6,"SENSOR LINK OFFLINE",C.warn,nil,2,e.w-1)
             if diag.onlyInfrastructure then
-                center(e,9,"KIMI CAN ONLY SEE MONITOR / MODEM INFRASTRUCTURE",C.text,nil,2,e.w-1); center(e,11,"THE DETECTOR IS NOT ON THIS COMPUTER'S PERIPHERAL BUS",C.warn,nil,2,e.w-1); center(e,14,"FIX",C.dim,nil,2,e.w-1); center(e,16,"PLACE DETECTOR NEXT TO THE COMPUTER",C.text,nil,2,e.w-1); center(e,17,"OR ATTACH A WIRED MODEM TO THE DETECTOR",C.text,nil,2,e.w-1)
+                center(e,9,"ONLY MONITOR / MODEM INFRASTRUCTURE IS VISIBLE",C.text,nil,2,e.w-1); center(e,11,"THE DETECTOR IS NOT ON THE PERIPHERAL BUS",C.warn,nil,2,e.w-1); center(e,14,"FIX",C.dim,nil,2,e.w-1); center(e,16,"PLACE DETECTOR NEXT TO THE COMPUTER",C.text,nil,2,e.w-1); center(e,17,"OR ATTACH A WIRED MODEM TO IT",C.text,nil,2,e.w-1)
             elseif tonumber(a.dataCount or 0)>0 then
                 center(e,9,"UNKNOWN DATA PERIPHERAL FOUND",C.warn,nil,2,e.w-1); put(e,3,12,tostring(diag.hint or "UNKNOWN SENSOR API"):sub(1,e.w-5),C.text)
             else
