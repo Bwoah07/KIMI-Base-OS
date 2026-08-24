@@ -51,6 +51,9 @@ jobs:
       - name: Alpha43 installer/profile stability test
         run: lua5.2 tests/alpha43_stability_smoke.lua
 
+      - name: Alpha44 monitor-touch redstone test
+        run: lua5.2 tests/alpha44_touch_door_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
