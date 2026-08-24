@@ -3,6 +3,8 @@ local M = { id = "doors" }
 local computerSides = { "top", "bottom", "left", "right", "front", "back" }
 local worldSides = { "north", "south", "east", "west", "up", "down" }
 local commandedStates = {}
+local ROOT = ".kimi"
+local LOCAL_PATH = ROOT .. "/local_doors"
 
 local function safeCall(obj, method, fallback, ...)
     if not obj or type(obj[method]) ~= "function" then return fallback, false end
@@ -25,6 +27,37 @@ local function peripheralType(name)
     return ok and tostring(value or "unknown") or "unknown"
 end
 
+local function localKey(target, side)
+    return tostring(target or "") .. "|" .. tostring(side or "")
+end
+
+local function readFile(path)
+    if not fs.exists(path) or fs.isDir(path) then return nil end
+    local f = fs.open(path, "r")
+    if not f then return nil end
+    local body = f.readAll(); f.close(); return body
+end
+
+local function loadLocalDoors()
+    local raw = readFile(LOCAL_PATH)
+    local value = raw and textutils.unserialize(raw) or nil
+    if type(value) ~= "table" then return {} end
+    local out = {}
+    for _, entry in ipairs(value) do
+        if type(entry) == "table" and entry.target then
+            entry.key = entry.key or localKey(entry.target, entry.side)
+            out[#out + 1] = entry
+        end
+    end
+    return out
+end
+
+local function saveLocalDoors(entries)
+    if not fs.exists(ROOT) then fs.makeDir(ROOT) end
+    local f = assert(fs.open(LOCAL_PATH, "w"))
+    f.write(textutils.serialize(entries or {})); f.close()
+end
+
 local function redstoneChannels(getter, sides)
     local out = {}
     for _, side in ipairs(sides) do
@@ -39,7 +72,7 @@ local function readControllers()
     if type(redstone) == "table" and type(redstone.getOutput) == "function" and type(redstone.setOutput) == "function" then
         out[#out + 1] = {
             target = "computer",
-            name = "Computer #" .. tostring(os.getComputerID()),
+            name = "THIS COMPUTER",
             type = "computer_redstone",
             kind = "redstone",
             channels = redstoneChannels(function(side)
@@ -91,7 +124,6 @@ local function setRedstone(target, side, value)
         redstone.setOutput(side, value)
         return true
     end
-
     if not peripheral.isPresent(target) then error("door controller is not attached") end
     local obj = peripheral.wrap(target)
     local method = methods(target)
@@ -135,12 +167,15 @@ local function readDoor(target)
     return commandedStates[target] == true
 end
 
-function M.read()
-    local controllers = readControllers()
-    local candidates = {}
-    for _, controller in ipairs(controllers) do
+local function candidateList(controllers, localEntries)
+    local byLocal = {}
+    for _, entry in ipairs(localEntries or {}) do byLocal[entry.key or localKey(entry.target, entry.side)] = entry end
+    local candidates, localDoors = {}, {}
+    for _, controller in ipairs(controllers or {}) do
         for _, channel in ipairs(controller.channels or {}) do
-            candidates[#candidates + 1] = {
+            local key = localKey(controller.target, channel.side)
+            local saved = byLocal[key]
+            local candidate = {
                 target = controller.target,
                 side = channel.side,
                 label = channel.label or channel.side,
@@ -148,37 +183,105 @@ function M.read()
                 type = controller.type,
                 kind = controller.kind,
                 open = channel.open == true,
-                readable = channel.readable == true
+                readable = channel.readable == true,
+                localKey = key,
+                localConfigured = saved ~= nil,
+                localName = saved and saved.name or nil
             }
+            candidates[#candidates + 1] = candidate
+            if saved then
+                localDoors[#localDoors + 1] = {
+                    id = "local:" .. key,
+                    key = key,
+                    name = saved.name or ((channel.label or channel.side or "LOCAL") .. " DOOR"),
+                    target = controller.target,
+                    side = channel.side,
+                    controller = controller.name,
+                    type = controller.type,
+                    kind = controller.kind,
+                    open = channel.open == true,
+                    readable = channel.readable == true,
+                    online = true,
+                    localConfigured = true
+                }
+            end
         end
     end
+    return candidates, localDoors
+end
+
+function M.read()
+    local controllers = readControllers()
+    local localEntries = loadLocalDoors()
+    local candidates, localDoors = candidateList(controllers, localEntries)
     return {
         controllers = controllers,
         controllerCount = #controllers,
         candidates = candidates,
         candidateCount = #candidates,
-        -- Raw redstone channels are setup candidates. A channel becomes a door
-        -- only after it is explicitly added at the main Command Center.
+        localDoors = localDoors,
+        localDoorCount = #localDoors,
         channelCount = 0,
         _status = "online",
         _updated = os.epoch("utc")
     }
 end
 
+local function findCandidate(target, side)
+    local controllers = readControllers()
+    for _, controller in ipairs(controllers) do
+        if tostring(controller.target) == tostring(target) then
+            for _, channel in ipairs(controller.channels or {}) do
+                if tostring(channel.side or "") == tostring(side or "") then
+                    return controller, channel
+                end
+            end
+        end
+    end
+    return nil
+end
+
 function M.handleCommand(action, args)
     args = type(args) == "table" and args or {}
+
+    if action == "register_local" then
+        local target = tostring(args.target or "")
+        local side = args.side and tostring(args.side) or nil
+        if target == "" then error("local door target is required") end
+        local controller, channel = findCandidate(target, side)
+        if not controller or not channel then error("local door output is not attached") end
+        local entries = loadLocalDoors()
+        local key = localKey(target, side)
+        for _, entry in ipairs(entries) do if (entry.key or localKey(entry.target, entry.side)) == key then return entry end end
+        local label = tostring(args.name or "")
+        if label == "" then
+            local sideName = tostring(channel.label or channel.side or "DOOR"):upper()
+            label = sideName == "DOOR" and "LOCAL DOOR" or (sideName .. " DOOR")
+        end
+        local entry = { key = key, name = label, target = target, side = side, kind = controller.kind, type = controller.type }
+        entries[#entries + 1] = entry
+        saveLocalDoors(entries)
+        return entry
+    elseif action == "remove_local" then
+        local wanted = tostring(args.key or localKey(args.target, args.side))
+        local entries = loadLocalDoors()
+        for i, entry in ipairs(entries) do
+            if (entry.key or localKey(entry.target, entry.side)) == wanted then
+                table.remove(entries, i); saveLocalDoors(entries); return entry
+            end
+        end
+        error("local door is not configured")
+    end
+
     local target = tostring(args.target or "")
     local side = args.side and tostring(args.side) or nil
     if target == "" then error("door target is required") end
-    if action ~= "open" and action ~= "close" and action ~= "toggle" and action ~= "pulse" then
-        error("unsupported door action")
-    end
+    if action ~= "open" and action ~= "close" and action ~= "toggle" and action ~= "pulse" then error("unsupported door action") end
 
     local method = target == "computer" and {} or methods(target)
     local isRedstone = target == "computer" or (method.getOutput and method.setOutput)
     local current = isRedstone and readRedstone(target, side) or readDoor(target)
     local desired = action == "open" or (action == "toggle" and not current) or action == "pulse"
-
     if isRedstone then setRedstone(target, side, desired) else setDoor(target, desired) end
 
     if action == "pulse" then
@@ -187,7 +290,6 @@ function M.handleCommand(action, args)
         if isRedstone then setRedstone(target, side, false) else setDoor(target, false) end
         desired = false
     end
-
     return { target = target, side = side, open = desired, action = action }
 end
 

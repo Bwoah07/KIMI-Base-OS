@@ -5,15 +5,13 @@ local updates = require("core.update_service")
 
 local cfg = config.load()
 local role = cfg.role or "client"
-local rolePath = "roles." .. role
+local rolePath = role == "server" and "roles.server_v2" or ("roles." .. role)
 
 local ok, roleModule = pcall(require, rolePath)
 if not ok then
     error("Unable to load role '" .. tostring(role) .. "': " .. tostring(roleModule))
 end
 
--- Newly installed builds get a probation boot. If the role cannot stay alive
--- for 15 seconds, startup.lua will see update_pending and can roll back.
 if updates.hasPendingProbation() then
     local winner = parallel.waitForAny(
         function()
@@ -25,9 +23,7 @@ if updates.hasPendingProbation() then
         end
     )
 
-    if winner ~= 2 then
-        error("updated role failed probation")
-    end
+    if winner ~= 2 then error("updated role failed probation") end
 
     updates.markHealthy()
     term.setTextColor(colors.lime)
@@ -35,8 +31,6 @@ if updates.hasPendingProbation() then
     term.setTextColor(colors.white)
 end
 
--- Roles own their background work. In particular, ONLY roles.server checks
--- GitHub periodically and coordinates fleet updates.
 watchdog.run("role:" .. role, function()
     roleModule.run(cfg)
 end)

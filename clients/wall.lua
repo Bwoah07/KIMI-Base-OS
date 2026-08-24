@@ -1,2 +1,2 @@
-local adaptive = require("clients.adaptive_v3")
+local adaptive = require("clients.adaptive_v4")
 return adaptive.create({ mode = "wall" })

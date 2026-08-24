@@ -1,7 +1,7 @@
 {
-  "version": "5.0.0-alpha.34",
+  "version": "5.0.0-alpha.35",
   "channel": "alpha",
-  "ref": "f115c669b9c565f412ae11ee14642df1c21898c9",
+  "ref": "aba450eea8d3dda015ccd56a017624e2573a5e55",
   "entrypoint": "kimi.lua",
   "managed": [
     "startup.lua",
@@ -16,12 +16,14 @@
     "core/watchdog.lua",
     "core/update_service.lua",
     "roles/server.lua",
+    "roles/server_v2.lua",
     "roles/client.lua",
     "roles/node.lua",
     "clients/terminal.lua",
     "clients/adaptive.lua",
     "clients/adaptive_v2.lua",
     "clients/adaptive_v3.lua",
+    "clients/adaptive_v4.lua",
     "clients/admin.lua",
     "clients/wall.lua",
     "modules/environment.lua",
@@ -40,6 +42,7 @@
   "preserve": [
     ".kimi/config",
     ".kimi/doors",
+    ".kimi/local_doors",
     ".kimi/monitors",
     ".kimi/state",
     ".kimi/logs"
