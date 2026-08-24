@@ -4,6 +4,8 @@ local ROOT = ".kimi"
 local PENDING = ROOT .. "/update_pending"
 local REQUESTED = ROOT .. "/update_requested"
 local INSTALLED_MANIFEST = ROOT .. "/installed_manifest.json"
+local ROLLBACK = ROOT .. "/rollback"
+local STAGING = ROOT .. "/staging"
 local OWNER, REPO, BRANCH = "Bwoah07", "KIMI-Base-OS", "main"
 local API_HEAD = "https://api.github.com/repos/" .. OWNER .. "/" .. REPO .. "/commits/" .. BRANCH
 local RAW_ROOT = "https://raw.githubusercontent.com/" .. OWNER .. "/" .. REPO .. "/"
@@ -90,8 +92,6 @@ function M.autoEnabled(cfg)
     return cfg and cfg.update and cfg.update.auto ~= false
 end
 
--- Fleet management is intentionally independent of a machine doing its own
--- GitHub checks. Normal clients/nodes follow the Command Center by default.
 function M.fleetManaged(cfg)
     return not (cfg and cfg.update and cfg.update.fleetManaged == false)
 end
@@ -126,6 +126,10 @@ function M.markHealthy()
         writeFile(ROOT .. "/last_good_update", textutils.serialize(pending))
     end
     fs.delete(PENDING)
+    -- Once probation passes the snapshot is stale. Keeping it around wastes a
+    -- large fraction of a ComputerCraft disk and can make the next update fail.
+    if fs.exists(ROLLBACK) then fs.delete(ROLLBACK) end
+    if fs.exists(STAGING) then fs.delete(STAGING) end
     return true
 end
 
