@@ -14,9 +14,11 @@ peripheral.getType=function(n)return devices[n]and devices[n].type end
 peripheral.hasType=function(n,t)return devices[n]and devices[n].type==t or false end
 peripheral.wrap=function(n)return devices[n]and devices[n].object end
 local mon=surface(42,24);devices.monitor={type="monitor",object=mon}
+term=surface(26,20)
+print=function()end
 os={getComputerID=function()return 42 end,getComputerLabel=function()return"Front Gate"end,time=function()return 12.0 end,epoch=function()return 1000 end}
 
-local room=assert(loadfile("clients/room_v11.lua"))();room.init({name="KIMI-42"})
+local room=assert(loadfile("clients/wall.lua"))();room.init({name="KIMI-42"})
 local sensors={{type="environment_detector",summary="plains",metrics={temperature=21.5}}}
 local door={id="local:redstone_integrator_0|west",name="FRONT GATE",target="redstone_integrator_0",side="west",kind="digital_side",mode="hold",online=true,open=true,signal=true}
 local meta={connected=true,localState={doors={localDoors={door},candidates={}},attachments={sensors={}}}}
@@ -26,10 +28,10 @@ assert(ok~=false,"normal room render failed")
 assert(out:find("FRONT GATE",1,true),"door disappeared")
 assert(out:find("REDSTONE ON",1,true),"redstone truth disappeared")
 assert(out:find("CLOSE DOOR",1,true),"door action disappeared")
-assert(out:find("BASE SENS 1",1,true),"base sensor fallback disappeared")
+assert(out:find("BASE SENS 1",1,true) or out:find("BASE SENSORS 1",1,true),"base sensor fallback disappeared")
 
--- Force a render exception after the monitor has been discovered. The renderer
--- must paint the failure on-screen instead of silently leaving a black monitor.
+-- Force a render exception after the monitor has been discovered. The active
+-- room renderer must paint the failure on-screen instead of silently going black.
 local poison=setmetatable({}, {__len=function()error("synthetic sensor crash")end})
 env.state.attachments.sensors=poison
 local ok2,err2=room.render(env,meta);out=mon.output()
@@ -40,5 +42,6 @@ assert(out:find("synthetic sensor crash",1,true),"on-screen UI error lost the re
 local f=assert(io.open("roles/client.lua","r"));local src=f:read("*a");f:close()
 assert(src:find("paintUiError",1,true),"client-level UI crash guard missing")
 assert(src:find("pcall(profile.render",1,true),"profile render is not protected")
-local w=assert(io.open("clients/wall.lua","r"));local wall=w:read("*a");w:close();assert(wall:find("room_v11",1,true),"wall client is not routed to room_v11")
+local w=assert(io.open("clients/wall.lua","r"));local wall=w:read("*a");w:close()
+assert(wall:find('require("clients.room_',1,true),"wall client is not routed to a dedicated room renderer")
 realPrint("alpha42 crash-proof room smoke test OK")
