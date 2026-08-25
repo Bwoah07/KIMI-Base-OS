@@ -13,7 +13,7 @@ local epoch=1000
 os={getComputerLabel=function()return"Pocket"end,getComputerID=function()return 77 end,time=function()return 12 end,epoch=function()return epoch end}
 package.loaded["clients.pocket_v6"]=nil;package.loaded["clients.pocket_v7"]=nil;package.loaded["clients.pocket"]=nil
 local pocket=assert(loadfile("clients/pocket.lua"))();pocket.init({})
-local env={version="5.0.0-alpha.68",state={doors={doors={{id="D1",name="ROOM PANEL",_source="42",source="42",target="redstone_integrator_0",side="east",open=false,online=true}}},power={},attachments={sensors={}},fleet={}}}
+local env={version="5.0.0-alpha.69",state={doors={doors={{id="D1",name="ROOM PANEL",_source="42",source="42",target="redstone_integrator_0",side="east",open=false,online=true}}},power={},attachments={sensors={}},fleet={}}}
 local meta={connected=true}
 pocket.render(env,meta)
 assert(output():find("OPEN DOOR",1,true),"closed door did not start with OPEN control")
@@ -21,36 +21,25 @@ assert(output():find("OPEN DOOR",1,true),"closed door did not start with OPEN co
 local calls={}
 local function action(module,cmd,args)calls[#calls+1]={module=module,cmd=cmd,args=args};return true end
 assert(pocket.handleEvent({"mouse_click",1,5,12},env,action)==true,"first tap not consumed")
-assert(#calls==1 and calls[1].module=="remote_doors" and calls[1].cmd=="open","first tap did not send one OPEN")
-local out=output();assert(out:find("OPENING...",1,true)and out:find("PLEASE WAIT",1,true),"Pocket did not show pending OPENING state")
+assert(#calls==1 and calls[1].module=="remote_doors" and calls[1].cmd=="open","first tap did not send OPEN")
+local req1=assert(calls[1].args.requestId,"Pocket command has no requestId")
+local out=output();assert(out:find("CLOSE DOOR",1,true)and out:find("OPEN",1,true),"Pocket did not flip OPEN immediately")
+assert(not out:find("PLEASE WAIT",1,true),"Pocket still blocks on confirmation")
 
--- A second tap while the same command is in flight must NOT create a competing
--- CLOSE transaction. This is the old optimistic behavior that made the tablet weird.
-epoch=1200
-assert(pocket.handleEvent({"mouse_click",1,5,12},env,action)==true,"pending tap not consumed")
-assert(#calls==1,"second tap spawned a contradictory command while OPEN was pending")
-
--- Main Base final result must settle the UI immediately, even before the next
--- state poll catches up.
-local result={module="remote_doors",action="open",ok=true,confirmed=true,sourceId=42,result={target="redstone_integrator_0",side="east",open=true,signal=false}}
+-- A real room ACK still reaches the profile and must be accepted by exact requestId.
+local result={module="remote_doors",action="open",requestId=req1,ok=true,confirmed=true,sourceId=42,target="redstone_integrator_0",side="east",result={target="redstone_integrator_0",side="east",open=true,signal=false}}
 assert(pocket.handleEvent({"kimi_command_result",result},env,action)==true,"final command result was not consumed")
-out=output();assert(out:find("CLOSE DOOR",1,true)and out:find("OPEN",1,true),"confirmed OPEN did not immediately settle Pocket UI")
+out=output();assert(out:find("CLOSE DOOR",1,true)and out:find("OPEN",1,true),"successful ACK disturbed visible OPEN intent")
 
--- Once confirmed, the opposite command is available again even if telemetry is
--- one poll behind; this short confirmed shadow is based on a real room ACK.
-epoch=1300
-assert(pocket.handleEvent({"mouse_click",1,5,12},env,action)==true,"post-confirmation tap not consumed")
-assert(#calls==2 and calls[2].cmd=="close","confirmed OPEN did not enable CLOSE")
-
--- Prove the live client wrapper turns Main Base command.result packets into the
--- profile event that Pocket consumes instead of silently dropping them.
+-- The live client wrapper must still turn Main Base command.result packets into
+-- the profile event instead of silently dropping them.
 local seen
 package.loaded["roles.client_v2"]={run=function(cfg)local e={os.pullEvent()};seen=e;return true end}
-os={pullEvent=function()return"rednet_message",1,{kind="command.result",payload={module="remote_doors",action="open",ok=true,confirmed=true}},"kimi-test"end}
+os={pullEvent=function()return"rednet_message",1,{kind="command.result",payload={module="remote_doors",action="open",requestId=req1,ok=true,confirmed=true}},"kimi-test"end}
 package.loaded["roles.client_v3"]=nil
 local client=assert(loadfile("roles/client_v3.lua"))()
 assert(client.run({network={protocol="kimi-test"}})==true,"client_v3 did not return cleanly")
-assert(seen and seen[1]=="kimi_command_result" and seen[2].module=="remote_doors","client still dropped final command.result")
+assert(seen and seen[1]=="kimi_command_result" and seen[2].requestId==req1,"client still dropped/corrupted final command.result")
 
 os=realOs
-realPrint("alpha68 Pocket confirmed-state smoke test OK")
+realPrint("alpha68 Pocket confirmed-state bridge smoke test OK")

@@ -22,8 +22,10 @@ function M.run(cfg)
     local byDoor = {}
     local counter = 0
     local selfId = os.getComputerID()
-    local RETRY_SECONDS = 0.8
-    local MAX_ATTEMPTS = 6
+    -- Door controls should feel like a remote, not a web form. If the first
+    -- packet misses, retry quickly while remaining completely non-blocking.
+    local RETRY_SECONDS = 0.35
+    local MAX_ATTEMPTS = 8
     local previousAsyncHook = rawget(_G, "kimiRemoteDoorAsync")
 
     local function cancelTimer(tx)
@@ -50,6 +52,8 @@ function M.run(cfg)
             action = tx.action,
             requestId = tx.id,
             sourceId = tx.target,
+            target = tx.args and tx.args.target or nil,
+            side = tx.args and tx.args.side or nil,
             attempts = tx.attempts,
             confirmed = ok == true,
         })
@@ -74,6 +78,7 @@ function M.run(cfg)
     end
 
     local function startRemoteDoor(sender, payload)
+        payload = type(payload) == "table" and payload or {}
         local args = type(payload.args) == "table" and payload.args or {}
         local action = tostring(payload.action or "")
         if action ~= "open" and action ~= "close" then return false end
@@ -88,8 +93,8 @@ function M.run(cfg)
 
         local doorKey = table.concat({source, tostring(args.target or ""), tostring(args.side or "")}, "|")
 
-        -- Latest intent wins. Repeated touches cannot leave OPEN/CLOSE commands
-        -- fighting each other for the same physical door.
+        -- Latest intent wins. Rapid OPEN/CLOSE/OPEN touches intentionally replace
+        -- the older transaction instead of queueing contradictory commands.
         local oldId = byDoor[doorKey]
         local old = oldId and pending[oldId] or nil
         if old then
@@ -98,7 +103,18 @@ function M.run(cfg)
         end
 
         counter = counter + 1
-        local id = string.format("door:%d:%d:%d:%d", selfId, tonumber(sender) or 0, os.epoch("utc"), counter)
+        -- Pocket supplies a globally unique client requestId so late results from
+        -- superseded taps can never settle a newer UI intent. Local wall controls
+        -- may omit it and use the generated fallback below.
+        local requestedId = tostring(args.requestId or payload.requestId or "")
+        local id
+        if requestedId ~= "" and pending[requestedId] == nil then
+            id = requestedId
+        else
+            id = string.format("door:%d:%d:%d:%d", selfId, tonumber(sender) or 0, os.epoch("utc"), counter)
+        end
+        routedArgs.requestId = id
+
         local tx = {
             id = id,
             requester = tonumber(sender) or sender,

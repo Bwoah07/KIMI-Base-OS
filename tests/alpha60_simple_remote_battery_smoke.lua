@@ -8,14 +8,13 @@ term.write=function(v)v=tostring(v or"");local row=rows[y]or string.rep(" ",W);v
 local epoch=1000;os={getComputerLabel=function()return"Pocket"end,getComputerID=function()return 77 end,time=function()return 12 end,epoch=function()return epoch end}
 package.loaded["clients.pocket_v5"]=nil;package.loaded["clients.pocket_v6"]=nil;package.loaded["clients.pocket_v7"]=nil;package.loaded["clients.pocket"]=nil
 local pocket=assert(loadfile("clients/pocket.lua"))();pocket.init({})
-local env={version="5.0.0-alpha.68",state={doors={doors={{id="D1",name="ROOM PANEL",_source="42",source="42",target="computer",side="left",open=true,online=true}}},power={stored=800,capacity=1000,filledPercentage=.8},attachments={sensors={}},fleet={}}}
+local env={version="5.0.0-alpha.69",state={doors={doors={{id="D1",name="ROOM PANEL",_source="42",source="42",target="computer",side="left",open=true,online=true}}},power={stored=800,capacity=1000,filledPercentage=.8},attachments={sensors={}},fleet={}}}
 local meta={connected=true};pocket.render(env,meta)
 local calls={};local function action(module,cmd,args)calls[#calls+1]={module=module,cmd=cmd,args=args};return true end
 pocket.handleEvent({"mouse_click",1,5,12},env,action);assert(#calls==1 and calls[1].cmd=="close","Pocket first tap must send CLOSE")
-epoch=1200;pocket.handleEvent({"mouse_click",1,5,12},env,action);assert(#calls==1,"Pocket repeat tap while CLOSE pending must not send a competing OPEN")
-pocket.handleEvent({"kimi_command_result",{module="remote_doors",action="close",ok=true,confirmed=true,sourceId=42,result={target="computer",side="left",open=false}}},env,action)
-epoch=1300;pocket.handleEvent({"mouse_click",1,5,12},env,action);assert(#calls==2 and calls[2].cmd=="open","confirmed CLOSE must unlock OPEN")
-local source=assert(io.open("clients/pocket_v6.lua","r")):read("*a");assert(not source:find("ERR NO ACK",1,true),"Pocket regained fake NO ACK path");assert(not source:find("startTimer",1,true),"Pocket UI regained retry timers")
+epoch=1200;pocket.handleEvent({"mouse_click",1,5,12},env,action);assert(#calls==2 and calls[2].cmd=="open","Pocket second tap must immediately reverse to OPEN")
+assert(calls[1].args.requestId and calls[2].args.requestId and calls[1].args.requestId~=calls[2].args.requestId,"Pocket rapid commands lost unique request IDs")
+local source=assert(io.open("clients/pocket_v6.lua","r")):read("*a");assert(not source:find("ERR NO ACK",1,true),"Pocket regained fake NO ACK path");assert(not source:find("startTimer",1,true),"Pocket UI regained retry timers");assert(not source:find("PLEASE WAIT",1,true),"Pocket regained WAIT lock")
 
 local function surface(w,h)
  local textRows,cx,cy,bg={},1,1,colors.black;local s={_bg={}}
@@ -30,6 +29,6 @@ peripheral={getNames=function()return{"main","left","right"}end,getType=function
 term={setBackgroundColor=function()end,setTextColor=function()end,clear=function()end,setCursorPos=function()end,write=function()end};os.getComputerLabel=function()return"Main Base"end;os.time=function()return 20 end
 package.loaded["clients.admin_v15"]=nil;package.loaded["clients.admin_v12"]=nil;package.loaded["clients.admin"]=nil
 local admin=assert(loadfile("clients/admin.lua"))();admin.init({name="Main Base"})
-local aenv={version="5.0.0-alpha.68",state={doors={doors={{name="ROOM PANEL",open=false,online=true}}},power={stored=9999,capacity=10000,filledPercentage=.9999,matrices={{stored=500,capacity=1000,input=123,output=45,filledPercentage=.5}},fluxNetworks={{stored=1000,capacity=1000,filledPercentage=1}}},attachments={sensors={}},fleet={}}}
+local aenv={version="5.0.0-alpha.69",state={doors={doors={{name="ROOM PANEL",open=false,online=true}}},power={stored=9999,capacity=10000,filledPercentage=.9999,matrices={{stored=500,capacity=1000,input=123,output=45,filledPercentage=.5}},fluxNetworks={{stored=1000,capacity=1000,filledPercentage=1}}},attachments={sensors={}},fleet={}}}
 assert(admin.render(aenv,{localServer=true})~=false,"admin render failed")
 local greenRows,greenWidth=powerMon.greenShape();assert(greenRows>=4 and greenRows<=7,"50% Matrix should fill roughly half the gauge");assert(greenWidth>=5 and greenWidth<=7,"Matrix gauge is not narrow");realPrint("alpha60 simple remote/battery compatibility test OK")

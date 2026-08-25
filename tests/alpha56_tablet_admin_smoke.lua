@@ -2,7 +2,7 @@ local realPrint=print
 colors={white=1,orange=2,lightBlue=8,lime=32,gray=128,lightGray=256,cyan=512,blue=2048,red=16384,black=32768}
 keys={left=203,right=205,one=2,two=3,three=4,four=5,five=6,six=7,seven=8,eight=9,nine=10}
 
--- Pocket: one explicit command at a time; confirmed result unlocks the reverse action.
+-- Pocket: explicit door intents must reverse immediately without WAIT locks.
 local W,H=26,20
 local rows,x,y={},1,1
 term={getSize=function()return W,H end,setCursorPos=function(a,b)x,y=a,b end,setTextColor=function()end,setBackgroundColor=function()end,clear=function()rows={};x,y=1,1 end}
@@ -14,22 +14,20 @@ package.loaded["clients.pocket_v6"]=nil
 package.loaded["clients.pocket_v7"]=nil
 package.loaded["clients.pocket"]=nil
 local p=assert(loadfile("clients/pocket.lua"))();p.init({})
-local env={version="5.0.0-alpha.68",state={doors={doors={{id="D1",name="VAULT",_source="42",source="42",target="computer",side="left",open=true,online=true}}},power={stored=800,capacity=1000,input=50,output=20,filledPercentage=.8},attachments={sensors={}},fleet={}}}
+local env={version="5.0.0-alpha.69",state={doors={doors={{id="D1",name="VAULT",_source="42",source="42",target="computer",side="left",open=true,online=true}}},power={stored=800,capacity=1000,input=50,output=20,filledPercentage=.8},attachments={sensors={}},fleet={}}}
 local meta={connected=true}
 p.render(env,meta)
 local calls={}
 local function action(module,cmd,args)calls[#calls+1]={module=module,cmd=cmd,args=args};return true end
 p.handleEvent({"mouse_click",1,3,12},env,action)
 assert(#calls==1 and calls[1].module=="remote_doors" and calls[1].cmd=="close","open door did not send explicit CLOSE")
--- Telemetry is intentionally still OPEN. A repeat tap while CLOSE is pending must not create a competing OPEN.
+assert(calls[1].args.requestId,"Pocket command lost client requestId")
+-- Telemetry is intentionally still OPEN. The UI should already show CLOSED, so
+-- another tap immediately sends OPEN instead of waiting for a confirmation lock.
 epoch=1400
 p.handleEvent({"mouse_click",1,3,12},env,action)
-assert(#calls==1,"pending CLOSE allowed a contradictory second command")
--- Final room confirmation settles CLOSED even before telemetry catches up, so OPEN becomes available again.
-p.handleEvent({"kimi_command_result",{module="remote_doors",action="close",ok=true,confirmed=true,sourceId=42,result={target="computer",side="left",open=false}}},env,action)
-epoch=1500
-p.handleEvent({"mouse_click",1,3,12},env,action)
-assert(#calls==2 and calls[2].cmd=="open","confirmed CLOSE did not unlock OPEN")
+assert(#calls==2 and calls[2].cmd=="open","snappy reverse tap did not send OPEN immediately")
+assert(calls[2].args.requestId~=calls[1].args.requestId,"rapid taps reused requestId")
 
 -- Admin: center is clock + door state, second monitor is narrow vertical power, third is fleet/version.
 local function surface(w,h)
@@ -69,11 +67,11 @@ package.loaded["clients.admin_v15"]=nil
 package.loaded["clients.admin_v12"]=nil
 package.loaded["clients.admin"]=nil
 local admin=assert(loadfile("clients/admin.lua"))();admin.init({name="Main Base"})
-local aenv={version="5.0.0-alpha.68",state={
+local aenv={version="5.0.0-alpha.69",state={
  doors={doors={{name="FRONT GATE",open=true,online=true},{name="ROOM PANEL",open=false,online=true}}},
  power={matrices={{stored=800,capacity=1000,input=32000,output=22000,filledPercentage=.8}}},
  attachments={sensors={{type="environment_detector",summary="RAINING"}}},
- fleet={[1]={name="MAIN BASE",online=true,version="5.0.0-alpha.68"},[2]={name="ROOM PANEL",online=true,version="5.0.0-alpha.68"},[3]={name="POCKET",online=true,version="5.0.0-alpha.68"}}
+ fleet={[1]={name="MAIN BASE",online=true,version="5.0.0-alpha.69"},[2]={name="ROOM PANEL",online=true,version="5.0.0-alpha.69"},[3]={name="POCKET",online=true,version="5.0.0-alpha.69"}}
 }}
 assert(admin.render(aenv,{localServer=true})~=false,"admin render failed")
 local center=main.output();local left=powerMon.output();local right=fleetMon.output()

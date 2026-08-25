@@ -4,8 +4,8 @@ local page=1
 local lastEnv,lastMeta
 local lastStatus=""
 local doorButtons={}
-local pending={}
-local settled={}
+local intent={}
+local requestSeq=0
 local pages={"DOORS","JUICE","SENS","FLEET"}
 local C={bg=colors.black,text=colors.white,dim=colors.lightGray,good=colors.lime,warn=colors.orange,bad=colors.red,accent=colors.cyan or colors.lightBlue,button=colors.gray,active=colors.blue}
 
@@ -30,69 +30,75 @@ local function title()local l=type(os.getComputerLabel)=="function"and os.getCom
 local function header()local w=size();put(1,1,clip(title(),math.max(1,w-6)),C.text);put(math.max(1,w-4),1,gameTime(),C.dim);rule(2)end
 local function footer()local w,h=size();rule(h-2);local label="< "..pages[page].." >";put(math.max(1,math.floor((w-#label)/2)+1),h-1,label,C.accent);if lastStatus~=""then put(1,h,clip(lastStatus,w),lastStatus:find("ERR",1,true)and C.bad or C.dim)end end
 local function doorKey(d)return tostring(d and(d.id or d.key or((d._source or d.source or"?").."|"..tostring(d.target or"?").."|"..tostring(d.side or"?")))or"?")end
-local function owner(d)return tostring(d and(d._source or d.source or"")or"")end
-local function sameActuator(d,p)
- if not d or not p then return false end
- if p.source~=""and owner(d)~=p.source then return false end
- if p.target~=""and tostring(d.target or"")~=p.target then return false end
- if p.side~=""and tostring(d.side or"")~=p.side then return false end
- return true
-end
-local function reconcileDoor(d)
- local key=doorKey(d);local p=pending[key]
- if p then
-  if d and d.open==p.desired then
-   pending[key]=nil;settled[key]={desired=p.desired,at=now()};lastStatus=p.desired and"OPEN"or"CLOSED"
-  elseif now()-p.at>7000 then
-   pending[key]=nil;lastStatus="ERR NO CONFIRM"
+
+-- The Pocket is a remote control, so the visible state follows the newest local
+-- intent immediately. There is no WAIT lock and no arbitrary expiry timer.
+--
+-- Telemetry can be one poll behind. In particular OPEN->CLOSE can return to the
+-- same raw state that existed before either command. Do not mistake that stale
+-- value for proof that the newest reverse command completed. A local intent is
+-- cleared only when telemetry proves a transition, or after the matching room
+-- ACK confirms the command and telemetry agrees with the desired state.
+local function visibleState(d)
+ local key=doorKey(d);local i=intent[key]
+ if i then
+  local raw=d and d.open==true or false
+  if raw~=i.rawAtSend then i.sawChange=true end
+  local telemetryProves=(raw==i.desired)and(i.acked==true or i.sawChange==true or i.desired~=i.rawAtSend)
+  if telemetryProves then
+   intent[key]=nil
+   lastStatus=i.desired and"OPEN"or"CLOSED"
+   return raw
   end
+  return i.desired
  end
- local s=settled[key]
- if s then
-  if d and d.open==s.desired then settled[key]=nil;return d.open==true,nil end
-  if now()-s.at<=3000 then return s.desired,nil end
-  settled[key]=nil
- end
- return d and d.open==true,pending[key]
+ return d and d.open==true
 end
-local function visibleState(d)return reconcileDoor(d)end
+
+local function nextRequestId()
+ requestSeq=requestSeq+1
+ return string.format("pocket:%s:%d:%d",tostring(type(os.getComputerID)=="function"and os.getComputerID()or"?"),now(),requestSeq)
+end
+
 local function sendDoor(d,desired,action)
  if not d then lastStatus="ERR NO DOOR";return false end
  local key=doorKey(d)
- if pending[key]then lastStatus=pending[key].desired and"OPENING..."or"CLOSING...";return true end
- local args={source=d._source or d.source,target=d.target,side=d.side,id=d.id,key=d.key}
+ local args={source=d._source or d.source,target=d.target,side=d.side,id=d.id,key=d.key,requestId=nextRequestId()}
  local cmd=desired and"open"or"close"
  local ok,res=action("remote_doors",cmd,args)
  if ok==false then lastStatus="ERR "..clip(tostring(res or"COMMAND FAILED"),20);return false end
- pending[key]={desired=desired,action=cmd,at=now(),source=tostring(args.source or""),target=tostring(args.target or""),side=tostring(args.side or"")}
- settled[key]=nil
- lastStatus=desired and"OPENING..."or"CLOSING..."
+ intent[key]={
+  desired=desired,action=cmd,requestId=args.requestId,
+  source=tostring(args.source or""),target=tostring(args.target or""),side=tostring(args.side or""),
+  rawAtSend=d.open==true,sawChange=false,acked=false
+ }
+ -- Flip the UI immediately. Main Base's latest-intent-wins transaction manager
+ -- safely supersedes any older OPEN/CLOSE for this same physical door.
+ lastStatus=desired and"OPEN"or"CLOSED"
  return true
 end
+
 local function commandDoor(d,action)
- local opened,p=visibleState(d)
- if p then lastStatus=p.desired and"OPENING..."or"CLOSING...";return true end
+ local opened=visibleState(d)
  return sendDoor(d,not opened,action)
 end
 local function addButton(d,y1,y2)doorButtons[#doorButtons+1]={door=d,y1=y1,y2=y2}end
 local function drawSingleDoor(d)
- local w=size();local opened,p=visibleState(d)
+ local w=size();local opened=visibleState(d)
  center(4,"DOOR CONTROL",C.dim)
  center(6,upper(d.name or"DOOR"),C.text)
- if p then center(8,p.desired and"OPENING..."or"CLOSING...",C.warn)else center(8,opened and"OPEN"or"CLOSED",opened and C.good or C.dim)end
- local y1,y2=10,14
- local bg=p and C.button or(opened and C.button or C.active)
- fill(1,y1,w,y2,bg)
- center(12,p and"PLEASE WAIT"or(opened and"CLOSE DOOR"or"OPEN DOOR"),C.text,bg)
+ center(8,opened and"OPEN"or"CLOSED",opened and C.good or C.dim)
+ local y1,y2=10,14;local bg=opened and C.button or C.active
+ fill(1,y1,w,y2,bg);center(12,opened and"CLOSE DOOR"or"OPEN DOOR",C.text,bg)
  addButton(d,y1,y2)
 end
 local function drawDoorList(ds)
  local w,h=size();put(1,4,"DOORS  "..#ds,C.text);local y=6
  for i,d in ipairs(ds)do
   if y+3>h-3 then break end
-  local opened,p=visibleState(d);put(1,y,tostring(i).." "..clip(upper(d.name or"DOOR"),w-2),C.text)
-  put(2,y+1,p and(p.desired and"OPENING..."or"CLOSING...")or(opened and"OPEN"or"CLOSED"),p and C.warn or(opened and C.good or C.dim))
-  local bg=p and C.button or(opened and C.button or C.active);fill(1,y+2,w,y+3,bg);center(y+2,p and"WAIT"or(opened and"CLOSE"or"OPEN"),C.text,bg)
+  local opened=visibleState(d);put(1,y,tostring(i).." "..clip(upper(d.name or"DOOR"),w-2),C.text)
+  put(2,y+1,opened and"OPEN"or"CLOSED",opened and C.good or C.dim)
+  local bg=opened and C.button or C.active;fill(1,y+2,w,y+3,bg);center(y+2,opened and"CLOSE"or"OPEN",C.text,bg)
   addButton(d,y+2,y+3);y=y+5
  end
 end
@@ -107,28 +113,28 @@ local function drawSensors(env)local ss=sensors(env);put(1,4,"SENSORS  "..#ss,#s
 local function drawFleet(env)local f=state(env).fleet or{};local total,online,current=fleet(env);put(1,4,"FLEET "..online.."/"..total,C.text);put(1,5,"CURRENT "..current.."/"..total,current==total and total>0 and C.good or C.warn);local ids={};for id in pairs(f)do ids[#ids+1]=id end;table.sort(ids,function(a,b)return tostring(a)<tostring(b)end);local _,h=size();local y=7;for _,id in ipairs(ids)do if y>=h-3 then break end;local m=f[id];put(1,y,clip(upper(m.name or m.role or("PC "..id)),16),m.online==false and C.bad or C.good);put(17,y,clip(m.version or"?",10),C.dim);y=y+1 end end
 local draws={drawDoors,drawJuice,drawSensors,drawFleet}
 local function render(env,meta)clear();header();if not meta or not meta.connected or not env then center(8,"SEARCHING MAIN BASE...",C.warn);footer();return end;draws[page](env,meta);footer()end
-function M.init(c)cfg=c or{};page=1;pending={};settled={};lastStatus="";clear()end
+function M.init(c)cfg=c or{};page=1;intent={};requestSeq=0;lastStatus="";clear()end
 function M.render(env,meta)lastEnv,lastMeta=env,meta;render(env,meta);return true end
-function M.onState(env)lastEnv=env;for _,d in ipairs(doors(env))do reconcileDoor(d)end end
+function M.onState(env)lastEnv=env;for _,d in ipairs(doors(env))do visibleState(d)end end
 function M.onCommandResult(payload)
  payload=type(payload)=="table"and payload or{}
  if tostring(payload.module or"")~="remote_doors"then return false end
- local action=tostring(payload.action or"")
- local result=type(payload.result)=="table"and payload.result or{}
- local src=tostring(payload.sourceId or payload.source or"")
- local target=tostring(payload.target or result.target or"")
- local side=tostring(payload.side or result.side or"")
+ local requestId=tostring(payload.requestId or"")
+ if requestId==""then return false end
  local matchedKey,match
- for key,p in pairs(pending)do
-  if p.action==action and(src==""or p.source==src)and(target==""or p.target==target)and(side==""or p.side==side)then matchedKey,match=key,p;break end
+ for key,i in pairs(intent)do
+  if tostring(i.requestId or"")==requestId then matchedKey,match=key,i;break end
  end
- if not match then return false end
- pending[matchedKey]=nil
+ if not match then return false end -- stale/superseded result: ignore it completely
  if payload.ok==true and payload.confirmed~=false then
-  settled[matchedKey]={desired=match.desired,at=now()}
+  match.acked=true
+  -- Keep the desired state visible. The immediate render after this result will
+  -- clear it only if telemetry also agrees; otherwise the local confirmed intent
+  -- bridges the stale state packet with no flicker.
   lastStatus=match.desired and"OPEN"or"CLOSED"
  else
-  settled[matchedKey]=nil
+  intent[matchedKey]=nil
+  local result=type(payload.result)=="table"and payload.result or{}
   lastStatus="ERR "..clip(tostring(payload.error or result.error or payload.result or"COMMAND FAILED"),20)
  end
  return true
