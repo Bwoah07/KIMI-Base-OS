@@ -32,16 +32,23 @@ local function footer()local w,h=size();rule(h-2);local label="< "..pages[page].
 local function doorKey(d)return tostring(d and(d.id or d.key or((d._source or d.source or"?").."|"..tostring(d.target or"?").."|"..tostring(d.side or"?")))or"?")end
 
 -- The Pocket is a remote control, so the visible state follows the newest local
--- intent immediately. There is no WAIT lock and no arbitrary expiry timer. The
--- intent disappears only when telemetry catches up, or when the matching final
--- command result reports a real failure.
+-- intent immediately. There is no WAIT lock and no arbitrary expiry timer.
+--
+-- Telemetry can be one poll behind. In particular OPEN->CLOSE can return to the
+-- same raw state that existed before either command. Do not mistake that stale
+-- value for proof that the newest reverse command completed. A local intent is
+-- cleared only when telemetry proves a transition, or after the matching room
+-- ACK confirms the command and telemetry agrees with the desired state.
 local function visibleState(d)
  local key=doorKey(d);local i=intent[key]
  if i then
-  if d and d.open==i.desired then
+  local raw=d and d.open==true or false
+  if raw~=i.rawAtSend then i.sawChange=true end
+  local telemetryProves=(raw==i.desired)and(i.acked==true or i.sawChange==true or i.desired~=i.rawAtSend)
+  if telemetryProves then
    intent[key]=nil
    lastStatus=i.desired and"OPEN"or"CLOSED"
-   return d.open==true
+   return raw
   end
   return i.desired
  end
@@ -62,7 +69,8 @@ local function sendDoor(d,desired,action)
  if ok==false then lastStatus="ERR "..clip(tostring(res or"COMMAND FAILED"),20);return false end
  intent[key]={
   desired=desired,action=cmd,requestId=args.requestId,
-  source=tostring(args.source or""),target=tostring(args.target or""),side=tostring(args.side or"")
+  source=tostring(args.source or""),target=tostring(args.target or""),side=tostring(args.side or""),
+  rawAtSend=d.open==true,sawChange=false,acked=false
  }
  -- Flip the UI immediately. Main Base's latest-intent-wins transaction manager
  -- safely supersedes any older OPEN/CLOSE for this same physical door.
@@ -119,9 +127,10 @@ function M.onCommandResult(payload)
  end
  if not match then return false end -- stale/superseded result: ignore it completely
  if payload.ok==true and payload.confirmed~=false then
-  -- Keep the desired state visible until telemetry independently catches up.
-  -- This prevents a successful ACK followed by one stale state packet flickering
-  -- the button back to the old state.
+  match.acked=true
+  -- Keep the desired state visible. The immediate render after this result will
+  -- clear it only if telemetry also agrees; otherwise the local confirmed intent
+  -- bridges the stale state packet with no flicker.
   lastStatus=match.desired and"OPEN"or"CLOSED"
  else
   intent[matchedKey]=nil
