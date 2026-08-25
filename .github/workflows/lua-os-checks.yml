@@ -120,6 +120,9 @@ jobs:
       - name: Alpha66 async one-click door transaction test
         run: lua5.2 tests/alpha66_async_door_transaction_smoke.lua
 
+      - name: Alpha67 big-screen door control test
+        run: lua5.2 tests/alpha67_big_screen_door_controls_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
@@ -129,24 +132,24 @@ jobs:
           manifest = json.loads(Path('manifest.json').read_text())
           missing = [p for p in manifest['managed'] if not Path(p).is_file()]
           if missing:
-              raise SystemExit('managed files missing: ' + ', '.join(missing))
+            raise SystemExit('managed files missing: ' + ', '.join(missing))
 
           version = Path('version.txt').read_text().strip()
           if version != manifest['version']:
-              raise SystemExit(f'version mismatch: version.txt={version!r} manifest={manifest["version"]!r}')
+            raise SystemExit(f'version mismatch: version.txt={version!r} manifest={manifest["version"]!r}')
 
           if len(manifest['managed']) != len(set(manifest['managed'])):
-              raise SystemExit('manifest contains duplicate managed paths')
+            raise SystemExit('manifest contains duplicate managed paths')
           if set(manifest.get('managed', ())) & set(manifest.get('remove', ())):
-              raise SystemExit('a path is both managed and removed')
+            raise SystemExit('a path is both managed and removed')
 
           profiles = ['terminal', 'admin', 'wall', 'pocket']
           for profile in profiles:
-              path = Path('clients') / f'{profile}.lua'
-              if not path.is_file():
-                  raise SystemExit(f'installer profile file missing: {path}')
-              if str(path).replace('\\','/') not in manifest['managed']:
-                  raise SystemExit(f'installer profile not managed: {path}')
+            path = Path('clients') / f'{profile}.lua'
+            if not path.is_file():
+              raise SystemExit(f'installer profile file missing: {path}')
+            if str(path).replace('\\','/') not in manifest['managed']:
+              raise SystemExit(f'installer profile not managed: {path}')
 
           print('manifest OK:', manifest['version'], len(manifest['managed']), 'managed files')
           PY
