@@ -129,6 +129,9 @@ jobs:
       - name: Alpha69 snappy Pocket remote test
         run: lua5.2 tests/alpha69_snappy_pocket_remote_smoke.lua
 
+      - name: Alpha70 direct Pocket-to-room test
+        run: lua5.2 tests/alpha70_direct_pocket_room_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'

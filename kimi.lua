@@ -9,7 +9,7 @@ local rolePath
 if role == "server" then
     rolePath = "roles.server_v3"
 elseif role == "client" then
-    rolePath = "roles.client_v3"
+    rolePath = "roles.client_v4"
 else
     rolePath = "roles." .. role
 end
