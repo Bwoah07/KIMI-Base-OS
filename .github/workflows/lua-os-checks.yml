@@ -111,6 +111,9 @@ jobs:
       - name: Alpha63 REAL server remote door test
         run: lua5.2 tests/alpha63_real_server_remote_door_smoke.lua
 
+      - name: Alpha64 persistent door state test
+        run: lua5.2 tests/alpha64_persistent_door_state_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
