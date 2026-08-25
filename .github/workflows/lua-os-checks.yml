@@ -102,6 +102,9 @@ jobs:
       - name: Alpha60 simple Pocket/battery test
         run: lua5.2 tests/alpha60_simple_remote_battery_smoke.lua
 
+      - name: Alpha61 power ETA/Pocket test
+        run: lua5.2 tests/alpha61_power_eta_pocket_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
