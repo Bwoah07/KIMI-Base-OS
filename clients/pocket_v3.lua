@@ -36,7 +36,8 @@ local function sendDoor(d,desired,action,isRetry)
  local ok,res=action("remote_doors",cmd,args)
  if ok==false then pending[key]=nil;lastStatus="ERR "..clip(tostring(res or"COMMAND FAILED"),20);return false end
  local p=pending[key] or {};p.desired=desired;p.at=now();p.retries=isRetry and(p.retries or 0)or 0;p.door=d
- if p.timer then pcall(os.cancelTimer,p.timer)end;p.timer=os.startTimer(.6);pending[key]=p
+ if p.timer and type(os.cancelTimer)=="function"then pcall(os.cancelTimer,p.timer)end
+ p.timer=type(os.startTimer)=="function"and os.startTimer(.6)or nil;pending[key]=p
  lastStatus=(desired and"OPENING "or"CLOSING ")..clip(upper(d.name or"DOOR"),14)
  return true
 end
