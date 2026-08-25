@@ -16,19 +16,21 @@ local devices={main={type="monitor",object=main},left={type="monitor",object=pow
 peripheral={getNames=function()return{"main","left","right"}end,getType=function(n)return devices[n].type end,hasType=function(n,t)return devices[n]and devices[n].type==t end,wrap=function(n)return devices[n]and devices[n].object end}
 term={setBackgroundColor=function()end,setTextColor=function()end,clear=function()end,setCursorPos=function()end,write=function()end}
 os={getComputerLabel=function()return"Main Base"end,time=function()return 12 end}
-package.loaded["clients.admin_v13"]=nil;package.loaded["clients.admin_v12"]=nil;package.loaded["clients.admin"]=nil
+package.loaded["clients.admin_v14"]=nil;package.loaded["clients.admin_v13"]=nil;package.loaded["clients.admin_v12"]=nil;package.loaded["clients.admin"]=nil
 local admin=assert(loadfile("clients/admin.lua"))();admin.init({name="Main Base"})
-local env={version="5.0.0-alpha.59",state={doors={doors={}},power={stored=1000,capacity=1000,input=100,output=25,filledPercentage=1},attachments={sensors={}},fleet={}}}
-assert(admin.render(env,{localServer=true})~=false,"alpha59 admin render failed")
+local env={version="5.0.0-alpha.60",state={doors={doors={}},power={stored=1000,capacity=1000,input=100,output=25,filledPercentage=1},attachments={sensors={}},fleet={}}}
+assert(admin.render(env,{localServer=true})~=false,"admin render failed")
 local limeRows,limeWidth,limeFirst,limeLast=powerMon.countColor(colors.lime)
 local shellRows,shellWidth=powerMon.countColor(colors.gray)
-assert(limeRows>=12 and limeLast-limeFirst+1==limeRows,"100% battery fill must be continuous, not shelves")
-assert(limeWidth>=8 and limeWidth<=11,"battery inner fill has wrong width")
-assert(shellRows>=14 and shellWidth>=12,"battery lost its framed shell/cap silhouette")
+assert(limeRows>=10 and limeLast-limeFirst+1==limeRows,"100% rectangle fill must be continuous")
+assert(limeWidth>=15,"rectangle fill is too narrow")
+assert(shellRows>=12 and shellWidth>=17,"rectangle border disappeared")
 
--- Low charge switches the same continuous chamber to red rather than changing shape.
+-- Low charge is still green: same rectangle, simply less fill.
 env.state.power.stored=200;env.state.power.filledPercentage=.2
-assert(admin.render(env,{localServer=true})~=false,"low-charge battery render failed")
-local redRows,redWidth=powerMon.countColor(colors.red)
-assert(redRows>=2 and redWidth>=8,"low battery did not render a visible red charge fill")
-realPrint("alpha59 battery shape smoke test OK")
+assert(admin.render(env,{localServer=true})~=false,"low-charge rectangle render failed")
+local lowRows,lowWidth=powerMon.countColor(colors.lime)
+local redRows=powerMon.countColor(colors.red)
+assert(lowRows>=2 and lowRows<limeRows and lowWidth>=15,"20% charge did not reduce the green fill")
+assert(redRows==0,"simple Matrix rectangle must stay green at low charge")
+realPrint("alpha59 battery shape compatibility test OK")

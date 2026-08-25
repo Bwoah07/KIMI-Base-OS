@@ -99,6 +99,9 @@ jobs:
       - name: Alpha59 battery silhouette test
         run: lua5.2 tests/alpha59_battery_shape_smoke.lua
 
+      - name: Alpha60 simple Pocket/battery test
+        run: lua5.2 tests/alpha60_simple_remote_battery_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
