@@ -2,7 +2,7 @@ local realPrint=print
 colors={white=1,orange=2,lightBlue=8,lime=32,gray=128,lightGray=256,cyan=512,blue=2048,red=16384,black=32768}
 keys={left=203,right=205,one=2,two=3,three=4,four=5,five=6,six=7,seven=8,eight=9,nine=10}
 
--- Pocket invariant: immediate door control sends explicit commands, but only one command is in flight per door.
+-- Pocket invariant: visible state changes instantly and rapid taps send the latest explicit intent.
 local W,H=26,20
 local rows,x,y={},1,1
 term={getSize=function()return W,H end,setCursorPos=function(a,b)x,y=a,b end,setTextColor=function()end,setBackgroundColor=function()end,clear=function()rows={};x,y=1,1 end}
@@ -12,15 +12,14 @@ local epoch=1000
 os={getComputerLabel=function()return"Pocket"end,getComputerID=function()return 77 end,time=function()return 12 end,epoch=function()return epoch end}
 package.loaded["clients.pocket_v5"]=nil;package.loaded["clients.pocket_v6"]=nil;package.loaded["clients.pocket_v7"]=nil;package.loaded["clients.pocket"]=nil
 local p=assert(loadfile("clients/pocket.lua"))();p.init({})
-local env={version="5.0.0-alpha.68",state={doors={doors={{id="D1",name="VAULT",_source="42",source="42",target="computer",side="left",open=true,online=true}}},power={stored=800,capacity=1000,input=50,output=20,filledPercentage=.8},attachments={sensors={}},fleet={}}}
+local env={version="5.0.0-alpha.69",state={doors={doors={{id="D1",name="VAULT",_source="42",source="42",target="computer",side="left",open=true,online=true}}},power={stored=800,capacity=1000,input=50,output=20,filledPercentage=.8},attachments={sensors={}},fleet={}}}
 local meta={connected=true};p.render(env,meta);local out=output()
 assert(out:find("VAULT",1,true)and out:find("CLOSE DOOR",1,true),"Pocket lost immediate door control")
 local calls={};local function action(module,cmd,args)calls[#calls+1]={module=module,cmd=cmd,args=args};return true end
 p.handleEvent({"mouse_click",1,3,12},env,action);assert(#calls==1 and calls[1].cmd=="close","Pocket did not send explicit CLOSE")
-out=output();assert(out:find("CLOSING...",1,true),"Pocket did not expose pending CLOSE state")
-epoch=1200;p.handleEvent({"mouse_click",1,3,12},env,action);assert(#calls==1,"Pocket repeat tap created a competing OPEN while CLOSE was pending")
-p.handleEvent({"kimi_command_result",{module="remote_doors",action="close",ok=true,confirmed=true,sourceId=42,result={target="computer",side="left",open=false}}},env,action)
-epoch=1300;p.handleEvent({"mouse_click",1,3,12},env,action);assert(#calls==2 and calls[2].cmd=="open","confirmed CLOSE did not unlock explicit OPEN")
+out=output();assert(out:find("OPEN DOOR",1,true)and out:find("CLOSED",1,true),"Pocket did not flip to CLOSED immediately")
+epoch=1200;p.handleEvent({"mouse_click",1,3,12},env,action);assert(#calls==2 and calls[2].cmd=="open","Pocket did not immediately reverse to OPEN")
+assert(calls[1].args.requestId and calls[2].args.requestId and calls[1].args.requestId~=calls[2].args.requestId,"rapid commands must use unique request IDs")
 
 -- Admin invariant: dedicated power display stays vertical; center retains named door states without duplicated telemetry.
 local function surface(w,h)
@@ -37,7 +36,7 @@ peripheral={getNames=function()return{"main","left","right"}end,getType=function
 term={setBackgroundColor=function()end,setTextColor=function()end,clear=function()end,setCursorPos=function()end,write=function()end};os.getComputerLabel=function()return"Main Base"end;os.time=function()return 20 end
 package.loaded["clients.admin_v15"]=nil;package.loaded["clients.admin_v12"]=nil;package.loaded["clients.admin"]=nil
 local admin=assert(loadfile("clients/admin.lua"))();admin.init({name="Main Base"})
-local aenv={version="5.0.0-alpha.68",state={doors={doors={{name="FRONT GATE",open=true,online=true},{name="ROOM PANEL",open=false,online=true}}},power={matrices={{stored=1000,capacity=1000,input=32000,output=22000,filledPercentage=1}}},attachments={sensors={}},fleet={}}}
+local aenv={version="5.0.0-alpha.69",state={doors={doors={{name="FRONT GATE",open=true,online=true},{name="ROOM PANEL",open=false,online=true}}},power={matrices={{stored=1000,capacity=1000,input=32000,output=22000,filledPercentage=1}}},attachments={sensors={}},fleet={}}}
 assert(admin.render(aenv,{localServer=true})~=false,"admin render failed")
 local greenRows,greenWidth=powerMon.greenShape();assert(greenRows>=8,"power fill is too short");assert(greenWidth>=5 and greenWidth<=7,"power gauge width regressed")
 local center=main.output();assert(center:find("FRONT GATE",1,true)and center:find("ROOM PANEL",1,true),"center lost door states");assert(not center:find("VERSION ",1,true)and not center:find("STORED ",1,true),"center regained duplicated telemetry")
