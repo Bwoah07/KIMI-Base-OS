@@ -58,7 +58,8 @@ end
 
 local env=makeEnv(false)
 admin.render(env,{connected=true})
-local screen=table.concat(rows,"\n")
+local parts={};for i=1,H do parts[#parts+1]=rows[i]or""end
+local screen=table.concat(parts,"\n")
 assert(screen:find("OPEN DOOR",1,true),"big screen did not render OPEN DOOR control")
 
 local requested
