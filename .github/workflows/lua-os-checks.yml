@@ -78,6 +78,9 @@ jobs:
       - name: Alpha52 setup wizard test
         run: lua5.2 tests/alpha52_setup_wizard_smoke.lua
 
+      - name: Alpha53 explicit output-side setup test
+        run: lua5.2 tests/alpha53_explicit_side_setup_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
