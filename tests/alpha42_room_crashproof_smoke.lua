@@ -19,7 +19,9 @@ print=function()end
 os={getComputerID=function()return 42 end,getComputerLabel=function()return"Front Gate"end,time=function()return 12.0 end,epoch=function()return 1000 end}
 fs={exists=function()return false end,isDir=function()return false end,delete=function()end}
 
-local room=assert(loadfile("clients/wall.lua"))();room.init({name="KIMI-42"})
+-- Alpha42's invariant is the crash-proof base room renderer. Newer setup
+-- wrappers have their own regression tests and should not change this contract.
+local room=require("clients.room_v12");room.init({name="KIMI-42"})
 local sensors={{type="environment_detector",summary="plains",metrics={temperature=21.5}}}
 local door={id="local:redstone_integrator_0|west",name="FRONT GATE",target="redstone_integrator_0",side="west",kind="digital_side",mode="hold",online=true,open=true,signal=true}
 local meta={connected=true,localState={doors={localDoors={door},candidates={}},attachments={sensors={}}}}
