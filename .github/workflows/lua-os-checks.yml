@@ -114,6 +114,9 @@ jobs:
       - name: Alpha64 persistent door state test
         run: lua5.2 tests/alpha64_persistent_door_state_smoke.lua
 
+      - name: Alpha65 reliable remote door transport test
+        run: lua5.2 tests/alpha65_reliable_remote_door_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
