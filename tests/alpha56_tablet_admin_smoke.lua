@@ -27,7 +27,7 @@ assert(#calls==2 and calls[2].cmd=="open","stale telemetry made pocket send CLOS
 
 -- Admin: center is clock + door state, second monitor is vertical power, third is fleet/version.
 local function surface(w,h)
- local textRows={},cx,cy,bg={},1,1,colors.black
+ local textRows,cx,cy,bg={},1,1,colors.black
  local s={}
  s.setTextScale=function()end
  s.setBackgroundColor=function(v)bg=v end
@@ -44,7 +44,7 @@ local function surface(w,h)
  s.output=function()local out={};for i=1,h do out[i]=textRows[i]or string.rep(" ",w)end;return table.concat(out,"\n")end
  s.greenShape=function()
   local rowsWith,maxWidth=0,0
-  for yy,cells in pairs(s._bg)do local n=0;for _,c in pairs(cells)do if c==colors.lime then n=n+1 end end;if n>0 then rowsWith=rowsWith+1;if n>maxWidth then maxWidth=n end end end
+  for _,cells in pairs(s._bg)do local n=0;for _,c in pairs(cells)do if c==colors.lime then n=n+1 end end;if n>0 then rowsWith=rowsWith+1;if n>maxWidth then maxWidth=n end end end
   return rowsWith,maxWidth
  end
  return s
