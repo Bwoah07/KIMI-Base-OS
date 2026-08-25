@@ -16,6 +16,10 @@ local function readFile(path)
     local body = file.readAll(); file.close(); return body
 end
 
+local function localKey(target, side)
+    return tostring(target or "") .. "|" .. tostring(side or "")
+end
+
 function M.key(source, target, side)
     return tostring(source or "server") .. "|" .. tostring(target or "") .. "|" .. tostring(side or "")
 end
@@ -42,9 +46,29 @@ function M.candidates(values)
     for _, source in ipairs(values or {}) do
         local sourceId = tostring(source.sourceId or "server")
         local reported = source.value or {}
+        local logicalByKey = {}
+        for _, door in ipairs(reported.localDoors or {}) do
+            if type(door) == "table" and door.target then
+                logicalByKey[localKey(door.target, door.side)] = door
+            end
+        end
+
         if type(reported.candidates) == "table" then
             for _, candidate in ipairs(reported.candidates) do
                 local item = copy(candidate)
+                local logical = logicalByKey[localKey(item.target, item.side)]
+                if logical then
+                    -- candidates carry raw actuator signal, while localDoors carries
+                    -- the configured LOGICAL state (including inverted outputs and
+                    -- feedback inputs). Remote UIs must use the logical state or they
+                    -- drift back to CLOSED after their optimistic shadow expires.
+                    item.open = logical.open == true
+                    item.signal = logical.signal == true
+                    item.mode = logical.mode
+                    item.stateSource = logical.stateSource
+                    item.localConfigured = true
+                    item.localName = logical.name or item.localName
+                end
                 item._source = sourceId
                 item.key = M.key(sourceId, item.target, item.side)
                 out[#out + 1] = item
@@ -63,6 +87,15 @@ function M.candidates(values)
                         readable = channel.readable == true,
                         _source = sourceId
                     }
+                    local logical = logicalByKey[localKey(item.target, item.side)]
+                    if logical then
+                        item.open = logical.open == true
+                        item.signal = logical.signal == true
+                        item.mode = logical.mode
+                        item.stateSource = logical.stateSource
+                        item.localConfigured = true
+                        item.localName = logical.name
+                    end
                     item.key = M.key(sourceId, item.target, item.side)
                     out[#out + 1] = item
                 end
@@ -89,6 +122,8 @@ function M.snapshot(entries, candidates)
         item.readable = live and live.readable == true or false
         item.controller = live and live.controller or entry.controller
         item.type = live and live.type or entry.type
+        item.mode = live and live.mode or entry.mode
+        item.stateSource = live and live.stateSource or entry.stateSource
         doors[#doors + 1] = item
         configured[key] = true
     end
@@ -161,7 +196,8 @@ function M.add(entries, candidates, wantedKey)
         side = selected.side,
         kind = selected.kind,
         type = selected.type,
-        controller = selected.controller
+        controller = selected.controller,
+        mode = selected.mode
     }
     entries[#entries + 1] = entry
     return entry
