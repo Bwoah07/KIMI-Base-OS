@@ -75,6 +75,9 @@ jobs:
       - name: Alpha51 invert option test
         run: lua5.2 tests/alpha51_invert_option_smoke.lua
 
+      - name: Alpha52 setup wizard test
+        run: lua5.2 tests/alpha52_setup_wizard_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
