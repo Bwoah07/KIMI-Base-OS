@@ -109,7 +109,8 @@ function M.run(cfg)
     network.send=function(id,sendCfg,kind,payload)
         if profile=="pocket" and kind=="fleet.hello" then return true end
         if profile=="pocket" and kind=="telemetry.state" then return true end
-        if profile=="pocket" and kind=="command" and type(payload)=="table" and payload.module=="direct_doors" then
+        if profile=="pocket" and kind=="command" and type(payload)=="table" and
+           (payload.module=="remote_doors" or payload.module=="direct_doors") then
             return startDirect(payload)
         end
         return realSend(id,sendCfg,kind,payload)
