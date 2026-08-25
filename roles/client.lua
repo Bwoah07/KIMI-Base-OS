@@ -135,6 +135,10 @@ function M.run(cfg)
             if action=="toggle" then return not current end
             return true
         end
+        local function logicalFromPhysical(physical)
+            if mode=="invert" then return not (physical==true) end
+            return physical==true
+        end
 
         if target=="computer" then
             if type(redstone)~="table" or type(redstone.setOutput)~="function" then return false,"computer redstone unavailable" end
@@ -146,7 +150,7 @@ function M.run(cfg)
                 ok,err=pcall(redstone.setOutput,side,false); if not ok then return false,"redstone OFF failed: "..tostring(err) end
                 return true,{target=target,side=side,signal=false,open=false,action="pulse",direct=true}
             end
-            local desired=desiredFrom(current==true)
+            local desired=desiredFrom(logicalFromPhysical(current==true))
             local physical=mode=="invert" and not desired or desired
             local ok,err=pcall(redstone.setOutput,side,physical)
             if not ok then return false,"redstone write failed: "..tostring(err) end
@@ -164,7 +168,7 @@ function M.run(cfg)
                     ok,err=pcall(peripheral.call,target,"setOutput",side,false); if not ok then return false,"integrator OFF failed: "..tostring(err) end
                     return true,{target=target,side=side,signal=false,open=false,action="pulse",direct=true}
                 end
-                local desired=desiredFrom(current)
+                local desired=desiredFrom(logicalFromPhysical(current==true))
                 local physical=mode=="invert" and not desired or desired
                 local ok,err=pcall(peripheral.call,target,"setOutput",side,physical)
                 if not ok then return false,"integrator write failed: "..tostring(err) end
