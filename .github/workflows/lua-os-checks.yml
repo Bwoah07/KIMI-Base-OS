@@ -117,6 +117,9 @@ jobs:
       - name: Alpha65 reliable remote door transport test
         run: lua5.2 tests/alpha65_reliable_remote_door_smoke.lua
 
+      - name: Alpha66 async one-click door transaction test
+        run: lua5.2 tests/alpha66_async_door_transaction_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
