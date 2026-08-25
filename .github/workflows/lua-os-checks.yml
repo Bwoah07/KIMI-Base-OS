@@ -81,6 +81,9 @@ jobs:
       - name: Alpha53 explicit output-side setup test
         run: lua5.2 tests/alpha53_explicit_side_setup_smoke.lua
 
+      - name: Alpha54 inverted toggle test
+        run: lua5.2 tests/alpha54_inverted_toggle_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'

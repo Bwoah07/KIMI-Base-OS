@@ -135,6 +135,14 @@ function M.run(cfg)
             if action=="toggle" then return not current end
             return true
         end
+        local function logicalFromPhysical(physical)
+            if mode=="invert" then return not (physical==true) end
+            return physical==true
+        end
+        local function physicalFromLogical(logical)
+            if mode=="invert" then return not (logical==true) end
+            return logical==true
+        end
 
         if target=="computer" then
             if type(redstone)~="table" or type(redstone.setOutput)~="function" then return false,"computer redstone unavailable" end
@@ -146,8 +154,8 @@ function M.run(cfg)
                 ok,err=pcall(redstone.setOutput,side,false); if not ok then return false,"redstone OFF failed: "..tostring(err) end
                 return true,{target=target,side=side,signal=false,open=false,action="pulse",direct=true}
             end
-            local desired=desiredFrom(current==true)
-            local physical=mode=="invert" and not desired or desired
+            local desired=desiredFrom(logicalFromPhysical(current==true))
+            local physical=physicalFromLogical(desired)
             local ok,err=pcall(redstone.setOutput,side,physical)
             if not ok then return false,"redstone write failed: "..tostring(err) end
             return true,{target=target,side=side,signal=physical,open=desired,action=action,direct=true}
@@ -164,8 +172,8 @@ function M.run(cfg)
                     ok,err=pcall(peripheral.call,target,"setOutput",side,false); if not ok then return false,"integrator OFF failed: "..tostring(err) end
                     return true,{target=target,side=side,signal=false,open=false,action="pulse",direct=true}
                 end
-                local desired=desiredFrom(current)
-                local physical=mode=="invert" and not desired or desired
+                local desired=desiredFrom(logicalFromPhysical(current==true))
+                local physical=physicalFromLogical(desired)
                 local ok,err=pcall(peripheral.call,target,"setOutput",side,physical)
                 if not ok then return false,"integrator write failed: "..tostring(err) end
                 return true,{target=target,side=side,signal=physical,open=desired,action=action,direct=true}
