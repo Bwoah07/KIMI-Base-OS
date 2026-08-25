@@ -10,7 +10,7 @@ term.setBackgroundColor=function()end
 term.clear=function()rows={};x,y=1,1 end
 term.write=function(v)v=tostring(v or"");local row=rows[y]or string.rep(" ",26);v=v:sub(1,math.max(0,26-x+1));rows[y]=row:sub(1,x-1)..v..row:sub(x+#v);x=x+#v end
 local function output()local t={};for i=1,20 do t[i]=rows[i]or string.rep(" ",26)end;return table.concat(t,"\n")end
-os={getComputerLabel=function()return"Pocket Boss"end,getComputerID=function()return 77 end,time=function()return 12 end,epoch=function()return 1 end}
+os={getComputerLabel=function()return"Pocket Boss"end,getComputerID=function()return 77 end,time=function()return 12 end,epoch=function()return 1000 end}
 
 local env={version="5.0.0-alpha.46",state={
  doors={doors={{id="local:42|computer|left",name="VAULT",_source="42",source="42",target="computer",side="left",open=false,online=true}}},
@@ -27,20 +27,20 @@ local out=output();assert(out:find("VAULT",1,true),"pocket doors page lost confi
 local called
 p.handleEvent({"mouse_click",1,3,6},env,function(module,action,args)called={module=module,action=action,args=args};return true,{queued=true}end)
 assert(called,"pocket click did not issue a command")
-assert(called.module=="remote_doors" and called.action=="toggle","pocket did not use remote door router")
+assert(called.module=="remote_doors" and called.action=="open","closed pocket door did not send explicit OPEN")
 assert(tostring(called.args._source)=="42" and called.args.target=="computer" and called.args.side=="left","pocket lost door owner/actuator routing")
 
--- Remote router must forward through Main Base to the owning controller computer.
+-- Remote router must forward explicit commands through Main Base to the owning controller computer.
 package.loaded["core.network"]={send=function(target,cfg,kind,payload)
  assert(target==42,"remote router targeted wrong computer")
  assert(kind=="module.command","remote router used wrong packet kind")
- assert(payload.module=="doors" and payload.action=="toggle","remote router lost door command")
+ assert(payload.module=="doors" and payload.action=="open","remote router lost explicit door command")
  return true
 end}
 package.loaded["core.config"]={load=function()return{network={protocol="kimi_base_os_v1"}}end}
 package.loaded["modules.remote_doors"]=nil
 local r=assert(loadfile("modules/remote_doors.lua"))()
-local result=r.handleCommand("toggle",{_source="42",target="computer",side="left"})
+local result=r.handleCommand("open",{_source="42",target="computer",side="left"})
 assert(result and result.queued==true and result.sourceId==42,"remote router did not report queued command")
 
 local f=assert(io.open("modules/doors.lua","r"));local src=f:read("*a");f:close()
