@@ -17,6 +17,7 @@ local mon=surface(42,24);devices.monitor={type="monitor",object=mon}
 term=surface(26,20)
 print=function()end
 os={getComputerID=function()return 42 end,getComputerLabel=function()return"Front Gate"end,time=function()return 12.0 end,epoch=function()return 1000 end}
+fs={exists=function()return false end,isDir=function()return false end,delete=function()end}
 
 local room=assert(loadfile("clients/wall.lua"))();room.init({name="KIMI-42"})
 local sensors={{type="environment_detector",summary="plains",metrics={temperature=21.5}}}
