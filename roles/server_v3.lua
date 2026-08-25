@@ -1,13 +1,5 @@
 -- Non-blocking remote-door transport in front of the normal Main Base server.
---
--- Alpha65 waited synchronously inside modules.remote_doors. That made the whole
--- server stop consuming normal KIMI events while a door ACK was pending. If a
--- room client happened to be busy polling/rendering, a clean single click could
--- miss every short ACK window; spamming merely kept commands in flight longer.
---
--- This wrapper intercepts only remote_doors OPEN/CLOSE commands. The normal
--- server loop continues running while a transaction is pending. Commands are
--- retried idempotently and matched to the room result with a unique requestId.
+-- Pocket and local Command Center controls share the same retry/ACK machinery.
 local network = require("core.network")
 local base = require("roles.server_v2")
 
@@ -32,6 +24,7 @@ function M.run(cfg)
     local selfId = os.getComputerID()
     local RETRY_SECONDS = 0.8
     local MAX_ATTEMPTS = 6
+    local previousAsyncHook = rawget(_G, "kimiRemoteDoorAsync")
 
     local function cancelTimer(tx)
         if tx and tx.timer and type(os.cancelTimer) == "function" then
@@ -48,7 +41,7 @@ function M.run(cfg)
     end
 
     local function replyRequester(tx, ok, result, err)
-        if not tx then return end
+        if not tx or tx.requester == nil then return end
         network.send(tx.requester, cfg, "command.result", {
             ok = ok == true,
             result = result,
@@ -85,8 +78,6 @@ function M.run(cfg)
         local action = tostring(payload.action or "")
         if action ~= "open" and action ~= "close" then return false end
 
-        -- Pocket sends the owning room computer as `source`. `_source` is kept
-        -- reserved for the destination ownership check.
         local source = tostring(args.source or args._source or "")
         local target = tonumber(source)
         if not target or target == selfId then return false end
@@ -97,8 +88,8 @@ function M.run(cfg)
 
         local doorKey = table.concat({source, tostring(args.target or ""), tostring(args.side or "")}, "|")
 
-        -- Latest intent wins. This also means frantic spam cannot leave six
-        -- alternating OPEN/CLOSE transactions fighting over one door.
+        -- Latest intent wins. Repeated touches cannot leave OPEN/CLOSE commands
+        -- fighting each other for the same physical door.
         local oldId = byDoor[doorKey]
         local old = oldId and pending[oldId] or nil
         if old then
@@ -120,7 +111,34 @@ function M.run(cfg)
         pending[id] = tx
         byDoor[doorKey] = id
         sendAttempt(tx)
-        return true
+        return true, tx
+    end
+
+    -- Local Command Center actions do not arrive as rednet `command` packets,
+    -- so expose the same async transaction manager through a tiny module bridge.
+    _G.kimiRemoteDoorAsync = function(action, args)
+        args = type(args) == "table" and args or {}
+        action = tostring(action or "")
+        if action ~= "open" and action ~= "close" then error("async door control requires explicit open/close") end
+        local source = tostring(args.source or args._source or "")
+        if source == "" then error("door owner/source is missing") end
+
+        if source == "server" or source == tostring(selfId) then
+            local doors = require("modules.doors")
+            local localState = type(doors.read) == "function" and doors.read() or nil
+            return doors.handleCommand(action, args, localState)
+        end
+
+        local started, tx = startRemoteDoor(nil, {action=action,args=args})
+        if not started or not tx then error("invalid remote door owner/source") end
+        return {
+            queued = true,
+            confirmed = false,
+            async = true,
+            sourceId = tx.target,
+            requestId = tx.id,
+            attempts = tx.attempts,
+        }
     end
 
     local function handleAck(sender, msg)
@@ -162,20 +180,17 @@ function M.run(cfg)
             local e = {realPullEvent(filter)}
 
             if e[1] == "timer" and handleRetryTimer(e[2]) then
-                -- Private retry timer: consume it and keep the real server loop
-                -- moving instead of exposing transport internals to roles.server.
+                -- private retry timer; keep normal server loop free
             elseif e[1] == "rednet_message" and e[4] == cfg.network.protocol and type(e[3]) == "table" then
                 local sender, msg = e[2], e[3]
                 local payload = type(msg.payload) == "table" and msg.payload or {}
 
                 if handleAck(sender, msg) then
-                    -- The base server never handled module.command.result anyway;
-                    -- consume the correlated ACK here.
+                    -- correlated room execution result consumed here
                 elseif msg.kind == "command" and payload.module == "remote_doors" and
                        (payload.action == "open" or payload.action == "close") and
                        startRemoteDoor(sender, payload) then
-                    -- Consume only the door command we successfully turned into
-                    -- an async transaction. All other KIMI traffic passes through.
+                    -- Pocket command converted into async transaction
                 else
                     return unpackEvent(e)
                 end
@@ -188,6 +203,7 @@ function M.run(cfg)
     os.pullEvent = interceptedPullEvent
     local ok, result = xpcall(function() return base.run(cfg) end, function(err) return err end)
     os.pullEvent = realPullEvent
+    _G.kimiRemoteDoorAsync = previousAsyncHook
 
     if not ok then error(result, 0) end
     return result

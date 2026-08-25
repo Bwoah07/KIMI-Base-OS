@@ -1,7 +1,7 @@
 {
-  "version": "5.0.0-alpha.66",
+  "version": "5.0.0-alpha.67",
   "channel": "alpha",
-  "ref": "06489f6c85341184ee8036379c0037d29e74f076",
+  "ref": "ed27f8f135ec1caf2328cc778fbac5c4d7fa096f",
   "entrypoint": "kimi.lua",
   "managed": [
     "startup.lua",
@@ -34,6 +34,7 @@
     "clients/admin_v13.lua",
     "clients/admin_v14.lua",
     "clients/admin_v15.lua",
+    "clients/admin_v16.lua",
     "clients/room_v12.lua",
     "clients/room_v15.lua",
     "clients/room_v16.lua",
@@ -45,7 +46,8 @@
     "modules/power.lua",
     "modules/attachments.lua",
     "modules/doors.lua",
-    "modules/remote_doors.lua"
+    "modules/remote_doors.lua",
+    "modules/remote_doors_async.lua"
   ],
   "remove": [
     "server.lua",
