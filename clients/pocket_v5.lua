@@ -40,7 +40,11 @@ local function visibleState(d)
 end
 local function sendDoor(d,desired,action)
  if not d then lastStatus="ERR NO DOOR";return false end
- local args={_source=d._source or d.source,target=d.target,side=d.side,id=d.id,key=d.key}
+ -- IMPORTANT: Main Base reserves `_source` for its generic dispatcher. Sending
+ -- `_source` here bypasses modules.remote_doors completely. Pocket therefore
+ -- sends the owner as `source`; the remote_doors module adds `_source` only
+ -- after it has resolved the destination room computer.
+ local args={source=d._source or d.source,target=d.target,side=d.side,id=d.id,key=d.key}
  local cmd=desired and"open"or"close"
  local ok,res=action("remote_doors",cmd,args)
  if ok==false then lastStatus="ERR "..clip(tostring(res or"COMMAND FAILED"),20);return false end

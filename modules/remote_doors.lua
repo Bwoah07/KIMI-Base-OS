@@ -4,6 +4,12 @@ local config=require("core.config")
 
 local allowed={open=true,close=true,toggle=true,pulse=true}
 
+local function copyTable(src)
+  local out={}
+  for k,v in pairs(src or{})do out[k]=v end
+  return out
+end
+
 function M.read()
   return{_status="online",_updated=os.epoch("utc")}
 end
@@ -26,7 +32,14 @@ function M.handleCommand(action,args)
 
   local target=tonumber(source)
   if not target then error("invalid door owner/source")end
-  local payload={module="doors",action=action,args=args,issuedBy=os.getComputerID(),remote=true}
+
+  -- Pocket intentionally sends owner as `source`, not `_source`. `_source` is
+  -- reserved by Main Base's generic command dispatcher and would make it bypass
+  -- this router. Only the destination room computer needs `_source` for its
+  -- ownership check, so add it here after routing has been resolved.
+  local routedArgs=copyTable(args)
+  routedArgs._source=source
+  local payload={module="doors",action=action,args=routedArgs,issuedBy=os.getComputerID(),remote=true}
   local sent=network.send(target,cfg,"module.command",payload)
   if not sent then error("failed to reach door controller "..source)end
   return{queued=true,sourceId=target}
