@@ -123,6 +123,9 @@ jobs:
       - name: Alpha67 big-screen door control test
         run: lua5.2 tests/alpha67_big_screen_door_controls_smoke.lua
 
+      - name: Alpha68 confirmed Pocket state test
+        run: lua5.2 tests/alpha68_pocket_confirmed_state_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
