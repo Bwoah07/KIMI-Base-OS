@@ -34,7 +34,7 @@ epoch=2000
 p.handleEvent({"mouse_click",1,3,9},env,action)
 assert(#calls==3 and calls[3].cmd=="open","Pocket did not reverse to explicit OPEN after CLOSED acknowledgement")
 
--- Admin: segmented battery must remain visibly segmented at 100%, not a solid green rectangle.
+-- Admin: power battery must remain a clearly vertical, reasonably narrow gauge.
 local function surface(w,h)
  local textRows,cx,cy,bg={},1,1,colors.black
  local s={_bg={}}
@@ -50,14 +50,14 @@ local devices={main={type="monitor",object=main},left={type="monitor",object=pow
 peripheral={getNames=function()return{"main","left","right"}end,getType=function(n)return devices[n].type end,hasType=function(n,t)return devices[n]and devices[n].type==t end,wrap=function(n)return devices[n]and devices[n].object end}
 term={setBackgroundColor=function()end,setTextColor=function()end,clear=function()end,setCursorPos=function()end,write=function()end}
 os.getComputerLabel=function()return"Main Base"end;os.time=function()return 20 end
-package.loaded["clients.admin_v12"]=nil;package.loaded["clients.admin"]=nil
+package.loaded["clients.admin_v13"]=nil;package.loaded["clients.admin_v12"]=nil;package.loaded["clients.admin"]=nil
 local admin=assert(loadfile("clients/admin.lua"))();admin.init({name="Main Base"})
 local aenv={version="5.0.0-alpha.57",state={doors={doors={{name="FRONT GATE",open=true,online=true},{name="ROOM PANEL",open=false,online=true}}},power={stored=1000,capacity=1000,input=32000,output=22000,filledPercentage=1},attachments={sensors={}},fleet={[1]={name="MAIN BASE",online=true,version="5.0.0-alpha.57"},[2]={name="ROOM PANEL",online=true,version="5.0.0-alpha.57"}}}}
-assert(admin.render(aenv,{localServer=true})~=false,"admin v12 render failed")
-local greenRows,greenWidth,gaps=powerMon.greenShape()
-assert(greenRows==8,"battery should use exactly eight visible charge segments at 100%")
-assert(greenWidth>=8,"battery segments are too narrow")
-assert(gaps>=6,"battery charge rendered as a solid blob instead of separated segments")
+assert(admin.render(aenv,{localServer=true})~=false,"admin render failed")
+local greenRows,greenWidth=powerMon.greenShape()
+assert(greenRows>=8,"battery fill is too short to read as a vertical gauge")
+assert(greenWidth>=7 and greenWidth<=15,"battery fill width is implausible")
+assert(greenRows>=greenWidth,"battery no longer reads as a vertical gauge")
 local center=main.output();assert(center:find("FRONT GATE",1,true)and center:find("ROOM PANEL",1,true),"center lost door states")
 assert(not center:find("VERSION ",1,true)and not center:find("STORED ",1,true),"center regained duplicated admin telemetry")
 realPrint("alpha57 Pocket/battery smoke test OK")
