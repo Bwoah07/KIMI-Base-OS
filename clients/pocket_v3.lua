@@ -5,7 +5,7 @@ local lastEnv,lastMeta
 local lastStatus="READY"
 local doorCards={}
 local pending={}
-local pages={"DOORS","JUICE","SENS","FLEET"}
+local pages={"HOME","DOORS","JUICE","SENS","FLEET"}
 local C={bg=colors.black,text=colors.white,dim=colors.lightGray,good=colors.lime,warn=colors.orange,bad=colors.red,accent=colors.cyan or colors.lightBlue,button=colors.gray,active=colors.blue}
 
 local function upper(v)return tostring(v or""):upper()end
@@ -35,32 +35,35 @@ local function sendDoor(d,desired,action,isRetry)
  local key=doorKey(d);local args={_source=d._source or d.source,target=d.target,side=d.side,id=d.id,key=d.key};local cmd=desired and"open"or"close"
  local ok,res=action("remote_doors",cmd,args)
  if ok==false then pending[key]=nil;lastStatus="ERR "..clip(tostring(res or"COMMAND FAILED"),20);return false end
- local p=pending[key] or {};p.desired=desired;p.at=now();p.retries=isRetry and(p.retries or 0)or 0;p.door=d;p.action=action
+ local p=pending[key] or {};p.desired=desired;p.at=now();p.retries=isRetry and(p.retries or 0)or 0;p.door=d
  if p.timer then pcall(os.cancelTimer,p.timer)end;p.timer=os.startTimer(.6);pending[key]=p
  lastStatus=(desired and"OPENING "or"CLOSING ")..clip(upper(d.name or"DOOR"),14)
  return true
 end
 local function commandDoor(d,action)local opened=select(1,visibleState(d));return sendDoor(d,not opened,action,false)end
-local function drawDoors(env)
- doorCards={};local ds=doors(env);local w,h=size();put(1,4,"DOORS",C.text);put(w-#tostring(#ds)+1,4,tostring(#ds),#ds>0 and C.good or C.dim)
- if #ds==0 then center(8,"NO CONFIGURED DOORS",C.warn);return end
- local y=6
- for i,d in ipairs(ds)do if y+2>h-4 then break end;local opened,p=visibleState(d);local bg=p and C.button or(opened and C.active or C.button);fill(1,y,w,y+2,bg);put(2,y,clip((i<=9 and tostring(i).." "or"")..upper(d.name or("DOOR "..i)),w-3),C.text,bg);local stateText=p and(p.desired and"OPENING..."or"CLOSING...")or(opened and"OPEN"or"CLOSED");put(2,y+1,stateText,p and C.warn or(opened and C.good or C.dim),bg);local actionText=p and"WAIT"or(opened and"TAP TO CLOSE"or"TAP TO OPEN");put(2,y+2,actionText,C.text,bg);doorCards[#doorCards+1]={y1=y,y2=y+2,door=d};y=y+4 end
+local function drawCard(d,i,y,w)
+ local opened,p=visibleState(d);local bg=p and C.button or(opened and C.active or C.button);fill(1,y,w,y+2,bg);put(2,y,clip((i and i<=9 and tostring(i).." "or"")..upper(d.name or"DOOR"),w-3),C.text,bg);local stateText=p and(p.desired and"OPENING..."or"CLOSING...")or(opened and"OPEN"or"CLOSED");put(2,y+1,stateText,p and C.warn or(opened and C.good or C.dim),bg);put(2,y+2,p and"WAIT"or(opened and"TAP TO CLOSE"or"TAP TO OPEN"),C.text,bg);doorCards[#doorCards+1]={y1=y,y2=y+2,door=d}
 end
-local function drawJuice(env)local p=power(env);local pp=pct(p);put(1,4,"JUICE",C.text);center(6,pp and string.format("%.1f%%",pp)or"NO DATA",pp and C.good or C.warn);put(1,9,"STORED   "..fmt(p.stored).." FE",C.text);put(1,10,"CAPACITY "..fmt(p.capacity).." FE",C.dim);put(1,12,"IN   +"..fmt(p.input).." FE/t",C.good);put(1,13,"OUT  -"..fmt(p.output).." FE/t",C.warn)end
+local function drawHome(env,meta)
+ doorCards={};local ds=doors(env);local p=power(env);local pp=pct(p);local total,online,current=fleet(env);local w=size();put(1,4,meta and meta.connected and"BASE ONLINE"or"BASE OFFLINE",meta and meta.connected and C.good or C.warn);put(1,5,"JUICE "..(pp and string.format("%.1f%%",pp)or"NO DATA"),pp and C.good or C.warn);put(1,6,"FLEET "..online.."/"..total.."  CUR "..current,C.dim);put(1,8,"QUICK DOOR",C.dim);if ds[1]then drawCard(ds[1],1,9,w);if #ds>1 then put(1,13,"+"..tostring(#ds-1).." MORE ON DOORS PAGE",C.accent)end else put(1,10,"NO CONFIGURED DOORS",C.warn)end
+end
+local function drawDoors(env)
+ doorCards={};local ds=doors(env);local w,h=size();put(1,4,"DOORS  "..#ds,C.text);if #ds==0 then center(8,"NO CONFIGURED DOORS",C.warn);return end;local y=6;for i,d in ipairs(ds)do if y+2>h-4 then break end;drawCard(d,i,y,w);y=y+4 end
+end
+local function drawJuice(env)local p=power(env);local pp=pct(p);put(1,4,"JUICE / POWER",C.text);center(6,pp and string.format("%.1f%%",pp)or"NO DATA",pp and C.good or C.warn);put(1,9,"STORED   "..fmt(p.stored).." FE",C.text);put(1,10,"CAPACITY "..fmt(p.capacity).." FE",C.dim);put(1,12,"IN   +"..fmt(p.input).." FE/t",C.good);put(1,13,"OUT  -"..fmt(p.output).." FE/t",C.warn)end
 local function sensorSummary(s)local m=s and s.metrics or{};if m.temperature~=nil then return"TEMP "..tostring(m.temperature)end;if m.onlinePlayers~=nil then return"PLAYERS "..tostring(m.onlinePlayers)end;if m.weather~=nil then return upper(m.weather)end;if m.radiationRaw~=nil then return"RAD "..tostring(m.radiationRaw)end;return upper(s and s.summary or"ONLINE")end
-local function drawSensors(env)local ss=sensors(env);put(1,4,"SENSORS "..#ss,#ss>0 and C.good or C.warn);if #ss==0 then put(1,6,"NO TELEMETRY",C.warn);return end;local _,h=size();local y=6;for i,s in ipairs(ss)do if y>=h-3 then break end;put(1,y,clip(upper(s.type or("SENSOR "..i)),24),C.text);put(1,y+1,clip(sensorSummary(s),24),C.good);y=y+3 end end
+local function drawSensors(env)local ss=sensors(env);put(1,4,"SENSORS  "..#ss,#ss>0 and C.good or C.warn);if #ss==0 then put(1,6,"NO TELEMETRY",C.warn);return end;local _,h=size();local y=6;for i,s in ipairs(ss)do if y>=h-3 then break end;put(1,y,clip(upper(s.type or("SENSOR "..i)),24),C.text);put(1,y+1,clip(sensorSummary(s),24),C.good);y=y+3 end end
 local function drawFleet(env)local f=state(env).fleet or{};local total,online,current=fleet(env);put(1,4,"FLEET "..online.."/"..total,C.text);put(1,5,"CURRENT "..current.."/"..total,current==total and total>0 and C.good or C.warn);local ids={};for id in pairs(f)do ids[#ids+1]=id end;table.sort(ids,function(a,b)return tostring(a)<tostring(b)end);local _,h=size();local y=7;for _,id in ipairs(ids)do if y>=h-3 then break end;local m=f[id];put(1,y,clip(upper(m.name or m.role or("PC "..id)),16),m.online==false and C.bad or C.good);put(17,y,clip(m.version or"?",10),C.dim);y=y+1 end end
-local draws={drawDoors,drawJuice,drawSensors,drawFleet}
+local draws={drawHome,drawDoors,drawJuice,drawSensors,drawFleet}
 local function render(env,meta)clear();header();if not meta or not meta.connected or not env then put(1,5,"SEARCHING MAIN BASE...",C.warn);footer();return end;draws[page](env,meta);footer()end
 function M.init(c)cfg=c or{};page=1;pending={};clear()end
 function M.render(env,meta)lastEnv,lastMeta=env,meta;render(env,meta);return true end
 function M.onState(env)lastEnv=env;for _,d in ipairs(doors(env))do visibleState(d)end end
 function M.handleEvent(ev,env,action)
- if ev[1]=="key" and type(keys)=="table" then local k=ev[2];if k==keys.left then page=page==1 and#pages or page-1 elseif k==keys.right then page=page==#pages and 1 or page+1 elseif page==1 then local nums={keys.one,keys.two,keys.three,keys.four,keys.five,keys.six,keys.seven,keys.eight,keys.nine};local idx;for i,v in ipairs(nums)do if v~=nil and k==v then idx=i break end end;if idx then local ds=doors(lastEnv);commandDoor(ds[idx],action)else return false end else return false end;render(lastEnv,lastMeta);return true
+ if ev[1]=="key" and type(keys)=="table" then local k=ev[2];if k==keys.left then page=page==1 and#pages or page-1 elseif k==keys.right then page=page==#pages and 1 or page+1 elseif page==1 or page==2 then local nums={keys.one,keys.two,keys.three,keys.four,keys.five,keys.six,keys.seven,keys.eight,keys.nine};local idx;for i,v in ipairs(nums)do if v~=nil and k==v then idx=i break end end;if idx then local ds=doors(lastEnv);commandDoor(ds[idx],action)else return false end else return false end;render(lastEnv,lastMeta);return true
  elseif ev[1]=="mouse_scroll" then if(tonumber(ev[2])or 0)>0 then page=page==#pages and 1 or page+1 else page=page==1 and#pages or page-1 end;render(lastEnv,lastMeta);return true
- elseif ev[1]=="mouse_click" and page==1 then local y=tonumber(ev[4]);for _,c in ipairs(doorCards)do if y and y>=c.y1 and y<=c.y2 then commandDoor(c.door,action);render(lastEnv,lastMeta);return true end end
- elseif ev[1]=="timer" then for key,p in pairs(pending)do if p.timer==ev[2] then local d=p.door;local tele;for _,candidate in ipairs(doors(lastEnv))do if doorKey(candidate)==key then tele=candidate break end end;if tele and tele.open==p.desired then pending[key]=nil;lastStatus=p.desired and"OPEN"or"CLOSED" else p.retries=(p.retries or 0)+1;if p.retries<=2 then sendDoor(d,p.desired,action,true)else pending[key]=nil;lastStatus="ERR NO ACK"end end;render(lastEnv,lastMeta);return true end end end
+ elseif ev[1]=="mouse_click" and(page==1 or page==2)then local y=tonumber(ev[4]);for _,c in ipairs(doorCards)do if y and y>=c.y1 and y<=c.y2 then commandDoor(c.door,action);render(lastEnv,lastMeta);return true end end
+ elseif ev[1]=="timer" then for key,p in pairs(pending)do if p.timer==ev[2] then local d=p.door;local tele;for _,candidate in ipairs(doors(lastEnv))do if doorKey(candidate)==key then tele=candidate break end end;if tele and tele.open==p.desired then pending[key]=nil;lastStatus=p.desired and"OPEN"or"CLOSED"else p.retries=(p.retries or 0)+1;if p.retries<=2 then sendDoor(d,p.desired,action,true)else pending[key]=nil;lastStatus="ERR NO ACK"end end;render(lastEnv,lastMeta);return true end end end
  return false
 end
 return M
