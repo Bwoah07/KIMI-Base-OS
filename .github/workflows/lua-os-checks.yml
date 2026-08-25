@@ -105,6 +105,9 @@ jobs:
       - name: Alpha61 power ETA/Pocket test
         run: lua5.2 tests/alpha61_power_eta_pocket_smoke.lua
 
+      - name: Alpha62 Pocket end-to-end door test
+        run: lua5.2 tests/alpha62_pocket_end_to_end_door_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
