@@ -19,7 +19,6 @@ local function surface(w,h)
  local textRows,cx,cy,bg={},1,1,colors.black;local s={_bg={}}
  s.setTextScale=function()end;s.setBackgroundColor=function(v)bg=v end;s.setTextColor=function()end;s.clear=function()textRows={};s._bg={};cx,cy=1,1 end;s.setCursorPos=function(a,b)cx,cy=a,b end;s.getSize=function()return w,h end
  s.write=function(v)v=tostring(v or"");if cy<1 or cy>h or cx>w then return end;v=v:sub(1,math.max(0,w-cx+1));local row=textRows[cy]or string.rep(" ",w);textRows[cy]=row:sub(1,cx-1)..v..row:sub(cx+#v);for i=0,#v-1 do s._bg[cy]=s._bg[cy]or{};s._bg[cy][cx+i]=bg end;cx=cx+#v end
- s.greenRows=function()local ys={},0 end
  s.greenShape=function()local count,maxWidth,minY,maxY=0,0,nil,nil;for yy,cells in pairs(s._bg)do local n=0;for _,c in pairs(cells)do if c==colors.lime then n=n+1 end end;if n>0 then count=count+1;maxWidth=math.max(maxWidth,n);minY=minY and math.min(minY,yy)or yy;maxY=maxY and math.max(maxY,yy)or yy end end;return count,maxWidth,minY,maxY end
  return s
 end
