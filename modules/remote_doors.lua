@@ -18,7 +18,10 @@ function M.handleCommand(action,args)
   local selfId=tostring(os.getComputerID())
   if source=="server"or source==selfId then
     local doors=require("modules.doors")
-    return doors.handleCommand(action,args)
+    -- Remote control must use the exact same saved door record as the room panel.
+    -- In particular this preserves mode="invert", pulse settings and actuator kind.
+    local localState=type(doors.read)=="function"and doors.read()or nil
+    return doors.handleCommand(action,args,localState)
   end
 
   local target=tonumber(source)
