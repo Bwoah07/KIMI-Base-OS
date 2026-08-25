@@ -5,7 +5,14 @@ local updates = require("core.update_service")
 
 local cfg = config.load()
 local role = cfg.role or "client"
-local rolePath = role == "server" and "roles.server_v2" or ("roles." .. role)
+local rolePath
+if role == "server" then
+    rolePath = "roles.server_v3"
+elseif role == "client" then
+    rolePath = "roles.client_v2"
+else
+    rolePath = "roles." .. role
+end
 
 local ok, roleModule = pcall(require, rolePath)
 if not ok then
@@ -27,8 +34,14 @@ if updates.hasPendingProbation() then
 
     updates.markHealthy()
     term.setTextColor(colors.lime)
-    print("[KIMI] update probation passed")
+    print("[KIMI] update probation passed; rebooting cleanly")
     term.setTextColor(colors.white)
+    -- The probation runner cancels the role coroutine after 15 seconds. Do not
+    -- start a second role instance in the same Lua process with transport/event
+    -- wrappers left behind by the cancelled coroutine. A clean reboot gives the
+    -- now-healthy release a pristine event loop.
+    os.reboot()
+    return
 end
 
 watchdog.run("role:" .. role, function()
