@@ -2,7 +2,7 @@ local realPrint=print
 colors={white=1,orange=2,lightBlue=8,lime=32,gray=128,lightGray=256,cyan=512,blue=2048,red=16384,black=32768}
 keys={left=203,right=205,one=2,two=3,three=4,four=5,five=6,six=7,seven=8,eight=9,nine=10}
 
--- Pocket boots directly into a clean door-control screen and shows real pending state.
+-- Pocket boots directly into a clean door-control screen and flips immediately.
 local W,H=26,20
 local rows,x,y={},1,1
 term={getSize=function()return W,H end,setCursorPos=function(a,b)x,y=a,b end,setTextColor=function()end,setBackgroundColor=function()end,clear=function()rows={};x,y=1,1 end}
@@ -12,7 +12,7 @@ local epoch=1000
 os={getComputerLabel=function()return"Pocket"end,getComputerID=function()return 77 end,time=function()return 12 end,epoch=function()return epoch end}
 package.loaded["clients.pocket_v5"]=nil;package.loaded["clients.pocket_v6"]=nil;package.loaded["clients.pocket_v7"]=nil;package.loaded["clients.pocket"]=nil
 local pocket=assert(loadfile("clients/pocket.lua"))();pocket.init({})
-local env={version="5.0.0-alpha.68",state={doors={doors={{id="D1",name="ROOM PANEL",_source="42",source="42",target="computer",side="left",open=false,online=true}}},power={stored=500,capacity=1000,filledPercentage=.5},attachments={sensors={}},fleet={}}}
+local env={version="5.0.0-alpha.69",state={doors={doors={{id="D1",name="ROOM PANEL",_source="42",source="42",target="computer",side="left",open=false,online=true}}},power={stored=500,capacity=1000,filledPercentage=.5},attachments={sensors={}},fleet={}}}
 local meta={connected=true}
 pocket.render(env,meta)
 local out=output()
@@ -21,9 +21,8 @@ assert(not out:find("QUICK DOOR",1,true)and not out:find("BASE ONLINE",1,true),"
 local calls={};local function action(module,cmd,args)calls[#calls+1]={module=module,cmd=cmd,args=args};return true end
 pocket.handleEvent({"mouse_click",1,5,12},env,action)
 assert(#calls==1 and calls[1].cmd=="open","Pocket giant button did not send OPEN")
-out=output();assert(out:find("OPENING...",1,true)and out:find("PLEASE WAIT",1,true),"Pocket did not show OPENING pending state")
-pocket.handleEvent({"kimi_command_result",{module="remote_doors",action="open",ok=true,confirmed=true,sourceId=42,result={target="computer",side="left",open=true}}},env,action)
-out=output();assert(out:find("CLOSE DOOR",1,true)and out:find("OPEN",1,true),"Pocket did not settle confirmed OPEN immediately")
+out=output();assert(out:find("CLOSE DOOR",1,true)and out:find("OPEN",1,true),"Pocket did not flip OPEN immediately")
+assert(not out:find("PLEASE WAIT",1,true)and not out:find("OPENING...",1,true),"Pocket regained blocking pending UI")
 
 -- Admin power monitor: Matrix wins, gauge is narrow, and ETA status reflects net flow.
 local function surface(w,h)
@@ -44,7 +43,7 @@ os.getComputerLabel=function()return"Main Base"end;os.time=function()return 20 e
 package.loaded["clients.admin_v15"]=nil;package.loaded["clients.admin_v12"]=nil;package.loaded["clients.admin"]=nil
 local admin=assert(loadfile("clients/admin.lua"))();admin.init({name="Main Base"})
 local p={stored=500,capacity=1000,input=20,output=10,net=10,filledPercentage=.5}
-local aenv={version="5.0.0-alpha.68",state={doors={doors={}},power={matrices={p},fluxNetworks={{stored=1000,capacity=1000,filledPercentage=1}}},attachments={sensors={}},fleet={}}}
+local aenv={version="5.0.0-alpha.69",state={doors={doors={}},power={matrices={p},fluxNetworks={{stored=1000,capacity=1000,filledPercentage=1}}},attachments={sensors={}},fleet={}}}
 assert(admin.render(aenv,{localServer=true})~=false,"admin v15 render failed")
 local text=powerMon.output();assert(text:find("FULL IN",1,true),"charging Matrix did not show time to full")
 local greenWidth=powerMon.maxColorWidth(colors.lime);assert(greenWidth>=5 and greenWidth<=7,"Matrix gauge is not narrow enough: "..tostring(greenWidth))
