@@ -38,7 +38,8 @@ local function directConfigured(action,args,state)
     elseif action=="close" then desired=false
     elseif action=="toggle" then desired=not current
     else desired=true end
-    local physical=mode=="invert" and not desired or desired
+    local physical=desired
+    if mode=="invert" then physical=not desired end
     local pulse=(action=="pulse" or mode=="pulse")
     local seconds=math.max(.05,math.min(5,tonumber(d.pulseSeconds) or .5))
 
