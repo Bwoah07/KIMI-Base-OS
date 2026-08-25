@@ -18,7 +18,7 @@ local function replay(events)
 end
 
 local function waitForDoorResult(target,cfg,action,timeoutSeconds)
-  if type(os.pullEvent)~="function"or type(os.startTimer)~="function"then return nil,"ack unavailable"end
+  if type(os.pullEvent)~="function"or type(os.startTimer)~="function"or type(os.queueEvent)~="function"then return nil,"ack unavailable"end
   local deferred={}
   local timer=os.startTimer(timeoutSeconds or .6)
   while true do
@@ -73,7 +73,7 @@ function M.handleCommand(action,args)
   -- are deliberately sent once only. A successful rednet.send is NOT treated
   -- as door success: the owning room computer must answer after execution.
   local attempts=(action=="open"or action=="close")and 3 or 1
-  local canAck=type(os.pullEvent)=="function"and type(os.startTimer)=="function"
+  local canAck=type(os.pullEvent)=="function"and type(os.startTimer)=="function"and type(os.queueEvent)=="function"
   local lastErr="no reply"
   for attempt=1,attempts do
     local sent=network.send(target,cfg,"module.command",payload)
