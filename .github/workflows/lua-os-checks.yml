@@ -84,6 +84,9 @@ jobs:
       - name: Alpha54 inverted toggle test
         run: lua5.2 tests/alpha54_inverted_toggle_smoke.lua
 
+      - name: Alpha55 clean room weather test
+        run: lua5.2 tests/alpha55_room_weather_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
