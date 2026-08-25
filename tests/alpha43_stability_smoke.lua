@@ -52,19 +52,17 @@ os={getComputerID=function()return 88 end,getComputerLabel=function()return "Poc
 
 local pocket=assert(loadfile("clients/pocket.lua"))()
 pocket.init({name="KIMI-88"})
-local env={version="5.0.0-alpha.43",state={fleet={[1]={online=true,version="5.0.0-alpha.43",name="Main Base"},[88]={online=true,version="5.0.0-alpha.43",name="Pocket Ops"}},doors={doors={{name="Front Gate",open=false}}},attachments={sensors={{type="environment_detector",summary="plains",metrics={temperature=21.5}}}},power={stored=900,capacity=1000,input=40,output=10,filledPercentage=.9}}}
-local meta={connected=true,localVersion="5.0.0-alpha.43"}
+local env={version="5.0.0-alpha.61",state={fleet={[1]={online=true,version="5.0.0-alpha.61",name="Main Base"},[88]={online=true,version="5.0.0-alpha.61",name="Pocket Ops"}},doors={doors={{name="Front Gate",open=false}}},attachments={sensors={{type="environment_detector",summary="plains",metrics={temperature=21.5}}}},power={stored=900,capacity=1000,input=40,output=10,filledPercentage=.9,matrices={{stored=900,capacity=1000,input=40,output=10,filledPercentage=.9}}}}}
+local meta={connected=true,localVersion="5.0.0-alpha.61"}
 assert(pocket.render(env,meta)~=false,"pocket render failed")
 local out=output()
 assert(out:find("POCKET OPS",1,true),"pocket title missing")
-assert(out:find("BASE ONLINE",1,true),"pocket server state missing")
-assert(out:find("FLEET",1,true),"pocket fleet summary missing")
-assert(out:find("90.0%%"),"pocket power summary missing")
-assert(out:find("< HOME >",1,true),"pocket footer/navigation missing")
+assert(out:find("FRONT GATE",1,true)and out:find("OPEN DOOR",1,true),"pocket direct door page missing")
+assert(out:find("< DOORS >",1,true),"pocket footer/navigation missing")
 assert(pocket.handleEvent({"key",keys.right},env,function()end)==true,"pocket right navigation failed")
-out=output(); assert(out:find("DOORS  1",1,true),"pocket doors page did not render")
+out=output(); assert(out:find("JUICE",1,true)and out:find("90.0%%"),"pocket juice page did not render")
 assert(pocket.handleEvent({"key",keys.right},env,function()end)==true,"pocket second navigation failed")
-out=output(); assert(out:find("POWER",1,true),"pocket power page did not render")
-assert(pocket.handleEvent({"key",keys.right},env,function()end)==true,"pocket third navigation failed")
 out=output(); assert(out:find("SENSORS  1",1,true),"pocket sensors page did not render")
+assert(pocket.handleEvent({"key",keys.right},env,function()end)==true,"pocket third navigation failed")
+out=output(); assert(out:find("FLEET",1,true),"pocket fleet page did not render")
 realPrint("alpha43 stability smoke test OK")
