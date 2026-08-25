@@ -90,6 +90,9 @@ jobs:
       - name: Alpha56 tablet/admin layout test
         run: lua5.2 tests/alpha56_tablet_admin_smoke.lua
 
+      - name: Alpha57 Pocket/battery test
+        run: lua5.2 tests/alpha57_pocket_battery_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
