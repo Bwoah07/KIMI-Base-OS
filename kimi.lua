@@ -34,8 +34,14 @@ if updates.hasPendingProbation() then
 
     updates.markHealthy()
     term.setTextColor(colors.lime)
-    print("[KIMI] update probation passed")
+    print("[KIMI] update probation passed; rebooting cleanly")
     term.setTextColor(colors.white)
+    -- The probation runner cancels the role coroutine after 15 seconds. Do not
+    -- start a second role instance in the same Lua process with transport/event
+    -- wrappers left behind by the cancelled coroutine. A clean reboot gives the
+    -- now-healthy release a pristine event loop.
+    os.reboot()
+    return
 end
 
 watchdog.run("role:" .. role, function()
