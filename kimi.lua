@@ -5,7 +5,14 @@ local updates = require("core.update_service")
 
 local cfg = config.load()
 local role = cfg.role or "client"
-local rolePath = role == "server" and "roles.server_v2" or ("roles." .. role)
+local rolePath
+if role == "server" then
+    rolePath = "roles.server_v3"
+elseif role == "client" then
+    rolePath = "roles.client_v2"
+else
+    rolePath = "roles." .. role
+end
 
 local ok, roleModule = pcall(require, rolePath)
 if not ok then
