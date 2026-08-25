@@ -7,23 +7,24 @@ local W,H=26,20;local rows,x,y={},1,1
 term={getSize=function()return W,H end,setCursorPos=function(a,b)x,y=a,b end,setTextColor=function()end,setBackgroundColor=function()end,clear=function()rows={};x,y=1,1 end}
 term.write=function(v)v=tostring(v or"");local row=rows[y]or string.rep(" ",W);v=v:sub(1,math.max(0,W-x+1));rows[y]=row:sub(1,x-1)..v..row:sub(x+#v);x=x+#v end
 
--- Pocket v8 must remap its existing remote-door action to the direct transport.
+-- The Pocket UI keeps its stable semantic remote_doors action. client_v4 is
+-- responsible for intercepting that action before it ever reaches Main Base.
 os={getComputerLabel=function()return"Pocket"end,getComputerID=function()return 77 end,time=function()return 12 end,epoch=function()return 1000 end}
-for _,m in ipairs({"clients.pocket","clients.pocket_v8","clients.pocket_v7","clients.pocket_v6"})do package.loaded[m]=nil end
+for _,m in ipairs({"clients.pocket","clients.pocket_v7","clients.pocket_v6"})do package.loaded[m]=nil end
 local pocket=assert(loadfile("clients/pocket.lua"))();pocket.init({})
 local env={version="5.0.0-alpha.70",state={doors={doors={{id="D1",name="ROOM PANEL",_source="42",source="42",target="computer",side="left",open=false,online=true}}},power={},attachments={sensors={}},fleet={}}}
 pocket.render(env,{connected=true})
 local uiCalls={};local function uiAction(module,action,args)uiCalls[#uiCalls+1]={module=module,action=action,args=args};return true end
 assert(pocket.handleEvent({"mouse_click",1,5,12},env,uiAction)==true,"Pocket tap not consumed")
-assert(#uiCalls==1 and uiCalls[1].module=="direct_doors" and uiCalls[1].action=="open","Pocket did not choose direct door transport")
+assert(#uiCalls==1 and uiCalls[1].module=="remote_doors" and uiCalls[1].action=="open","Pocket UI door action regressed")
 assert(tostring(uiCalls[1].args.source)=="42","Pocket lost room owner")
 
 local function resetPackages()
  for _,m in ipairs({"roles.client_v4","roles.client_v3","core.network","core.module_loader","modules.doors"})do package.loaded[m]=nil end
 end
 
--- Pocket-side client_v4: no local module scan, direct send to room, retry after
--- 0.25s, then surface the room's direct execution result as kimi_command_result.
+-- Pocket-side client_v4: no local module scan, semantic remote_doors is sent
+-- directly to room 42, first miss retries after 0.25s, room result returns direct.
 resetPackages()
 local sent={};local timerSeq=0;local timerDelays={};local events={}
 local network={}
@@ -35,7 +36,7 @@ package.loaded["core.module_loader"]=loader
 local seenEvent
 package.loaded["roles.client_v3"]={run=function(cfg)
  local state=loader.readAll({power={},ae2={},doors={}},{});assert(next(state)==nil,"Pocket local readAll was not suppressed")
- assert(network.send(999,cfg,"command",{module="direct_doors",action="open",args={source="42",target="computer",side="left",requestId="tap-1"}})==true)
+ assert(network.send(999,cfg,"command",{module="remote_doors",action="open",args={source="42",target="computer",side="left",requestId="tap-1"}})==true)
  seenEvent={os.pullEvent()}
  return true
 end}
@@ -44,9 +45,7 @@ os={
  startTimer=function(delay)timerSeq=timerSeq+1;timerDelays[timerSeq]=delay;return timerSeq end,
  cancelTimer=function()end,
  pullEvent=function()
-  if #events==0 then
-   events={{"timer",1},{"rednet_message",42,{kind="door.command.direct.result",payload={requestId="tap-1",action="open",ok=true,result={open=true,target="computer",side="left"}}},"kimi-test"}}
-  end
+  if #events==0 then events={{"timer",1},{"rednet_message",42,{kind="door.command.direct.result",payload={requestId="tap-1",action="open",ok=true,result={open=true,target="computer",side="left"}}},"kimi-test"}} end
   local e=table.remove(events,1);return unpack(e)
  end
 }
@@ -59,8 +58,8 @@ assert(directCount==2,"one missed direct packet did not retry automatically")
 assert(timerDelays[1]==0.25 and timerDelays[2]==0.25,"direct retry cadence is not 0.25s")
 assert(seenEvent and seenEvent[1]=="kimi_command_result" and seenEvent[2].ok==true and seenEvent[2].direct==true,"Pocket did not receive direct room confirmation")
 
--- Room-side client_v4: a direct packet from Pocket executes the local door handler
--- immediately and replies straight to Pocket. Wall polling must exclude power/AE2.
+-- Room-side client_v4: direct packet executes local door and replies to Pocket.
+-- Wall polling must exclude the expensive power/AE2 discovery modules.
 resetPackages()
 local roomSent={};local roomNet={}
 roomNet.send=function(id,cfg,kind,payload)roomSent[#roomSent+1]={id=id,kind=kind,payload=payload};return true end
