@@ -96,6 +96,9 @@ jobs:
       - name: Alpha58 remote inverted door test
         run: lua5.2 tests/alpha58_remote_invert_smoke.lua
 
+      - name: Alpha59 battery silhouette test
+        run: lua5.2 tests/alpha59_battery_shape_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
