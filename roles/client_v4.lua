@@ -36,6 +36,7 @@ function M.run(cfg)
     local MAX_ATTEMPTS=10
     local HEAVY_SCAN_MS=5000
     local lastHeavyScan=os.epoch("utc")
+    local HEAVY_IDS={"power","power_reserve","ae2","builder"}
 
     local function cancel(tx)
         if tx and tx.timer and type(os.cancelTimer)=="function" then pcall(os.cancelTimer,tx.timer) end
@@ -107,14 +108,14 @@ function M.run(cfg)
             local now=os.epoch("utc")
             if now-lastHeavyScan>=HEAVY_SCAN_MS then
                 local heavy={}
-                for _,id in ipairs({"power","power_reserve","ae2"}) do
+                for _,id in ipairs(HEAVY_IDS) do
                     if modules and modules[id] then heavy[id]=modules[id] end
                 end
                 local sampled=realReadAll(heavy,previous)
                 for id,value in pairs(sampled or {}) do out[id]=value end
                 lastHeavyScan=now
             else
-                for _,id in ipairs({"power","power_reserve","ae2"}) do
+                for _,id in ipairs(HEAVY_IDS) do
                     if previous and previous[id]~=nil then out[id]=previous[id] end
                 end
             end
