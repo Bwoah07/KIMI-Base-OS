@@ -1,10 +1,12 @@
 local M = {}
+local LIVE_RELOAD="__KIMI_LIVE_RELOAD__"
 
 function M.run(name, fn)
     local failures = 0
     while true do
         local ok, err = pcall(fn)
         if ok then return end
+        if tostring(err)==LIVE_RELOAD then return end
         failures = failures + 1
         term.setTextColor(colors.red)
         print("[KIMI] " .. tostring(name) .. " crashed: " .. tostring(err))
