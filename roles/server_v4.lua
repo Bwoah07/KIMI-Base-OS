@@ -1,4 +1,6 @@
 local base=require("roles.server_v3")
+local fleetRegistry=require("core.fleet_registry")
+local truth=require("core.fleet_truth")
 local M={}
 
 local function unpackEvent(e)local u=table.unpack or unpack;return u(e)end
@@ -6,9 +8,20 @@ local function copy(src)local out={};for k,v in pairs(src or{})do out[k]=v end;r
 
 function M.run(cfg)
     local realPull=os.pullEvent
+    local realSave=fleetRegistry.save
     local previousProof=rawget(_G,"kimiFleetProof")
-    local proof={}
+    local proof={};local selfId=os.getComputerID()
     _G.kimiFleetProof=proof
+
+    fleetRegistry.save=function(machines)
+        local now=os.epoch("utc")
+        for id,m in pairs(machines or{})do
+            if tostring(id)~=tostring(selfId)and truth.shouldForget(m,now)then
+                machines[id]=nil;proof[tostring(id)]=nil
+            end
+        end
+        return realSave(machines)
+    end
 
     os.pullEvent=function(filter)
         while true do
@@ -20,8 +33,8 @@ function M.run(cfg)
                     verifiedAt=now,sessionId=payload.sessionId,version=payload.version,
                     name=payload.name,role=payload.role,profile=payload.profile
                 }
-                -- Feed the proven identity through the existing server's normal
-                -- heartbeat path so registry/update authority gets the same truth.
+                -- Feed proven identity through the normal heartbeat path so the
+                -- existing update authority and registry use the same live truth.
                 local hello=copy(payload);hello.generated=now
                 return"rednet_message",sender,{kind="fleet.hello",payload=hello,sent=e[3].sent},e[4]
             end
@@ -30,7 +43,7 @@ function M.run(cfg)
     end
 
     local ok,res=xpcall(function()return base.run(cfg)end,function(err)return err end)
-    os.pullEvent=realPull
+    os.pullEvent=realPull;fleetRegistry.save=realSave
     _G.kimiFleetProof=previousProof
     if not ok then error(res,0)end
     return res
