@@ -22,14 +22,13 @@ local function action(module,cmd,args)calls[#calls+1]={module=module,cmd=cmd,arg
 p.handleEvent({"mouse_click",1,3,12},env,action)
 assert(#calls==1 and calls[1].module=="remote_doors" and calls[1].cmd=="close","open door did not send explicit CLOSE")
 assert(calls[1].args.requestId,"Pocket command lost client requestId")
--- Telemetry is intentionally still OPEN. The UI should already show CLOSED, so
--- another tap immediately sends OPEN instead of waiting for a confirmation lock.
 epoch=1400
 p.handleEvent({"mouse_click",1,3,12},env,action)
 assert(#calls==2 and calls[2].cmd=="open","snappy reverse tap did not send OPEN immediately")
 assert(calls[2].args.requestId~=calls[1].args.requestId,"rapid taps reused requestId")
 
--- Admin: center is clock + door state, second monitor is narrow vertical power, third is fleet/version.
+-- Admin: center HOME is environment/system status only; doors live on DOORS.
+-- Second monitor stays dedicated power, third stays fleet/version.
 local function surface(w,h)
  local textRows,cx,cy,bg={},1,1,colors.black
  local s={}
@@ -64,23 +63,27 @@ term={setBackgroundColor=function()end,setTextColor=function()end,clear=function
 os.getComputerLabel=function()return"Main Base"end
 os.time=function()return 20.0 end
 package.loaded["clients.admin_v15"]=nil
+package.loaded["clients.admin_v16"]=nil
+package.loaded["clients.admin_v17"]=nil
 package.loaded["clients.admin_v12"]=nil
 package.loaded["clients.admin"]=nil
 local admin=assert(loadfile("clients/admin.lua"))();admin.init({name="Main Base"})
-local aenv={version="5.0.0-alpha.69",state={
+local aenv={version="5.0.0-alpha.71",state={
  doors={doors={{name="FRONT GATE",open=true,online=true},{name="ROOM PANEL",open=false,online=true}}},
- power={matrices={{stored=800,capacity=1000,input=32000,output=22000,filledPercentage=.8}}},
- attachments={sensors={{type="environment_detector",summary="RAINING"}}},
- fleet={[1]={name="MAIN BASE",online=true,version="5.0.0-alpha.69"},[2]={name="ROOM PANEL",online=true,version="5.0.0-alpha.69"},[3]={name="POCKET",online=true,version="5.0.0-alpha.69"}}
+ environment={online=true,weather="SUNNY",biome="minecraft:plains",dimension="minecraft:overworld",moon="FULL MOON",blockLight=10,skyLight=15},
+ power={matrices={{stored=800,capacity=1000,input=32000,output=22000,filledPercentage=.8}},fluxNetworks={}},
+ power_reserve={status="NO RESERVE MATRIX"},
+ attachments={devices={{name="environment_detector_0",type="environment_detector",categories={"sensor"},summary="SUNNY",metrics={weatherSunny=true}}},sensors={}},
+ fleet={[1]={name="MAIN BASE",online=true,version="5.0.0-alpha.71"},[2]={name="ROOM PANEL",online=true,version="5.0.0-alpha.71"},[3]={name="POCKET",online=true,version="5.0.0-alpha.71"}}
 }}
 assert(admin.render(aenv,{localServer=true})~=false,"admin render failed")
 local center=main.output();local left=powerMon.output();local right=fleetMon.output()
 assert(center:find("COMMAND CENTER",1,true),"center title missing")
-assert(center:find("FRONT GATE",1,true) and center:find("ROOM PANEL",1,true),"center does not show door names")
-assert(center:find("OPEN",1,true) and center:find("CLOSED",1,true),"center does not show door open/closed states")
+assert(center:find("ENVIRONMENT",1,true)and center:find("SUNNY",1,true),"HOME lost environment/weather")
+assert(not center:find("FRONT GATE",1,true)and not center:find("ROOM PANEL",1,true)and not center:find("DOOR CONTROL",1,true),"door content leaked back onto HOME")
 assert(not center:find("VERSION ",1,true),"version still duplicated on center")
-assert(not center:find("STORED ",1,true) and not center:find("FE/t",1,true),"power telemetry still duplicated on center")
+assert(not center:find("STORED ",1,true)and not center:find("FE/t",1,true),"power telemetry still duplicated on center")
 assert(left:find("POWER",1,true),"dedicated power monitor missing")
-local greenRows,greenWidth=powerMon.greenShape();assert(greenRows>=6 and greenWidth>=5 and greenWidth<=7,"power gauge is not narrow/vertical enough")
-assert(right:find("FLEET",1,true) and right:find("VERSION",1,true),"fleet/version not moved to right monitor")
+local greenRows,greenWidth=powerMon.greenShape();assert(greenRows>=4 and greenWidth>=5 and greenWidth<=7,"power gauge is not narrow/vertical enough")
+assert(right:find("FLEET",1,true)and right:find("VERSION",1,true),"fleet/version not moved to right monitor")
 realPrint("alpha56 tablet/admin smoke test OK")
