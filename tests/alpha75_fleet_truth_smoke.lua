@@ -7,9 +7,9 @@ assert(st=="ONLINE"and verified==true,"Main Server lost authoritative ONLINE sta
 st,age,verified=truth.status(10,{lastSeen=now-1000,verifiedAt=now-1000,version="5.0.0-alpha.75"},7,now)
 assert(st=="ONLINE"and verified==true and truth.versionText({version="5.0.0-alpha.75"},true)=="LIVE 5.0.0-alpha.75","fresh identity proof is not LIVE")
 st,age,verified=truth.status(10,{lastSeen=now-1000,version="5.0.0-alpha.73"},7,now)
-assert(st=="VERIFY"and verified==false and truth.versionText({version="5.0.0-alpha.73"},false)=="LAST 5.0.0-alpha.73","unproved cached version is still pretending to be live")
+assert(st=="VERIFY"and verified==false and truth.versionText({version="5.0.0-alpha.73"},false)=="LAST 5.0.0-alpha.73","historical proof policy unexpectedly changed")
 st,age,verified=truth.status(11,{lastSeen=now-700000,version="5.0.0-alpha.73"},7,now)
-assert(st=="GHOST"and verified==false,"long-dead mystery computer should be labelled GHOST")
+assert(st=="GHOST"and verified==false,"historical ghost policy unexpectedly changed")
 assert(truth.shouldForget({lastSeen=now-90000000},now)==true,"day-old ghosts should be forgettable")
 
 local realOs=os
@@ -24,12 +24,16 @@ os=realOs
 
 local function read(path)local f=assert(io.open(path,"r"));local s=f:read("*a");f:close();return s end
 local kimi=read("kimi.lua")
-assert(kimi:find("roles.server_v4",1,true)and kimi:find("roles.client_v6",1,true)and kimi:find("roles.node_v3",1,true),"kernel is not routing through fleet-proof wrappers")
+assert(kimi:find("roles.server_v5",1,true)and kimi:find("roles.client_v7",1,true)and kimi:find("roles.node_v4",1,true),"kernel is not routing through current fleet wrappers")
 local sv=read("roles/server_v4.lua");assert(sv:find('"fleet.identity"',1,true)and sv:find("kimiFleetProof",1,true)and sv:find('kind="fleet.hello"',1,true),"server fleet proof transport incomplete")
+assert(read("roles/server_v5.lua"):find('roles.server_v4',1,true),"alpha77 server wrapper lost alpha75 proof lineage")
 assert(read("roles/client_v6.lua"):find('"fleet.identity"',1,true),"clients do not publish live identity proof")
+assert(read("roles/client_v7.lua"):find('roles.client_v6',1,true),"alpha77 client wrapper lost alpha75 proof lineage")
 assert(read("roles/node_v3.lua"):find('"fleet.identity"',1,true),"nodes do not publish live identity proof")
-assert(read("clients/admin.lua"):find("clients.admin_v26",1,true),"admin is not loading fleet truth overlay")
-local ui=read("clients/admin_v26.lua");assert(ui:find("truth.status",1,true)and ui:find("truth.versionText",1,true)and ui:find("PROVED NOW",1,true),"fleet screen is not wired to live-versus-history truth policy")
+assert(read("roles/node_v4.lua"):find('roles.node_v3',1,true),"alpha77 node wrapper lost alpha75 proof lineage")
+assert(read("clients/admin.lua"):find("clients.admin_v27",1,true),"admin is not loading current fleet screen")
+local ui=read("clients/admin_v26.lua");assert(ui:find("truth.status",1,true)and ui:find("truth.versionText",1,true)and ui:find("PROVED NOW",1,true),"historical fleet truth overlay was removed from compatibility chain")
+local current=read("clients/admin_v27.lua");assert(current:find("health.status",1,true)and current:find("CONFIRMED ID",1,true),"current operational fleet screen is not heartbeat/ACK driven")
 assert(read("roles/client_v4.lua"):find('"door.command.direct"',1,true),"alpha70 direct Pocket door path disappeared")
 
 print("alpha75 fleet truth smoke test OK")

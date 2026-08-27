@@ -19,9 +19,11 @@ st,age=h.status(11,{lastSeen=now-121000},7,now)
 assert(st=="OFFLINE","truly missing fleet member should become OFFLINE")
 
 local f=assert(io.open("clients/admin.lua","r"));local admin=f:read("*a");f:close()
-assert(admin:find("clients.admin_v25",1,true)or admin:find("clients.admin_v26",1,true),"admin profile lost alpha74 fleet overlay lineage")
+assert(admin:find("clients.admin_v27",1,true),"admin profile lost current fleet UI lineage")
 local f2=assert(io.open("clients/admin_v25.lua","r"));local overlay=f2:read("*a");f2:close()
 assert(overlay:find("health.status",1,true),"fleet overlay is not using shared health policy")
 assert(overlay:find("serverId",1,true),"fleet overlay lost Main Server identity handling")
+local f3=assert(io.open("clients/admin_v27.lua","r"));local current=f3:read("*a");f3:close()
+assert(current:find("health.status",1,true)and current:find('"LIVE"',1,true)and current:find('"STALE"',1,true),"current fleet screen is not heartbeat-driven")
 
 print("alpha74 fleet sanity smoke test OK")
