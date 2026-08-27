@@ -7,7 +7,8 @@ local cfg = config.load()
 local role = cfg.role or "client"
 local rolePath
 if role == "server" then rolePath = "roles.server_v3"
-elseif role == "client" then rolePath = "roles.client_v4"
+elseif role == "client" then rolePath = "roles.client_v5"
+elseif role == "node" then rolePath = "roles.node_v2"
 else rolePath = "roles." .. role end
 
 local ok, roleModule = pcall(require, rolePath)
@@ -24,9 +25,6 @@ if updates.hasPendingProbation() then
     term.setTextColor(colors.lime)
     print("[KIMI] update probation passed; live reloading cleanly")
     term.setTextColor(colors.white)
-    -- parallel.waitForAny cancelled the role coroutine. Return to startup.lua so
-    -- the next role instance starts in a fresh program environment, without a
-    -- Minecraft-computer reboot and without retaining transport wrappers.
     return
 end
 
