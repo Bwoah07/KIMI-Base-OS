@@ -1,1 +1,1 @@
-return require("clients.admin_v24")
+return require("clients.admin_v25")

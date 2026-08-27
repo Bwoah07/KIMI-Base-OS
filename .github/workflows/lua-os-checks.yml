@@ -104,6 +104,8 @@ jobs:
         run: lua5.2 tests/alpha72_wall_bsh_smoke.lua
       - name: Alpha73 base nervous-system test
         run: lua5.2 tests/alpha73_base_nervous_system_smoke.lua
+      - name: Alpha74 fleet sanity test
+        run: lua5.2 tests/alpha74_fleet_sanity_smoke.lua
 
       - name: Validate managed manifest
         run: |
