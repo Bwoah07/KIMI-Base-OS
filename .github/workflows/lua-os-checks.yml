@@ -132,6 +132,9 @@ jobs:
       - name: Alpha70 direct Pocket-to-room test
         run: lua5.2 tests/alpha70_direct_pocket_room_smoke.lua
 
+      - name: Alpha71 banger command-center test
+        run: lua5.2 tests/alpha71_banger_command_center_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
