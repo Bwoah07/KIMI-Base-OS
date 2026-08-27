@@ -22,6 +22,8 @@ local function clean(entry)
         updateTarget = entry.updateTarget,
         updateStatus = entry.updateStatus,
         hostname = entry.hostname,
+        sessionId = entry.sessionId,
+        verifiedAt = tonumber(entry.verifiedAt),
         online = false
     }
 end
