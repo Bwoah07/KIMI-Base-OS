@@ -24,13 +24,16 @@ os=realOs
 
 local function read(path)local f=assert(io.open(path,"r"));local s=f:read("*a");f:close();return s end
 local kimi=read("kimi.lua")
-assert(kimi:find("roles.server_v5",1,true)and kimi:find("roles.client_v7",1,true)and kimi:find("roles.node_v4",1,true),"kernel is not routing through current fleet wrappers")
+assert(kimi:find("roles.server_v6",1,true)and kimi:find("roles.client_v8",1,true)and kimi:find("roles.node_v5",1,true),"kernel is not routing through current fleet wrappers")
 local sv=read("roles/server_v4.lua");assert(sv:find('"fleet.identity"',1,true)and sv:find("kimiFleetProof",1,true)and sv:find('kind="fleet.hello"',1,true),"server fleet proof transport incomplete")
 assert(read("roles/server_v5.lua"):find('roles.server_v4',1,true),"alpha77 server wrapper lost alpha75 proof lineage")
+assert(read("roles/server_v6.lua"):find('roles.server_v5',1,true),"alpha78 server wrapper lost alpha77/75 proof lineage")
 assert(read("roles/client_v6.lua"):find('"fleet.identity"',1,true),"clients do not publish live identity proof")
 assert(read("roles/client_v7.lua"):find('roles.client_v6',1,true),"alpha77 client wrapper lost alpha75 proof lineage")
+assert(read("roles/client_v8.lua"):find('roles.client_v7',1,true),"alpha78 client wrapper lost alpha77/75 proof lineage")
 assert(read("roles/node_v3.lua"):find('"fleet.identity"',1,true),"nodes do not publish live identity proof")
 assert(read("roles/node_v4.lua"):find('roles.node_v3',1,true),"alpha77 node wrapper lost alpha75 proof lineage")
+assert(read("roles/node_v5.lua"):find('roles.node_v4',1,true),"alpha78 node wrapper lost alpha77/75 proof lineage")
 assert(read("clients/admin.lua"):find("clients.admin_v27",1,true),"admin is not loading current fleet screen")
 local ui=read("clients/admin_v26.lua");assert(ui:find("truth.status",1,true)and ui:find("truth.versionText",1,true)and ui:find("PROVED NOW",1,true),"historical fleet truth overlay was removed from compatibility chain")
 local current=read("clients/admin_v27.lua");assert(current:find("health.status",1,true)and current:find("CONFIRMED ID",1,true),"current operational fleet screen is not heartbeat/ACK driven")
