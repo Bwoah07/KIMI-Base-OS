@@ -1,5 +1,4 @@
 local M = {}
-
 local ROOT = ".kimi"
 local PATH = ROOT .. "/fleet_registry"
 
@@ -13,18 +12,10 @@ end
 local function clean(entry)
     if type(entry) ~= "table" then return nil end
     return {
-        firstSeen = tonumber(entry.firstSeen),
-        lastSeen = tonumber(entry.lastSeen),
-        role = entry.role,
-        name = entry.name,
-        profile = entry.profile,
-        version = entry.version,
-        updateTarget = entry.updateTarget,
-        updateStatus = entry.updateStatus,
-        hostname = entry.hostname,
-        sessionId = entry.sessionId,
-        verifiedAt = tonumber(entry.verifiedAt),
-        online = false
+        firstSeen = tonumber(entry.firstSeen), lastSeen = tonumber(entry.lastSeen),
+        role = entry.role, name = entry.name, profile = entry.profile, version = entry.version,
+        updateTarget = entry.updateTarget, updateStatus = entry.updateStatus,
+        hostname = entry.hostname, sessionId = entry.sessionId, online = false
     }
 end
 
@@ -34,8 +25,7 @@ function M.load()
     if type(parsed) ~= "table" then return {} end
     local out = {}
     for id, entry in pairs(parsed) do
-        local value = clean(entry)
-        local numeric = tonumber(id)
+        local value = clean(entry); local numeric = tonumber(id)
         if value and numeric then out[numeric] = value end
     end
     return out
@@ -46,13 +36,9 @@ function M.save(machines)
     local out = {}
     for id, entry in pairs(machines or {}) do
         local value = clean(entry)
-        if value then
-            value.online = nil
-            out[tostring(id)] = value
-        end
+        if value then value.online = nil; out[tostring(id)] = value end
     end
-    local f = assert(fs.open(PATH, "w"))
-    f.write(textutils.serialize(out)); f.close()
+    local f = assert(fs.open(PATH, "w")); f.write(textutils.serialize(out)); f.close()
     return true
 end
 
