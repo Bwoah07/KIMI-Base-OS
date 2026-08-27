@@ -6,6 +6,8 @@ local REQUESTED = ROOT .. "/update_requested"
 local INSTALLED_MANIFEST = ROOT .. "/installed_manifest.json"
 local ROLLBACK = ROOT .. "/rollback"
 local STAGING = ROOT .. "/staging"
+local RELOAD = ROOT .. "/reload_requested"
+M.RELOAD_SENTINEL = "__KIMI_LIVE_RELOAD__"
 local OWNER, REPO, BRANCH = "Bwoah07", "KIMI-Base-OS", "main"
 local API_HEAD = "https://api.github.com/repos/" .. OWNER .. "/" .. REPO .. "/commits/" .. BRANCH
 local RAW_ROOT = "https://raw.githubusercontent.com/" .. OWNER .. "/" .. REPO .. "/"
@@ -62,12 +64,7 @@ end
 
 function M.releaseNotice(reason)
     local manifest = M.localManifest()
-    return {
-        version = M.localVersion(),
-        manifest = manifest,
-        issuedBy = os.getComputerID(),
-        reason = reason or "fleet"
-    }
+    return {version=M.localVersion(),manifest=manifest,issuedBy=os.getComputerID(),reason=reason or "fleet"}
 end
 
 function M.remoteVersion()
@@ -88,18 +85,9 @@ function M.check()
     return { current=current, remote=remote, available=current~=remote, manifest=manifestOrErr }
 end
 
-function M.autoEnabled(cfg)
-    return cfg and cfg.update and cfg.update.auto ~= false
-end
-
-function M.fleetManaged(cfg)
-    return not (cfg and cfg.update and cfg.update.fleetManaged == false)
-end
-
-function M.checkOnBoot(cfg)
-    return not (cfg and cfg.update and cfg.update.checkOnBoot == false)
-end
-
+function M.autoEnabled(cfg) return cfg and cfg.update and cfg.update.auto ~= false end
+function M.fleetManaged(cfg) return not (cfg and cfg.update and cfg.update.fleetManaged == false) end
+function M.checkOnBoot(cfg) return not (cfg and cfg.update and cfg.update.checkOnBoot == false) end
 function M.interval(cfg)
     local n = cfg and cfg.update and tonumber(cfg.update.interval) or 600
     return math.max(60, n)
@@ -107,12 +95,12 @@ end
 
 function M.request(targetVersion, reason, manifest)
     if not fs.exists(ROOT) then fs.makeDir(ROOT) end
-    writeFile(REQUESTED, textutils.serialize({
-        target = targetVersion,
-        reason = reason or "fleet",
-        manifest = type(manifest) == "table" and manifest or nil,
-        requested = os.epoch("utc")
-    }))
+    writeFile(REQUESTED, textutils.serialize({target=targetVersion,reason=reason or "fleet",manifest=type(manifest)=="table" and manifest or nil,requested=os.epoch("utc")}))
+end
+
+function M.requestLiveReload(reason)
+    if not fs.exists(ROOT) then fs.makeDir(ROOT) end
+    writeFile(RELOAD,textutils.serialize({reason=reason or "reload",at=os.epoch("utc")}))
 end
 
 function M.hasPendingProbation() return fs.exists(PENDING) end
@@ -126,20 +114,24 @@ function M.markHealthy()
         writeFile(ROOT .. "/last_good_update", textutils.serialize(pending))
     end
     fs.delete(PENDING)
-    -- Once probation passes the snapshot is stale. Keeping it around wastes a
-    -- large fraction of a ComputerCraft disk and can make the next update fail.
     if fs.exists(ROLLBACK) then fs.delete(ROLLBACK) end
     if fs.exists(STAGING) then fs.delete(STAGING) end
     return true
 end
 
+-- Compatibility name kept so older roles do not need a flag day. Starting with
+-- alpha73 this performs the transactional install in-process, then deliberately
+-- unwinds the current KIMI program back to startup.lua. startup.lua launches a
+-- fresh program environment from the new files without rebooting the CC computer.
 function M.rebootForUpdate(targetVersion, reason, manifest)
     M.request(targetVersion, reason, manifest)
     term.setTextColor(colors.yellow)
-    print("[KIMI] rebooting for update" .. (targetVersion and (" -> " .. tostring(targetVersion)) or ""))
+    print("[KIMI] live updating" .. (targetVersion and (" -> " .. tostring(targetVersion)) or ""))
     term.setTextColor(colors.white)
-    sleep(1)
-    os.reboot()
+    local ok = shell.run("updater", "auto")
+    if ok == false then error("KIMI live update install failed",0) end
+    M.requestLiveReload("installed:"..tostring(targetVersion or "unknown"))
+    error(M.RELOAD_SENTINEL,0)
 end
 
 function M.periodic(updateCfg)
