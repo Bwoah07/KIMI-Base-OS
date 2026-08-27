@@ -61,8 +61,10 @@ do
 end
 
 local k=assert(io.open("kimi.lua","r")):read("*a")
-assert(k:find('rolePath = "roles.server_v6"',1,true),"kernel is not using server_v6")
+assert(k:find('rolePath = "roles.server_v7"',1,true),"kernel is not using current server_v7")
 assert(k:find('rolePath = "roles.client_v8"',1,true),"kernel is not using client_v8")
 assert(k:find('rolePath = "roles.node_v5"',1,true),"kernel is not using node_v5")
+local sv7=assert(io.open("roles/server_v7.lua","r")):read("*a")
+assert(sv7:find('roles.server_v6',1,true),"alpha79 server throttle lost alpha78 heartbeat server lineage")
 
 realPrint("alpha78 real fleet heartbeat smoke test OK")
