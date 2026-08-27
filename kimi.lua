@@ -7,7 +7,7 @@ local cfg = config.load()
 local role = cfg.role or "client"
 local rolePath
 if role == "server" then
-    rolePath = "roles.server_v3"
+    rolePath = "roles.server_v4"
 elseif role == "client" then
     rolePath = "roles.client_v4"
 else
