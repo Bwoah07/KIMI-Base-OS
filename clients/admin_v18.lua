@@ -2,12 +2,12 @@ local base=require("clients.admin_v17")
 local M={}
 for k,v in pairs(base)do M[k]=v end
 
-local cfg={}
-local C={bg=colors.black,text=colors.white,dim=colors.lightGray,good=colors.lime,warn=colors.orange,bad=colors.red,panel=colors.gray,accent=colors.cyan or colors.lightBlue}
+local C={bg=colors.black,text=colors.white,dim=colors.lightGray,good=colors.lime,warn=colors.orange,bad=colors.red,panel=colors.gray}
 
 local function upper(v)return tostring(v or""):upper()end
 local function nice(v)return upper(tostring(v or""):gsub("minecraft:",""):gsub("[_%-]"," "):gsub("(%l)(%u)","%1 %2"))end
 local function state(env)return env and env.state or{}end
+local function baseName()local l=type(os.getComputerLabel)=="function"and os.getComputerLabel()or nil;return upper(l or"KIMI")end
 local function gameTime()local ok,t=pcall(os.time,"ingame");t=ok and tonumber(t)or 0;local h=math.floor(t%24);local m=math.floor(((t%24)-h)*60+.5)%60;return string.format("%02d:%02d",h,m)end
 local function fmt(n)local v=tonumber(n);if not v then return"?"end;local a=math.abs(v);if a>=1e15 then return string.format("%.1fP",v/1e15)elseif a>=1e12 then return string.format("%.1fT",v/1e12)elseif a>=1e9 then return string.format("%.1fG",v/1e9)elseif a>=1e6 then return string.format("%.1fM",v/1e6)elseif a>=1e3 then return string.format("%.1fK",v/1e3)end;return tostring(math.floor(v+.5))end
 local function percent(p)local n=tonumber(p and p.filledPercentage);if n then if n<=1 then n=n*100 end;return math.max(0,math.min(100,n))end;local s,c=tonumber(p and p.stored),tonumber(p and p.capacity);if s and c and c>0 then return math.max(0,math.min(100,s/c*100))end end
@@ -20,9 +20,9 @@ local function detectMonitors()local out={};local ok,names=pcall(peripheral.getN
 local function prep(e)pcall(e.mon.setTextScale,e.scale);e.mon.setBackgroundColor(C.bg);e.mon.setTextColor(C.text);e.mon.clear()end
 local function put(e,x,y,text,fg,bg)if y<1 or y>e.h or x>e.w then return end;x=math.max(1,x);text=tostring(text or"");e.mon.setCursorPos(x,y);e.mon.setTextColor(fg or C.text);e.mon.setBackgroundColor(bg or C.bg);e.mon.write(text:sub(1,math.max(0,e.w-x+1)));e.mon.setBackgroundColor(C.bg)end
 local function fill(e,x1,y1,x2,y2,bg)x1,x2=math.max(1,x1),math.min(e.w,x2);y1,y2=math.max(1,y1),math.min(e.h,y2);if x2<x1 or y2<y1 then return end;for y=y1,y2 do put(e,x1,y,string.rep(" ",x2-x1+1),C.text,bg)end end
-local function center(e,y,text,fg,bg,x1,x2)x1,x2=x1 or 1,x2=x2 or e.w;local w=x2-x1+1;text=tostring(text or"");if #text>w then text=text:sub(1,w)end;put(e,x1+math.max(0,math.floor((w-#text)/2)),y,text,fg,bg)end
+local function center(e,y,text,fg,bg,x1,x2)x1=x1 or 1;x2=x2 or e.w;local w=x2-x1+1;text=tostring(text or"");if #text>w then text=text:sub(1,w)end;put(e,x1+math.max(0,math.floor((w-#text)/2)),y,text,fg,bg)end
 local function rule(e,y)if y>=1 and y<=e.h then put(e,2,y,string.rep("-",math.max(0,e.w-2)),C.panel)end end
-local function header(e,title)put(e,2,1,title,C.text);put(e,math.max(2,e.w-6),1,gameTime(),C.dim);put(e,2,2,"KIMI-7",C.dim);rule(e,3)end
+local function header(e,title)put(e,2,1,title,C.text);put(e,math.max(2,e.w-6),1,gameTime(),C.dim);put(e,2,2,baseName(),C.dim);rule(e,3)end
 
 local function allSensors(env)local a=state(env).attachments or{};local out,seen={},{};for _,d in ipairs(a.devices or{})do if hasCategory(d,"sensor")or hasCategory(d,"sensor_candidate")then local k=tostring(d._source or"").."|"..tostring(d.name or d.type);if not seen[k]then seen[k]=true;out[#out+1]=d end end end;for _,d in ipairs(a.sensors or{})do local k=tostring(d._source or"").."|"..tostring(d.name or d.type);if not seen[k]then seen[k]=true;out[#out+1]=d end end;table.sort(out,function(a,b)return tostring(a.name or a.type)<tostring(b.name or b.type)end);return out end
 local function chooseMain(raw,rs)local best,score=nil,-1;for _,m in ipairs(raw.matrices or{})do local s=(tostring(m.peripheral)==tostring(rs.mainPeripheral)and 1e30 or 0)+(tonumber(m.capacity)or 0);if s>score then best,score=m,s end end;return best or raw.matrices and raw.matrices[1] or raw end
@@ -31,19 +31,19 @@ local function reserveText(rs,raw)local st=upper(rs and rs.status or"");if st=="
 local function renderPowerWide(e,env)
  prep(e);header(e,"POWER")
  local raw=state(env).power or{};local rs=state(env).power_reserve or{};local main=chooseMain(raw,rs);local mp=percent(main);local fx=raw.fluxNetworks or{}
- local gap=2;local col=math.floor((e.w-6)/3);local x1=2;local x2=x1+col-1;local x3=x2+gap+1;local x4=x3+col-1;local x5=x4+gap+1;local x6=e.w-2
+ local gap=2;local col=math.max(10,math.floor((e.w-6)/3));local x1=2;local x2=math.min(e.w-2,x1+col-1);local x3=x2+gap+1;local x4=math.min(e.w-2,x3+col-1);local x5=x4+gap+1
  put(e,x1,5,"MAIN MATRIX",C.dim);put(e,x1,6,mp and string.format("%.1f%%",mp)or"NO MATRIX",mp and C.good or C.warn)
- local barY=7;fill(e,x1,barY,x2,barY,C.panel);if mp then local bw=math.floor((x2-x1+1)*mp/100+.5);if bw>0 then fill(e,x1,barY,x1+bw-1,barY,C.good)end end
+ fill(e,x1,7,x2,7,C.panel);if mp then local bw=math.floor((x2-x1+1)*mp/100+.5);if bw>0 then fill(e,x1,7,x1+bw-1,7,C.good)end end
  put(e,x1,9,powerStatus(main),C.text);put(e,x1,10,"STORED "..fmt(main and main.stored).." FE",C.text);if e.h>=12 then put(e,x1,11,"IN +"..fmt(main and main.input).." /t",C.good);put(e,x1,12,"OUT -"..fmt(main and main.output).." /t",C.dim)end
- put(e,x3,5,"RESERVE",C.dim);put(e,x3,6,reserveText(rs,raw),rs.feeding and C.warn or(rs.configured and C.good or C.dim));if rs.reservePercent then put(e,x3,8,string.format("%.1f%%",tonumber(rs.reservePercent)or 0),C.good)else put(e,x3,8,"NO BACKUP MATRIX",C.dim)end;put(e,x3,10,string.format("FEED <= %.0f%%",tonumber(rs.lowPercent)or 20),C.dim);if e.h>=12 then put(e,x3,11,string.format("STOP >= %.0f%%",tonumber(rs.highPercent)or 80),C.dim)end
- put(e,x5,5,"FLUX NETWORKS",C.dim);put(e,x5,6,tostring(#fx),#fx>0 and C.good or C.warn);local y=8;for i,n in ipairs(fx)do if y>e.h then break end;put(e,x5,y,nice(n.networkName or n.peripheral or("NETWORK "..i)),C.text);if y+1<=e.h then put(e,x5,y+1,fmt(n.stored).." FE  NET "..fmt(n.net).."/t",C.dim)end;y=y+2 end
+ if x3<=e.w-2 then put(e,x3,5,"RESERVE",C.dim);put(e,x3,6,reserveText(rs,raw),rs.feeding and C.warn or(rs.configured and C.good or C.dim));put(e,x3,8,rs.reservePercent and string.format("%.1f%%",tonumber(rs.reservePercent)or 0)or"NO BACKUP MATRIX",rs.reservePercent and C.good or C.dim);put(e,x3,10,string.format("FEED <= %.0f%%",tonumber(rs.lowPercent)or 20),C.dim);if e.h>=12 then put(e,x3,11,string.format("STOP >= %.0f%%",tonumber(rs.highPercent)or 80),C.dim)end end
+ if x5<=e.w-2 then put(e,x5,5,"FLUX NETWORKS",C.dim);put(e,x5,6,tostring(#fx),#fx>0 and C.good or C.warn);local y=8;for i,n in ipairs(fx)do if y>e.h then break end;put(e,x5,y,nice(n.networkName or n.peripheral or("NETWORK "..i)),C.text);if y+1<=e.h then put(e,x5,y+1,fmt(n.stored).." FE  NET "..fmt(n.net).."/t",C.dim)end;y=y+2 end end
 end
 
 local function renderPowerTall(e,env)
  prep(e);header(e,"POWER");local raw=state(env).power or{};local rs=state(env).power_reserve or{};local main=chooseMain(raw,rs);local mp=percent(main)
  center(e,5,"MAIN MATRIX",C.dim);center(e,6,mp and string.format("%.1f%%",mp)or"NO MATRIX",mp and C.good or C.warn)
  local x1=math.floor(e.w/2)-3;local x2=x1+6;local y1=8;local y2=math.min(15,e.h-12);if y2<y1+4 then y2=y1+4 end;fill(e,x1,y1,x2,y2,C.panel);fill(e,x1+1,y1+1,x2-1,y2-1,C.bg);local ih=y2-y1-1;local rows=mp and math.floor(ih*mp/100+.5)or 0;if rows>0 then fill(e,x1+1,y2-rows,x2-1,y2-1,C.good)end
- local y=y2+1;center(e,y,powerStatus(main),C.text);y=y+2;put(e,2,y,"STORED "..fmt(main and main.stored).." FE",C.text);y=y+1;put(e,2,y,"IN +"..fmt(main and main.input).." /t",C.good);y=y+1;put(e,2,y,"OUT -"..fmt(main and main.output).." /t",C.dim);y=y+2;rule(e,y);y=y+1;put(e,2,y,"RESERVE",C.dim);y=y+1;put(e,2,y,reserveText(rs,raw),rs.feeding and C.warn or(rs.configured and C.good or C.dim));y=y+2;local fx=raw.fluxNetworks or{};put(e,2,y,"FLUX "..#fx,#fx>0 and C.good or C.warn)
+ local y=y2+1;center(e,y,powerStatus(main),C.text);y=y+2;put(e,2,y,"STORED "..fmt(main and main.stored).." FE",C.text);y=y+1;put(e,2,y,"IN +"..fmt(main and main.input).." /t",C.good);y=y+1;put(e,2,y,"OUT -"..fmt(main and main.output).." /t",C.dim);y=y+2;if y<=e.h then rule(e,y)end;y=y+1;if y<=e.h then put(e,2,y,"RESERVE",C.dim)end;y=y+1;if y<=e.h then put(e,2,y,reserveText(rs,raw),rs.feeding and C.warn or(rs.configured and C.good or C.dim))end;y=y+2;local fx=raw.fluxNetworks or{};if y<=e.h then put(e,2,y,"FLUX "..#fx,#fx>0 and C.good or C.warn)end
 end
 
 local function renderEnvironment(e,env)
@@ -60,23 +60,14 @@ local function renderSensorCard(e,s,index,total)
  if #rows==0 and y<=e.h then put(e,2,y,"CATEGORIES",C.dim);if y+1<=e.h then put(e,2,y+1,nice(table.concat(s.categories or{}," / ")),C.text)end end
 end
 
-local function chooseEnvironmentMonitor(extras)
- local best,bestScore=nil,-1
- for _,e in ipairs(extras)do local aspect=(tonumber(e.w)or 0)/math.max(1,tonumber(e.h)or 1);local score=aspect*1000+e.area;if score>bestScore then best,bestScore=e,score end end
- return best
-end
+local function chooseEnvironmentMonitor(extras)local best,bestScore=nil,-1;for _,e in ipairs(extras)do local aspect=(tonumber(e.w)or 0)/math.max(1,tonumber(e.h)or 1);local score=aspect*1000+e.area;if score>bestScore then best,bestScore=e,score end end;return best end
 
-function M.init(c)cfg=c or{};return base.init(c)end
+function M.init(c)return base.init(c)end
 function M.render(env,meta)
  local ok=base.render(env,meta);local mons=detectMonitors()
  if mons[2]then if mons[2].w>=mons[2].h*1.45 then renderPowerWide(mons[2],env)else renderPowerTall(mons[2],env)end end
  local extras={};for i=4,#mons do extras[#extras+1]=mons[i]end
- if #extras>0 then
-  local envMon=chooseEnvironmentMonitor(extras);renderEnvironment(envMon,env)
-  local sensorMons={};for _,e in ipairs(extras)do if e.name~=envMon.name then sensorMons[#sensorMons+1]=e end end
-  table.sort(sensorMons,function(a,b)if a.h~=b.h then return a.h>b.h end;return a.name<b.name end)
-  local sensors=allSensors(env);for i,e in ipairs(sensorMons)do renderSensorCard(e,sensors[i],i,#sensors)end
- end
+ if #extras>0 then local envMon=chooseEnvironmentMonitor(extras);renderEnvironment(envMon,env);local sensorMons={};for _,e in ipairs(extras)do if e.name~=envMon.name then sensorMons[#sensorMons+1]=e end end;table.sort(sensorMons,function(a,b)if a.h~=b.h then return a.h>b.h end;return a.name<b.name end);local sensors=allSensors(env);for i,e in ipairs(sensorMons)do renderSensorCard(e,sensors[i],i,#sensors)end end
  return ok
 end
 function M.onPeripheralChange(...)if base.onPeripheralChange then return base.onPeripheralChange(...)end end
