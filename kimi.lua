@@ -6,44 +6,26 @@ local updates = require("core.update_service")
 local cfg = config.load()
 local role = cfg.role or "client"
 local rolePath
-if role == "server" then
-    rolePath = "roles.server_v3"
-elseif role == "client" then
-    rolePath = "roles.client_v4"
-else
-    rolePath = "roles." .. role
-end
+if role == "server" then rolePath = "roles.server_v3"
+elseif role == "client" then rolePath = "roles.client_v5"
+elseif role == "node" then rolePath = "roles.node_v2"
+else rolePath = "roles." .. role end
 
 local ok, roleModule = pcall(require, rolePath)
-if not ok then
-    error("Unable to load role '" .. tostring(role) .. "': " .. tostring(roleModule))
-end
+if not ok then error("Unable to load role '" .. tostring(role) .. "': " .. tostring(roleModule)) end
 
 if updates.hasPendingProbation() then
     local winner = parallel.waitForAny(
-        function()
-            roleModule.run(cfg)
-            error("role exited during update probation")
-        end,
-        function()
-            sleep(15)
-        end
+        function() roleModule.run(cfg); error("role exited during update probation") end,
+        function() sleep(15) end
     )
-
     if winner ~= 2 then error("updated role failed probation") end
-
     updates.markHealthy()
+    updates.requestLiveReload("probation-complete")
     term.setTextColor(colors.lime)
-    print("[KIMI] update probation passed; rebooting cleanly")
+    print("[KIMI] update probation passed; live reloading cleanly")
     term.setTextColor(colors.white)
-    -- The probation runner cancels the role coroutine after 15 seconds. Do not
-    -- start a second role instance in the same Lua process with transport/event
-    -- wrappers left behind by the cancelled coroutine. A clean reboot gives the
-    -- now-healthy release a pristine event loop.
-    os.reboot()
     return
 end
 
-watchdog.run("role:" .. role, function()
-    roleModule.run(cfg)
-end)
+watchdog.run("role:" .. role, function() roleModule.run(cfg) end)
