@@ -4,15 +4,6 @@ local loader = require("core.module_loader")
 local updates = require("core.update_service")
 
 local function countTable(t) local n=0; for _ in pairs(t or {}) do n=n+1 end; return n end
-local function hasUnhealthyState(state)
-    for _,value in pairs(state or {}) do
-        if type(value)=="table" then
-            local s=tostring(value._status or value.status or ""):lower()
-            if s=="offline" or s=="error" or s=="disconnected" then return true end
-        end
-    end
-    return false
-end
 
 function M.run(cfg)
     network.openAll(); network.advertise(cfg,"node")
@@ -21,6 +12,7 @@ function M.run(cfg)
     local serverId=nil
     local lastModuleScan=os.epoch("utc")
     local publishInterval=math.max(0.5,tonumber(cfg.node and cfg.node.publishInterval) or 2)
+    local rediscoverMs=30000
 
     local function hello()
         return {sourceId=os.getComputerID(),nodeId=os.getComputerID(),role="node",name=cfg.name,profile="node",version=updates.localVersion(),generated=os.epoch("utc")}
@@ -44,12 +36,16 @@ function M.run(cfg)
         local e={os.pullEvent()}
         if e[1]=="timer" and e[2]==timer then
             if not serverId then serverId=network.findServer(cfg) end
-            state=loader.readAll(modules,state)
             local now=os.epoch("utc")
-            if hasUnhealthyState(state) or now-lastModuleScan>=10000 then
-                network.openAll(); network.advertise(cfg,"node")
-                modules=loader.discover("modules"); state=loader.readAll(modules,state); lastModuleScan=now
+            -- Missing hardware is normal. AE2=offline on a sensor node must not
+            -- trigger modem reopen + module rediscovery + a second full scan.
+            -- Peripheral attach/detach events already force immediate discovery;
+            -- this slow periodic discovery is only a safety net.
+            if now-lastModuleScan>=rediscoverMs then
+                modules=loader.discover("modules")
+                lastModuleScan=now
             end
+            state=loader.readAll(modules,state)
             publish(); timer=os.startTimer(publishInterval)
 
         elseif e[1]=="timer" and e[2]==probationTimer then
