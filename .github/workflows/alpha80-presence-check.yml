@@ -1,0 +1,29 @@
+name: KIMI Alpha80 Presence Check
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'core/fleet_health.lua'
+      - 'roles/server_v5.lua'
+      - 'roles/client_v8.lua'
+      - 'roles/node_v5.lua'
+      - 'tests/alpha79_fleet_stability_smoke.lua'
+      - 'tests/alpha80_calm_fleet_smoke.lua'
+      - 'version.txt'
+      - 'manifest.json'
+      - '.github/workflows/alpha80-presence-check.yml'
+
+jobs:
+  alpha80-presence:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Lua 5.2
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.2
+      - name: Alpha80 calm fleet test
+        run: lua5.2 tests/alpha80_calm_fleet_smoke.lua
