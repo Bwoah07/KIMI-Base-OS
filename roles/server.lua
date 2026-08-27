@@ -47,7 +47,7 @@ local function aggregateAttachments(localState,sources)
     for _,source in ipairs(values) do
         for _,device in ipairs(source.value.devices or {}) do
             local item=copyTable(device); item._source=source.sourceId; devices[#devices+1]=item
-            if hasCategory(item,"sensor") then sensors[#sensors+1]=item end
+            if hasCategory(item,"sensor") or hasCategory(item,"sensor_candidate") then sensors[#sensors+1]=item end
             for _,category in ipairs(item.categories or {}) do categories[category]=(categories[category] or 0)+1 end
         end
     end
@@ -67,6 +67,14 @@ local function aggregatePower(primary,localState,sources)
     out.fluxNetworks=flux; out.matrices=matrices; out.energyDetectors=detectors
     out.fluxCount=#flux; out.matrixCount=#matrices; out.detectorCount=#detectors; out.onlineSources=#flux+#matrices+#detectors
     return out
+end
+local function aggregateBuilders(localState,sources)
+    local builders={}
+    for _,source in ipairs(moduleValues(localState,sources,"builder")) do
+        for _,b in ipairs(source.value.builders or {}) do local item=copyTable(b);item._source=source.sourceId;builders[#builders+1]=item end
+    end
+    table.sort(builders,function(a,b)return tostring(a.peripheral or a.type)<tostring(b.peripheral or b.type)end)
+    return {builders=builders,count=#builders,_status=#builders>0 and "online" or "offline",_updated=os.epoch("utc")}
 end
 local function canonicalState(localState,sources,machines,updateInfo,doorEntries)
     local combined=copyTable(localState); local selected={}
@@ -89,6 +97,7 @@ local function canonicalState(localState,sources,machines,updateInfo,doorEntries
     combined.attachments=aggregateAttachments(localState,sources)
     combined.doors=aggregateDoors(localState,sources,doorEntries)
     combined.power=aggregatePower(combined.power or {},localState,sources)
+    combined.builder=aggregateBuilders(localState,sources)
     combined.sources=sources; combined.fleet=machines; combined.update=updateInfo
     return combined
 end
@@ -106,8 +115,8 @@ function M.run(cfg)
     local lastModuleScan=os.epoch("utc")
     local startedAt=os.epoch("utc")
     local selfId=os.getComputerID()
-    machines[selfId]={firstSeen=startedAt,lastSeen=startedAt,role="server",name=cfg.name,profile="admin",version=updates.localVersion(),online=true,updateStatus="current"}
-    for id,m in pairs(machines) do if tonumber(id)~=selfId then m.online=false end end
+    machines[selfId]={firstSeen=startedAt,lastSeen=startedAt,role="server",name=cfg.name,profile="admin",version=updates.localVersion(),online=true,stale=false,updateStatus="current"}
+    for id,m in pairs(machines) do if tonumber(id)~=selfId then m.online=false;m.stale=false end end
     fleetRegistry.save(machines)
 
     local updateInfo={authority=selfId,lastCheck=nil,lastResult="not checked",remoteVersion=nil,targetVersion=nil,fleetTarget=updates.localVersion(),fleetCurrent=1,fleetOutdated=0,fleetOffline=0,lastSync=nil,syncResult="discovering fleet",discovered=0}
@@ -172,7 +181,7 @@ function M.run(cfg)
     local function touchMachine(sender,payload,defaultRole)
         sender=tonumber(sender) or sender
         local now=os.epoch("utc"); local m=machines[sender] or {firstSeen=now}
-        m.lastSeen=now; m.online=true
+        m.lastSeen=now; m.online=true; m.stale=false; m.ageMs=0
         m.role=payload and payload.role or m.role or defaultRole or "client"
         m.name=payload and payload.name or m.name or ("KIMI-"..tostring(sender))
         m.profile=payload and payload.profile or m.profile
@@ -199,7 +208,7 @@ function M.run(cfg)
         probeFleet()
         local target=updates.localVersion(); local current,outdated,offline,notified=0,0,0,0
         for id,machine in pairs(machines) do
-            if tonumber(id)==selfId then current=current+1; machine.online=true; machine.version=target; machine.updateStatus="current"
+            if tonumber(id)==selfId then current=current+1; machine.online=true;machine.stale=false; machine.version=target; machine.updateStatus="current"
             elseif machine.role~="scada" then
                 if machine.online==false then offline=offline+1
                 elseif machine.version==target then current=current+1; machine.updateTarget=nil; machine.updateStatus="current"
@@ -216,6 +225,15 @@ function M.run(cfg)
         return {target=target,current=current,outdated=outdated,notified=notified,offline=offline}
     end
 
+    local function identifyMachine(args)
+        args=type(args)=="table"and args or{};local id=tonumber(args.id)
+        if not id then return {ok=false,error="computer id required",module="server"} end
+        if id==selfId then return {ok=false,error="that is Main Base itself",module="server"} end
+        local m=machines[id];if not m then return {ok=false,error="unknown fleet computer",module="server"} end
+        local sent=network.send(id,cfg,"fleet.identify",{duration=tonumber(args.duration)or 8,issuedBy=selfId,name=m.name,id=id})
+        return {ok=sent==true,result={id=id,name=m.name,sent=sent==true},module="server"}
+    end
+
     local function checkForUpdates(reason)
         if not updates.autoEnabled(cfg) then updateInfo.lastCheck=os.epoch("utc"); updateInfo.lastResult="updates disabled"; renderLocal(); return false end
         updateInfo.lastCheck=os.epoch("utc"); updateInfo.lastResult="checking..."; renderLocal()
@@ -223,8 +241,6 @@ function M.run(cfg)
         if not result then updateInfo.lastResult="check failed: "..tostring(err); renderLocal(); return false end
         updateInfo.remoteVersion=result.remote; updateInfo.lastResult=result.available and "update available" or "up to date"; updateInfo.targetVersion=result.available and result.remote or nil; renderLocal()
         if not result.available then return false end
-        -- Authority installs first. Only after the probation reboot does normal
-        -- fleet sync push this exact installed manifest to every machine.
         updates.rebootForUpdate(result.remote,reason or "server-check",result.manifest)
         return true
     end
@@ -244,8 +260,8 @@ function M.run(cfg)
         if e[1]=="timer" and e[2]==refreshTimer then
             state=loader.readAll(modules,state); local now=os.epoch("utc")
             if now-lastModuleScan>=10000 then modules=loader.discover("modules"); lastModuleScan=now end
-            for id,m in pairs(machines) do if tonumber(id)~=selfId then m.online=(now-(tonumber(m.lastSeen) or 0))<=15000 end end
-            for _,s in pairs(sources) do s.online=(now-(tonumber(s.lastSeen) or 0))<=15000 end
+            for id,m in pairs(machines) do if tonumber(id)~=selfId then local age=now-(tonumber(m.lastSeen)or 0);m.ageMs=age;m.stale=age>10000 and age<=45000;m.online=age<=45000 end end
+            for _,s in pairs(sources) do local age=now-(tonumber(s.lastSeen)or 0);s.ageMs=age;s.stale=age>10000 and age<=45000;s.online=age<=45000 end
             renderLocal(); refreshTimer=os.startTimer(0.5)
 
         elseif e[1]=="timer" and e[2]==probationTimer then
@@ -266,7 +282,7 @@ function M.run(cfg)
                 elseif msg.kind=="state.get" then touchMachine(sender,payload,"client"); network.send(sender,cfg,"state",env())
                 elseif msg.kind=="telemetry.state" or msg.kind=="node.state" then
                     local m=touchMachine(sender,payload,msg.kind=="node.state" and "node" or "client")
-                    sources[tostring(sender)]={sourceId=payload.sourceId or payload.nodeId or sender,role=payload.role or m.role,name=payload.name or m.name,profile=payload.profile or m.profile,version=payload.version or m.version,generated=payload.generated,lastSeen=os.epoch("utc"),online=true,state=payload.state or {}}
+                    sources[tostring(sender)]={sourceId=payload.sourceId or payload.nodeId or sender,role=payload.role or m.role,name=payload.name or m.name,profile=payload.profile or m.profile,version=payload.version or m.version,generated=payload.generated,lastSeen=os.epoch("utc"),online=true,stale=false,state=payload.state or {}}
                 elseif msg.kind=="ping" then touchMachine(sender,payload,payload.role or "client"); network.send(sender,cfg,"pong",{serverId=selfId,version=updates.localVersion()})
                 elseif msg.kind=="command" then
                     touchMachine(sender,payload,"client"); local result
@@ -288,7 +304,8 @@ function M.run(cfg)
             profile.handleEvent(e,env(),function(moduleId,action,args)
                 if moduleId=="server" and action=="check_updates" then return checkForUpdates("server-manual-check")
                 elseif moduleId=="server" and action=="scada_update" then return requestScadaUpdates("command-center")
-                elseif moduleId=="server" and action=="sync_fleet" then return syncFleet("command-center",true) end
+                elseif moduleId=="server" and action=="sync_fleet" then return syncFleet("command-center",true)
+                elseif moduleId=="server" and action=="identify" then return identifyMachine(args) end
                 return executeCommand(moduleId,action,args)
             end)
         end
