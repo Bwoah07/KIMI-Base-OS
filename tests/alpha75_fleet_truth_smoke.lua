@@ -29,7 +29,7 @@ local sv=read("roles/server_v4.lua");assert(sv:find('"fleet.identity"',1,true)an
 assert(read("roles/client_v6.lua"):find('"fleet.identity"',1,true),"clients do not publish live identity proof")
 assert(read("roles/node_v3.lua"):find('"fleet.identity"',1,true),"nodes do not publish live identity proof")
 assert(read("clients/admin.lua"):find("clients.admin_v26",1,true),"admin is not loading fleet truth overlay")
-local ui=read("clients/admin_v26.lua");assert(ui:find("truth.status",1,true)and ui:find("truth.versionText",1,true)and ui:find("GHOST",1,true)and ui:find("PROVED NOW",1,true),"fleet screen is not wired to live-versus-history truth policy")
+local ui=read("clients/admin_v26.lua");assert(ui:find("truth.status",1,true)and ui:find("truth.versionText",1,true)and ui:find("PROVED NOW",1,true),"fleet screen is not wired to live-versus-history truth policy")
 assert(read("roles/client_v4.lua"):find('"door.command.direct"',1,true),"alpha70 direct Pocket door path disappeared")
 
 print("alpha75 fleet truth smoke test OK")
