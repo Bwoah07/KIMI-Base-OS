@@ -2,7 +2,10 @@ local base=require("roles.server_v4")
 local fleetRegistry=require("core.fleet_registry")
 local M={}
 
-local PURGE_MS=600000
+-- Keep remembered infrastructure for a full day. Fixed CC computers can stop
+-- ticking while their chunks are unloaded; deleting them after ten minutes made
+-- the fleet screen repeatedly lose and rediscover the same physical machine.
+local PURGE_MS=86400000
 local function unpackEvent(e)local u=table.unpack or unpack;return u(e)end
 
 function M.run(cfg)
@@ -13,9 +16,6 @@ function M.run(cfg)
     local selfId=os.getComputerID()
     _G.kimiIdentifyAck=ack
 
-    -- Fleet history is not a cemetery. A machine which has been absent for ten
-    -- minutes is forgotten; if it ever comes back its normal heartbeat simply
-    -- registers it again as a fresh fleet member.
     fleetRegistry.save=function(machines)
         local now=os.epoch("utc")
         for id,m in pairs(machines or{})do

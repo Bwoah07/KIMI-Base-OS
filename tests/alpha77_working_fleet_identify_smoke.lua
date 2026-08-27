@@ -35,9 +35,10 @@ assert(admin.render(env,{})~=false,"admin render failed")
 local out=fleet.output()
 assert(out:find("FLEET / IDENTIFY",1,true),"fleet screen missing")
 assert(out:find("ID 9 OUTDOOR SENSORS",1,true)and out:find("LIVE",1,true),"fresh heartbeat is not shown LIVE")
-assert(out:find("ID 10 UPPER DOOR",1,true)and out:find("STALE",1,true),"stale-but-reachable machine missing")
-assert(not out:find("ID 11",1,true),"ancient ghost is still cluttering the operational list")
-assert(out:find("HIDDEN 1",1,true),"hidden-history count missing")
+assert(out:find("ID 10 UPPER DOOR",1,true),"recently sleeping machine disappeared from operational list")
+-- Alpha80 deliberately retains chunk-sleeping infrastructure for 30 minutes,
+-- so an 11-minute-old machine remains visible and identifiable as STALE.
+assert(out:find("ID 11 KIMI-11",1,true)and out:find("STALE",1,true),"sleeping infrastructure was hidden too aggressively")
 assert(not out:find("VERIFY",1,true)and not out:find("GHOST",1,true)and not out:find("LAST ",1,true),"fleet archaeology labels leaked back into the live screen")
 
 local called=nil
@@ -58,7 +59,7 @@ assert(read("roles/server_v7.lua"):find('roles.server_v6',1,true),"alpha79 serve
 assert(read("roles/server_v6.lua"):find('roles.server_v5',1,true),"alpha78 server wrapper lost alpha77 identify lineage")
 assert(read("roles/client_v8.lua"):find('roles.client_v7',1,true),"alpha78 client wrapper lost alpha77 identify lineage")
 assert(read("roles/node_v5.lua"):find('roles.node_v4',1,true),"alpha78 node wrapper lost alpha77 identify lineage")
-assert(read("roles/server_v5.lua"):find('"fleet.identify.ack"',1,true)and read("roles/server_v5.lua"):find("PURGE_MS=600000",1,true),"server ACK/purge transport incomplete")
+assert(read("roles/server_v5.lua"):find('"fleet.identify.ack"',1,true)and read("roles/server_v5.lua"):find("PURGE_MS=86400000",1,true),"server ACK/retention transport incomplete")
 assert(read("roles/client_v7.lua"):find('"fleet.identify.ack"',1,true),"clients do not ACK identify")
 assert(read("roles/node_v4.lua"):find('"fleet.identify.ack"',1,true),"nodes do not ACK identify")
 assert(read("clients/admin.lua"):find("clients.admin_v27",1,true),"admin is not loading working fleet screen")

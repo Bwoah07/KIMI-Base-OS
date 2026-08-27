@@ -1,11 +1,12 @@
 local M={}
 
--- Presence is intentionally much calmer than control-path liveness.
--- Normal clients emit a dedicated heartbeat roughly every two seconds, but
--- modded peripheral calls and chunk hiccups can stall a CC event loop for tens
--- of seconds. Do not turn one slow AE2/Builder scan into ONLINE/OFFLINE spam.
-M.ONLINE_MS=60000
-M.OFFLINE_MS=300000
+-- Fleet presence is deliberately much calmer than control-path liveness.
+-- Normal clients heartbeat roughly every two seconds, but a fixed base computer
+-- may stop ticking entirely while its Minecraft chunk is unloaded. Treat that
+-- as sleeping infrastructure, not as a dead/reappearing machine every few
+-- minutes. Door/control transports keep their own fast ACK timeouts.
+M.ONLINE_MS=120000
+M.OFFLINE_MS=1800000
 
 local function sameId(a,b)
     if a==nil or b==nil then return false end
