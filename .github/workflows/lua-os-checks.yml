@@ -110,6 +110,8 @@ jobs:
         run: lua5.2 tests/alpha75_fleet_truth_smoke.lua
       - name: Alpha76 RFTools Builder reader test
         run: lua5.2 tests/alpha76_rftools_builder_reader_smoke.lua
+      - name: Alpha77 working fleet identify test
+        run: lua5.2 tests/alpha77_working_fleet_identify_smoke.lua
 
       - name: Validate managed manifest
         run: |
