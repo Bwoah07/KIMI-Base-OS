@@ -32,7 +32,12 @@ function M.read()
   if m.reserveRole=="MAIN"then main=copy(m)elseif m.reserveRole=="RESERVE"then reserve=copy(m)end
  end
  state.main=main;state.reserve=reserve;state.matrixCount=#ms
- state._status=state.status=="GATE ERROR"and"error"or"online"
+ -- A KIMI computer with no locally attached Matrix must not beat the room
+ -- that actually owns the battery when Main Base selects canonical telemetry.
+ state.online=#ms>0
+ if state.status=="GATE ERROR"then state._status="error"
+ elseif #ms>0 then state._status="online"
+ else state._status="offline"end
  state._updated=os.epoch("utc")
  return state
 end
