@@ -135,6 +135,9 @@ jobs:
       - name: Alpha71 banger command-center test
         run: lua5.2 tests/alpha71_banger_command_center_smoke.lua
 
+      - name: Alpha72 wall BSH test
+        run: lua5.2 tests/alpha72_wall_bsh_smoke.lua
+
       - name: Validate managed manifest
         run: |
           python3 - <<'PY'
