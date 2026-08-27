@@ -1,7 +1,7 @@
 {
-  "version": "5.0.0-alpha.70",
+  "version": "5.0.0-alpha.71",
   "channel": "alpha",
-  "ref": "30cd0f61d5bd7d7600921c3fc2130317aa1e455f",
+  "ref": "031ec851c0e3c8346bec84780d0a1408fa44c1b8",
   "entrypoint": "kimi.lua",
   "managed": [
     "startup.lua",
@@ -9,6 +9,7 @@
     "installer.lua",
     "kimi.lua",
     "door.lua",
+    "reserve.lua",
     "version.txt",
     "core/config.lua",
     "core/door_registry.lua",
@@ -16,6 +17,7 @@
     "core/fleet_registry.lua",
     "core/module_loader.lua",
     "core/network.lua",
+    "core/power_reserve.lua",
     "core/watchdog.lua",
     "core/update_service.lua",
     "roles/server.lua",
@@ -39,6 +41,7 @@
     "clients/admin_v14.lua",
     "clients/admin_v15.lua",
     "clients/admin_v16.lua",
+    "clients/admin_v17.lua",
     "clients/room_v12.lua",
     "clients/room_v15.lua",
     "clients/room_v16.lua",
@@ -48,6 +51,7 @@
     "modules/system.lua",
     "modules/ae2.lua",
     "modules/power.lua",
+    "modules/power_reserve.lua",
     "modules/attachments.lua",
     "modules/doors.lua",
     "modules/remote_doors.lua",
@@ -81,6 +85,7 @@
     ".kimi/local_doors",
     ".kimi/fleet_registry",
     ".kimi/monitors",
+    ".kimi/power_reserve",
     ".kimi/state",
     ".kimi/logs"
   ]
