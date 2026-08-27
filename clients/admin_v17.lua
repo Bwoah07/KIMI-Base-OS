@@ -17,6 +17,23 @@ local function percent(p)
  local n=tonumber(p and p.filledPercentage);if n then if n<=1 then n=n*100 end;return math.max(0,math.min(100,n))end
  local st,cap=tonumber(p and p.stored),tonumber(p and p.capacity);if st and cap and cap>0 then return math.max(0,math.min(100,st/cap*100))end
 end
+local function fmtDuration(sec)
+ sec=tonumber(sec);if not sec or sec<0 or sec~=sec then return"?"end;sec=math.floor(sec+.5)
+ if sec<60 then return tostring(sec).."s"end
+ local m=math.floor(sec/60);local s=sec%60;if m<60 then return string.format("%dm %02ds",m,s)end
+ local h=math.floor(m/60);m=m%60;if h<24 then return string.format("%dh %02dm",h,m)end
+ local d=math.floor(h/24);h=h%24;return string.format("%dd %02dh",d,h)
+end
+local function powerStatus(p)
+ local stored=tonumber(p and p.stored);local cap=tonumber(p and p.capacity)
+ local input=tonumber(p and p.input)or 0;local output=tonumber(p and p.output)or 0
+ local net=tonumber(p and p.net);if net==nil then net=input-output end
+ local activity=math.max(math.abs(input),math.abs(output),1);local threshold=math.max(1,activity*.002)
+ if math.abs(net)<=threshold then return"HOLDING"end
+ if not stored or not cap or cap<=0 then return net>0 and"CHARGING"or"DRAINING"end
+ if net>0 then if stored>=cap then return"FULL"end;return"FULL IN "..fmtDuration((cap-stored)/(net*20))end
+ if stored<=0 then return"EMPTY"end;return"EMPTY IN "..fmtDuration(stored/((-net)*20))
+end
 local function hasCategory(d,wanted)for _,v in ipairs(d and d.categories or{})do if v==wanted then return true end end;return false end
 
 local function isMonitor(n)local ok,t=pcall(peripheral.getType,n);if ok and t=="monitor"then return true end;if type(peripheral.hasType)=="function"then local ok2,v=pcall(peripheral.hasType,n,"monitor");if ok2 and v then return true end end;return false end
@@ -92,7 +109,7 @@ local function drawSensors(e,env)
  rule(e,8)
  local ss=allSensors(env);put(e,2,9,"DETECTED SENSORS "..#ss,#ss>0 and C.good or C.warn)
  if #ss==0 then center(e,13,"NO SENSOR TELEMETRY",C.warn);return end
- local x1,x2=2,math.floor(e.w/2)+1;local colW=math.floor((e.w-5)/2);local y=11;local right=false;local maxY=e.h-4
+ local x1,x2=2,math.floor(e.w/2)+1;local y=11;local right=false;local maxY=e.h-4
  for i,s in ipairs(ss)do
   if y+1>maxY then if not right then right=true;y=11 else break end end
   local x=right and x2 or x1;local source=s._source and(" @"..tostring(s._source))or""
@@ -111,6 +128,7 @@ local function drawPowerSide(e,env)
  center(e,5,"MAIN MATRIX",C.dim);center(e,6,mp and string.format("%.1f%%",mp)or"NO MATRIX",mp and C.good or C.warn)
  local x1=math.floor(e.w/2)-3;local x2=x1+6;local y1=8;local y2=15;fill(e,x1,y1,x2,y2,C.panel);fill(e,x1+1,y1+1,x2-1,y2-1,C.bg)
  local ih=y2-y1-1;local rows=mp and math.floor(ih*mp/100+.5)or 0;if rows>0 then fill(e,x1+1,y2-rows,x2-1,y2-1,C.good)end
+ center(e,16,powerStatus(main),C.text)
  put(e,2,17,"STORED "..fmt(main and main.stored).." FE",C.text);put(e,2,18,"IN  +"..fmt(main and main.input).." FE/t",C.good);put(e,2,19,"OUT -"..fmt(main and main.output).." FE/t",C.dim)
  rule(e,20)
  local rp=tonumber(rs.reservePercent);put(e,2,21,"RESERVE",C.dim);put(e,10,21,rp and string.format("%.1f%%",rp)or"--",rp and C.good or C.dim)
