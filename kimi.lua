@@ -6,7 +6,7 @@ local updates = require("core.update_service")
 local cfg = config.load()
 local role = cfg.role or "client"
 local rolePath
-if role == "server" then rolePath = "roles.server_v6"
+if role == "server" then rolePath = "roles.server_v7"
 elseif role == "client" then rolePath = "roles.client_v8"
 elseif role == "node" then rolePath = "roles.node_v5"
 else rolePath = "roles." .. role end

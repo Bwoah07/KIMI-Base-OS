@@ -9,13 +9,16 @@ assert(st=="ONLINE" and age==0,"Main Server must always be ONLINE")
 st,age=h.status(8,{lastSeen=now-14000},7,now)
 assert(st=="ONLINE" and age==14000,"fresh fleet member should be ONLINE")
 
-st,age=h.status(9,{lastSeen=now-60000},7,now)
-assert(st=="STALE" and age==60000,"brief heartbeat loss should be STALE, not OFFLINE")
+st,age=h.status(9,{lastSeen=now-59000},7,now)
+assert(st=="ONLINE" and age==59000,"brief telemetry stall should remain ONLINE")
 
-st,age=h.status(10,{lastSeen=now-119000},7,now)
-assert(st=="STALE","two-minute grace window regressed")
+st,age=h.status(10,{lastSeen=now-90000},7,now)
+assert(st=="STALE" and age==90000,"long heartbeat loss should be STALE, not OFFLINE")
 
-st,age=h.status(11,{lastSeen=now-121000},7,now)
+st,age=h.status(11,{lastSeen=now-299000},7,now)
+assert(st=="STALE","five-minute stale grace window regressed")
+
+st,age=h.status(12,{lastSeen=now-301000},7,now)
 assert(st=="OFFLINE","truly missing fleet member should become OFFLINE")
 
 local f=assert(io.open("clients/admin.lua","r"));local admin=f:read("*a");f:close()

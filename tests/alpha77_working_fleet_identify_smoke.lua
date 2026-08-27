@@ -28,7 +28,7 @@ admin.init({name="Main Server"})
 local env={serverId=7,version="5.0.0-alpha.77",state={fleet={
  [7]={name="Main Server",role="server",version="5.0.0-alpha.77",lastSeen=1},
  [9]={name="Outdoor Sensors",role="node",version="5.0.0-alpha.77",lastSeen=now-8000},
- [10]={name="Upper Door",role="client",version="5.0.0-alpha.77",lastSeen=now-50000},
+ [10]={name="Upper Door",role="client",version="5.0.0-alpha.77",lastSeen=now-90000},
  [11]={name="KIMI-11",role="client",version="5.0.0-alpha.70",lastSeen=now-700000}
 }}}
 assert(admin.render(env,{})~=false,"admin render failed")
@@ -53,7 +53,8 @@ _G.kimiIdentifyAck=nil
 
 local function read(path)local f=assert(io.open(path,"r"));local s=f:read("*a");f:close();return s end
 local kimi=read("kimi.lua")
-assert(kimi:find("roles.server_v6",1,true)and kimi:find("roles.client_v8",1,true)and kimi:find("roles.node_v5",1,true),"kernel is not routed through current fleet wrappers")
+assert(kimi:find("roles.server_v7",1,true)and kimi:find("roles.client_v8",1,true)and kimi:find("roles.node_v5",1,true),"kernel is not routed through current fleet wrappers")
+assert(read("roles/server_v7.lua"):find('roles.server_v6',1,true),"alpha79 server throttle lost alpha78 heartbeat lineage")
 assert(read("roles/server_v6.lua"):find('roles.server_v5',1,true),"alpha78 server wrapper lost alpha77 identify lineage")
 assert(read("roles/client_v8.lua"):find('roles.client_v7',1,true),"alpha78 client wrapper lost alpha77 identify lineage")
 assert(read("roles/node_v5.lua"):find('roles.node_v4',1,true),"alpha78 node wrapper lost alpha77 identify lineage")

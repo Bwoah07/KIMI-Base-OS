@@ -1,7 +1,7 @@
 {
-  "version": "5.0.0-alpha.78",
+  "version": "5.0.0-alpha.79",
   "channel": "alpha",
-  "ref": "01d896f3e787e4cb35aa72ef0e0d747e6b33d472",
+  "ref": "cda89e041d92125039b564836dfc814339ab8f83",
   "entrypoint": "kimi.lua",
   "managed": [
     "startup.lua",
@@ -30,6 +30,7 @@
     "roles/server_v4.lua",
     "roles/server_v5.lua",
     "roles/server_v6.lua",
+    "roles/server_v7.lua",
     "roles/client.lua",
     "roles/client_v2.lua",
     "roles/client_v3.lua",

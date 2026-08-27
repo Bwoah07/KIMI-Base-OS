@@ -1,7 +1,11 @@
 local M={}
 
-M.ONLINE_MS=15000
-M.OFFLINE_MS=120000
+-- Presence is intentionally much calmer than control-path liveness.
+-- Normal clients emit a dedicated heartbeat roughly every two seconds, but
+-- modded peripheral calls and chunk hiccups can stall a CC event loop for tens
+-- of seconds. Do not turn one slow AE2/Builder scan into ONLINE/OFFLINE spam.
+M.ONLINE_MS=60000
+M.OFFLINE_MS=300000
 
 local function sameId(a,b)
     if a==nil or b==nil then return false end
