@@ -6,10 +6,11 @@ local M={}
 function M.run(cfg)
     local realSend=network.send
     local session=identity.newSession("client")
+    local profile=tostring(cfg and cfg.profile or"wall")
     network.send=function(target,sendCfg,kind,payload)
         local ok=realSend(target,sendCfg,kind,payload)
-        if kind=="fleet.hello"then
-            realSend(target,sendCfg,"fleet.identity",identity.snapshot(cfg,"client",cfg and cfg.profile or"wall",session))
+        if kind=="fleet.hello"or(profile=="pocket"and kind=="state.get")then
+            realSend(target,sendCfg,"fleet.identity",identity.snapshot(cfg,"client",profile,session))
         end
         return ok
     end
