@@ -1,7 +1,7 @@
 {
-  "version": "5.0.0-alpha.73",
+  "version": "5.0.0-alpha.74",
   "channel": "alpha",
-  "ref": "45772b65f2674794f6d3785d928fdab54a5d7abf",
+  "ref": "6aa06669fd6c0aefd005ee1e0d0ca6e72f22380e",
   "entrypoint": "kimi.lua",
   "managed": [
     "startup.lua",
@@ -15,6 +15,7 @@
     "core/door_registry.lua",
     "core/doors_impl.lua",
     "core/fleet_registry.lua",
+    "core/fleet_health.lua",
     "core/module_loader.lua",
     "core/network.lua",
     "core/power_reserve.lua",
@@ -52,6 +53,7 @@
     "clients/admin_v22.lua",
     "clients/admin_v23.lua",
     "clients/admin_v24.lua",
+    "clients/admin_v25.lua",
     "clients/room_v12.lua",
     "clients/room_v15.lua",
     "clients/room_v16.lua",
