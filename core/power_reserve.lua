@@ -3,7 +3,7 @@ local ROOT=".kimi"
 local PATH=ROOT.."/power_reserve"
 local runtime={feeding=nil,lastError=nil}
 
-local defaults={enabled=true,low=0.20,high=0.80,gate=nil}
+local defaults={enabled=true,low=0.20,high=0.80,gate=nil,mainPeripheral=nil,reservePeripheral=nil}
 
 local function clone(v)
  if type(v)~="table" then return v end
@@ -68,21 +68,31 @@ local function setGate(g,feeding)
  local ok,err=pcall(peripheral.call,g.target,"setOutput",g.side,physical);return ok,ok and nil or tostring(err)
 end
 
-local function sortedMatrices(matrices)
+local function sortedMatrices(matrices,cfg)
  local out={};for _,m in ipairs(matrices or{})do if type(m)=="table"then out[#out+1]=m end end
  table.sort(out,function(a,b)
+  local ap,bp=tostring(a.peripheral or""),tostring(b.peripheral or"")
+  if cfg and cfg.mainPeripheral then
+   if ap==tostring(cfg.mainPeripheral)and bp~=tostring(cfg.mainPeripheral)then return true end
+   if bp==tostring(cfg.mainPeripheral)and ap~=tostring(cfg.mainPeripheral)then return false end
+  end
+  if cfg and cfg.reservePeripheral then
+   if ap==tostring(cfg.reservePeripheral)and bp~=tostring(cfg.reservePeripheral)then return false end
+   if bp==tostring(cfg.reservePeripheral)and ap~=tostring(cfg.reservePeripheral)then return true end
+  end
   local ac,bc=tonumber(a.capacity)or 0,tonumber(b.capacity)or 0
   if ac~=bc then return ac>bc end
-  local as,bs=tonumber(a.stored)or 0,tonumber(b.stored)or 0
-  if as~=bs then return as>bs end
-  return tostring(a.peripheral or"")<tostring(b.peripheral or"")
+  return ap<bp
  end)
  return out
 end
 
 function M.apply(matrices)
- local cfg=M.load();local sorted=sortedMatrices(matrices)
+ local cfg=M.load();local sorted=sortedMatrices(matrices,cfg)
  local main,reserve=sorted[1],sorted[2]
+ if cfg.mainPeripheral then for _,m in ipairs(sorted)do if tostring(m.peripheral)==tostring(cfg.mainPeripheral)then main=m;break end end end
+ if cfg.reservePeripheral then for _,m in ipairs(sorted)do if tostring(m.peripheral)==tostring(cfg.reservePeripheral)then reserve=m;break end end end
+ if main and reserve and main==reserve then reserve=nil end
  for _,m in ipairs(matrices or{})do m.reserveRole=nil end
  if main then main.reserveRole="MAIN"end;if reserve then reserve.reserveRole="RESERVE"end
  local mp,rp=pct(main),pct(reserve)
@@ -100,7 +110,7 @@ function M.apply(matrices)
   runtime.feeding=false;out.status="RESERVE DISABLED";return out
  end
  local gate,gerr=getGate(cfg)
- if not gate then out.status=upper and upper(gerr)or tostring(gerr):upper();runtime.lastError=gerr;return out end
+ if not gate then out.status=tostring(gerr):upper();runtime.lastError=gerr;return out end
  out.configured=true
  local current=readGate(gate);if current==nil then current=runtime.feeding==true end
  local desired=current
