@@ -87,6 +87,7 @@ end
 local function renderFleet(e,env)
     prep(e);targets[e.name]={};header(e)
     local list,live,stale,hidden,now=entries(env)
+    put(e,2,4,"VERSION "..tostring(env and env.version or"?"),C.dim)
     local summary="LIVE "..tostring(live).."  STALE "..tostring(stale)
     if hidden>0 then summary=summary.."  HIDDEN "..tostring(hidden)end
     put(e,2,5,summary,stale>0 and C.warn or C.good)
