@@ -17,14 +17,15 @@ local function statusFor(m,t)
  local seen=tonumber(m and m.lastSeen)or 0;local age=math.max(0,t-seen)
  if age<=10000 then return"ONLINE",C.good,age elseif age<=45000 then return"STALE",C.warn,age else return"OFFLINE",C.bad,age end
 end
+local function idLess(a,b)local na,nb=tonumber(a),tonumber(b);if na and nb then return na<nb end;if na then return true end;if nb then return false end;return tostring(a)<tostring(b)end
 local function renderFleet(e,env)
  pcall(e.mon.setTextScale,e.scale);e.mon.setBackgroundColor(C.bg);e.mon.setTextColor(C.text);e.mon.clear();fleetTargets[e.name]={}
  put(e,2,1,"FLEET",C.text);put(e,math.max(2,e.w-6),1,gameTime(),C.dim);rule(e,3)
- local fleet=env and env.state and env.state.fleet or{};local ids={};for id in pairs(fleet or{})do ids[#ids+1]=id end;table.sort(ids,function(a,b)return tonumber(a)and tonumber(b)and tonumber(a)<tonumber(b)or tostring(a)<tostring(b)end)
+ local fleet=env and env.state and env.state.fleet or{};local ids={};for id in pairs(fleet or{})do ids[#ids+1]=id end;table.sort(ids,idLess)
  local t=now();local online,stale,offline=0,0,0;for _,id in ipairs(ids)do local st=statusFor(fleet[id],t);if st=="ONLINE"then online=online+1 elseif st=="STALE"then stale=stale+1 else offline=offline+1 end end
  put(e,2,5,"ON "..online,C.good);put(e,9,5,"STALE "..stale,stale>0 and C.warn or C.dim);put(e,18,5,"OFF "..offline,offline>0 and C.bad or C.dim);rule(e,7)
  local y=9;local targetVersion=tostring(env and env.version or"");local selfId=tostring(env and env.serverId or"")
- for _,id in ipairs(ids)do if y+1>e.h-3 then break end;local m=fleet[id]or{};local st,color,age=statusFor(m,t);local name=upper(m.name or m.role or("PC "..tostring(id)));put(e,2,y,name,C.text);put(e,math.max(2,e.w-#("#"..tostring(id))-1),y,"#"..tostring(id),C.dim);local ver=tostring(m.version or"");local vstat=(ver~=""and targetVersion~=""and ver~=targetVersion)and"UPDATE"or"CURRENT";if st~="ONLINE"then vstat=st end;put(e,2,y+1,st,color);put(e,math.max(2,e.w-#vstat-1),y+1,vstat,vstat=="CURRENT"and C.good or(vstat=="UPDATE"and C.warn or color));if tostring(id)~=selfId then fleetTargets[e.name][#fleetTargets[e.name]+1]={id=id,y1=y,y2=y+1,name=name}end;y=y+3 end
+ for _,id in ipairs(ids)do if y+1>e.h-3 then break end;local m=fleet[id]or{};local st,color=statusFor(m,t);local name=upper(m.name or m.role or("PC "..tostring(id)));put(e,2,y,name,C.text);put(e,math.max(2,e.w-#("#"..tostring(id))-1),y,"#"..tostring(id),C.dim);local ver=tostring(m.version or"");local vstat=(ver~=""and targetVersion~=""and ver~=targetVersion)and"UPDATE"or"CURRENT";if st~="ONLINE"then vstat=st end;put(e,2,y+1,st,color);put(e,math.max(2,e.w-#vstat-1),y+1,vstat,vstat=="CURRENT"and C.good or(vstat=="UPDATE"and C.warn or color));if tostring(id)~=selfId then fleetTargets[e.name][#fleetTargets[e.name]+1]={id=id,y1=y,y2=y+1,name=name}end;y=y+3 end
  if e.h>=3 then put(e,2,e.h-2,fleetMessage~=""and fleetMessage or"TOUCH MACHINE = IDENTIFY",fleetMessage~=""and C.warn or C.dim)end
 end
 function M.init(c)lastEnv,lastMeta=nil,nil;fleetTargets={};fleetMessage="";return base.init(c)end
