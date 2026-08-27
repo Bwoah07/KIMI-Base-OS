@@ -11,6 +11,7 @@ on:
       - 'roles/client_v8.lua'
       - 'roles/node_v5.lua'
       - 'roles/server_v6.lua'
+      - 'roles/server_v7.lua'
       - 'kimi.lua'
       - 'tests/alpha78_real_fleet_heartbeat_smoke.lua'
       - '.github/workflows/alpha78-heartbeat.yml'
@@ -30,6 +31,7 @@ jobs:
           luac5.2 -p roles/client_v8.lua
           luac5.2 -p roles/node_v5.lua
           luac5.2 -p roles/server_v6.lua
+          luac5.2 -p roles/server_v7.lua
           luac5.2 -p tests/alpha78_real_fleet_heartbeat_smoke.lua
       - name: Alpha78 real fleet heartbeat test
         run: lua5.2 tests/alpha78_real_fleet_heartbeat_smoke.lua
