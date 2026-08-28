@@ -37,19 +37,25 @@ elseif choice=="4" then role,profile,localUI="client","pocket",false
 elseif choice=="5" then role,profile,localUI="node","node",false; nodeCfg={publishInterval=2}
 else error("Invalid choice") end
 
+local monitorSetup=hasMonitor() and role~="node" and profile~="pocket"
 local defaultName=(type(os.getComputerLabel)=="function"and os.getComputerLabel())or("KIMI-"..tostring(os.getComputerID()))
-write("Computer name ["..tostring(defaultName).."]: ");local entered=read();local computerName=(entered and entered:match("%S"))and entered or defaultName
-if type(os.setComputerLabel)=="function"then pcall(os.setComputerLabel,computerName)end
+local computerName=defaultName
+if monitorSetup then
+    print("Computer naming + monitor assignment will continue on the touchscreen after install.")
+else
+    write("Computer name ["..tostring(defaultName).."]: ");local entered=read();computerName=(entered and entered:match("%S"))and entered or defaultName
+    if type(os.setComputerLabel)=="function"then pcall(os.setComputerLabel,computerName)end
+end
 
 if not fs.exists(".kimi") then fs.makeDir(".kimi") end
 local cfg={role=role,profile=profile,localUI=localUI,name=computerName,theme={accent="red"},network={protocol="kimi_base_os_v1",hostname="kimi-base"},update={channel="alpha",auto=true,fleetManaged=true,checkOnBoot=true,interval=600},node=nodeCfg}
 local f=assert(fs.open(".kimi/config","w")); f.write(textutils.serialize(cfg)); f.close()
 
-print("\nName: "..computerName)
+print("\nInitial name: "..computerName)
 print("Role: "..role.." / "..profile)
 if localUI then print("Local command-center admin UI: enabled") end
 if role=="server" then print("This machine is the fleet update authority.") else print("Fleet-managed updates: enabled") end
-print("Door setup is separate: run 'door setup' only on computers which actually own a door controller.")
+print("Door setup is separate and can be launched from the touchscreen setup hub.")
 
 print("\nInstalling recovery bootloader...")
 local ok,err=get(RAW.."startup.lua","startup.lua"); if not ok then error("Cannot install recovery bootloader: "..tostring(err)) end
@@ -58,10 +64,9 @@ ok,err=get(RAW.."updater.lua","updater.lua"); if not ok then error("Cannot downl
 print("Installing KIMI OS...")
 local installed=shell.run("updater","force"); if installed==false then error("KIMI OS installation failed") end
 
-if role~="node"and profile~="pocket"and hasMonitor()and fs.exists("setup.lua")then
-    print("\nConfigure attached monitor views now? [Y/n]")
-    write("> ");local answer=tostring(read()or""):lower()
-    if answer==""or answer=="y"or answer=="yes"then shell.run("setup","monitors")end
+if monitorSetup and fs.exists("setup.lua")then
+    print("\nTouchscreen setup is opening on the largest attached monitor.")
+    shell.run("setup")
 end
 
 print("\nInstalled. Rebooting..."); sleep(1); os.reboot()
