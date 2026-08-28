@@ -71,7 +71,8 @@ assert(read("roles/node_v5.lua"):find('roles.node_v4',1,true),"alpha78 node wrap
 assert(read("roles/server_v5.lua"):find('"fleet.identify.ack"',1,true)and read("roles/server_v5.lua"):find("PURGE_MS=86400000",1,true),"server ACK/retention transport incomplete")
 assert(read("roles/client_v7.lua"):find('"fleet.identify.ack"',1,true),"clients do not ACK identify")
 assert(read("roles/node_v4.lua"):find('"fleet.identify.ack"',1,true),"nodes do not ACK identify")
-assert(read("clients/admin.lua"):find("clients.admin_v30",1,true),"admin is not loading working fleet screen")
+assert(read("clients/admin.lua"):find("clients.admin_v31",1,true),"admin is not loading alpha83 UI wrapper")
+assert(read("clients/admin_v31.lua"):find('require("clients.admin_v30")',1,true),"alpha83 UI wrapper lost working v30 fleet screen")
 assert(read("clients/admin_v29.lua"):find("CONFIRMED ID",1,true)and read("clients/admin_v29.lua"):find("OFFLINE - LAST SEEN",1,true),"identify feedback/reachability contract missing")
 assert(read("roles/client_v4.lua"):find('"door.command.direct"',1,true),"alpha70 direct Pocket door path disappeared")
 
