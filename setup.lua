@@ -134,8 +134,9 @@ end
 
 local function drawHome(e,status,dirty)
     local boxes={};local cfg=configModule.load();local map=monitorConfig.load();local name=tostring(cfg.name or((type(os.getComputerLabel)=="function"and os.getComputerLabel())or("KIMI-"..tostring(os.getComputerID()))))
+    local displayId=tostring(cfg.role)=="server"and 1 or os.getComputerID()
     e.mon.setBackgroundColor(C.bg);e.mon.setTextColor(C.text);e.mon.clear()
-    put(e,2,1,"KIMI SETUP",C.text);put(e,2,2,"ID "..tostring(os.getComputerID()).." / "..name:upper(),C.good)
+    put(e,2,1,"KIMI SETUP",C.text);put(e,2,2,"KIMI ID "..tostring(displayId).." / "..name:upper(),C.good)
     put(e,2,3,e.name.." = "..monitorConfig.get(map,e.name):upper(),C.dim)
     local x1,x2=2,e.w-2;local top=5;local gap=1;local bottom=e.h-3
     local available=math.max(4,bottom-top);local bh=math.max(1,math.min(3,math.floor((available-3*gap)/4)))
