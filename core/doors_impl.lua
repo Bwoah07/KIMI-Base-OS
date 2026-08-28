@@ -32,10 +32,17 @@ end
 
 local function saveDoors(v)
     if not ensureRoot() then return false end
-    local tmp=LOCAL_PATH..".tmp"
-    local f=assert(fs.open(tmp,"w")); f.write(textutils.serialize(v or {})); f.close()
-    if fs.exists(LOCAL_PATH) and not fs.isDir(LOCAL_PATH) then fs.delete(LOCAL_PATH) end
-    fs.move(tmp,LOCAL_PATH)
+    local serialized=textutils.serialize(v or {})
+    if type(fs.move)=="function" and type(fs.delete)=="function" then
+        local tmp=LOCAL_PATH..".tmp"
+        local f=assert(fs.open(tmp,"w")); f.write(serialized); f.close()
+        if fs.exists(LOCAL_PATH) and not fs.isDir(LOCAL_PATH) then fs.delete(LOCAL_PATH) end
+        fs.move(tmp,LOCAL_PATH)
+    else
+        -- Test/minimal-fs compatibility and a safe fallback for unusual CC
+        -- environments. Normal CC:Tweaked installs take the atomic path above.
+        local f=assert(fs.open(LOCAL_PATH,"w")); f.write(serialized); f.close()
+    end
     return true
 end
 
@@ -108,14 +115,8 @@ end
 local function controllerSides(c)
     if not c or (c.kind~="digital_side" and c.kind~="analog_side") then return {} end
     local typ=normalizedType(c.type)
-    -- CC:Tweaked Redstone Relay is computer-relative only.
     if typ=="redstonerelay" then return relativeSides end
-    -- Advanced Peripherals' Redstone Integrator accepts both relative and
-    -- cardinal/world directions. Keep both so old saved KIMI doors continue to
-    -- work while new setups can use the simpler relative vocabulary too.
     if typ=="redstoneintegrator" then return integratorSides end
-    -- Preserve compatibility for older/other actuator peripherals which KIMI
-    -- historically addressed with world/cardinal directions.
     return cardinalSides
 end
 
