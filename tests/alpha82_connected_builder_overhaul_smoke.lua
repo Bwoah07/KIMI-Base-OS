@@ -38,8 +38,9 @@ clock=140000
 local second=builder.read(first).builders[1]
 assert(second.stalled==true and second.status=="STALLED"and second.issue=="NO PROGRESS","running Builder stall detection failed")
 
--- A machine with a Builder but no door must route to the Builder dashboard,
--- while an empty new wall computer retains the initial door wizard.
+-- Historical Alpha82 wall behavior remains loadable for compatibility: a
+-- Builder must never be hijacked by the old door wizard. Production Alpha83
+-- routes clients through room_v18, where door setup is explicit-only.
 local calls={setup=0,normal=0,builder=0}
 package.loaded["clients.room_v15"]={init=function()end,render=function()calls.setup=calls.setup+1 end}
 package.loaded["clients.room_v16"]={init=function()end,render=function()calls.normal=calls.normal+1 end}
@@ -49,7 +50,7 @@ local room=assert(loadfile("clients/room_v17.lua"))();room.init({})
 room.render({}, {localState={doors={localDoors={}},builder={builders={{peripheral="reader"}}}}})
 assert(calls.builder==1 and calls.setup==0,"Builder wall node was still hijacked by door setup")
 room.render({}, {localState={doors={localDoors={}},builder={builders={}}}})
-assert(calls.setup==1,"fresh empty wall computer lost door setup")
+assert(calls.setup==1,"historical room_v17 compatibility behavior changed unexpectedly")
 
 -- Three-monitor Command Center defaults the shared operations monitor to the
 -- Builder and switches to Fleet immediately when the on-screen button is hit.
@@ -67,7 +68,7 @@ peripheral={getNames=function()return{"main","power","ops"}end,getType=function(
 term={setBackgroundColor=function()end,setTextColor=function()end,clear=function()end,setCursorPos=function()end,write=function()end}
 os.getComputerLabel=function()return"MAIN BASE"end;os.getComputerID=function()return 1 end;os.time=function()return 8.5 end;os.startTimer=function()return 1 end;os.cancelTimer=function()end;os.epoch=function()return 200000 end
 package.loaded["clients.builder_dashboard"]=nil
-for _,name in ipairs({"clients.admin_v12","clients.admin_v13","clients.admin_v14","clients.admin_v15","clients.admin_v16","clients.admin_v17","clients.admin_v18","clients.admin_v19","clients.admin_v20","clients.admin_v21","clients.admin_v22","clients.admin_v23","clients.admin_v24","clients.admin_v25","clients.admin_v26","clients.admin_v27","clients.admin_v28","clients.admin_v29","clients.admin_v30","clients.admin"})do package.loaded[name]=nil end
+for _,name in ipairs({"clients.admin_v12","clients.admin_v13","clients.admin_v14","clients.admin_v15","clients.admin_v16","clients.admin_v17","clients.admin_v18","clients.admin_v19","clients.admin_v20","clients.admin_v21","clients.admin_v22","clients.admin_v23","clients.admin_v24","clients.admin_v25","clients.admin_v26","clients.admin_v27","clients.admin_v28","clients.admin_v29","clients.admin_v30","clients.admin_v31","clients.manual_dashboard","clients.admin"})do package.loaded[name]=nil end
 local admin=assert(loadfile("clients/admin.lua"))();admin.init({name="MAIN BASE"})
 local adminEnv={serverId=1,version="5.0.0-alpha.82",state={fleet={[1]={lastSeen=200000,name="MAIN BASE",role="server"}},power={matrices={},fluxNetworks={}},builder={builders={{peripheral="reader",running=true,progress=42,processed=42,total=100,remaining=58,_telemetryStatus="LIVE"}}}}}
 admin.render(adminEnv,{localServer=true})
@@ -83,10 +84,11 @@ assert(server:find("nextUpdateOffer",1,true)and server:find("updateAttempts",1,t
 assert(server:find("lastFleetSave",1,true)and server:find("FLEET_PROBE_MS=30000",1,true),"fleet registry/probe batching missing")
 local client=read("roles/client.lua")
 assert(client:find("SERVER_REPLY_MS=15000",1,true)and client:find("connectionAgeMs",1,true),"client connection truth timeout missing")
-local admin=read("clients/admin_v29.lua")
-assert(admin:find("CACHED DATA IS DISPLAY ONLY",1,true)and admin:find("plannedBuilderMonitor",1,true)and admin:find('sharedView=="BUILDER"',1,true),"adaptive Command Center Builder/telemetry UI missing")
+local admin29=read("clients/admin_v29.lua")
+assert(admin29:find("CACHED DATA IS DISPLAY ONLY",1,true)and admin29:find("plannedBuilderMonitor",1,true)and admin29:find('sharedView=="BUILDER"',1,true),"adaptive Command Center Builder/telemetry UI missing")
 local manifest=read("manifest.json")
 assert(manifest:find("core/telemetry_health.lua",1,true)and manifest:find("clients/builder_dashboard.lua",1,true),"Alpha82 files are not update-managed")
-assert(read("version.txt"):find("5.0.0-alpha.82",1,true),"Alpha82 version was not bumped")
+local version=read("version.txt");local alpha=tonumber(version:match("alpha%.(%d+)"))
+assert(alpha and alpha>=82,"current release regressed below Alpha82")
 
 print("alpha82 connected Builder overhaul smoke test OK")
