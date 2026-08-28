@@ -30,8 +30,12 @@ assert(st=="LATE"and age==10000,"strict reachability lost LATE state")
 st,age=h.reachability(10,{lastSeen=now-20000},7,now)
 assert(st=="OFFLINE"and age==20000,"strict reachability still lies about dead machines")
 
+-- Alpha83 adds a manual-monitor overlay, but the truthful fleet UI must remain
+-- in the inheritance chain: admin -> v31 -> v30 -> v29.
 local f=assert(io.open("clients/admin.lua","r"));local admin=f:read("*a");f:close()
-assert(admin:find("clients.admin_v30",1,true),"admin profile lost current fleet UI lineage")
+assert(admin:find("clients.admin_v31",1,true),"admin profile lost current alpha83 UI lineage")
+local f31=assert(io.open("clients/admin_v31.lua","r"));local v31=f31:read("*a");f31:close()
+assert(v31:find('require("clients.admin_v30")',1,true),"v31 stopped inheriting truthful fleet UI")
 local f2=assert(io.open("clients/admin_v25.lua","r"));local overlay=f2:read("*a");f2:close()
 assert(overlay:find("health.status",1,true),"historical fleet overlay lineage lost shared health policy")
 assert(overlay:find("serverId",1,true),"fleet overlay lost Main Server identity handling")
