@@ -1,7 +1,7 @@
 {
-  "version": "5.0.0-alpha.86",
+  "version": "5.0.0-alpha.87",
   "channel": "alpha",
-  "ref": "f49ad72401b5e6cd9f065d210330d39ea0cde99d",
+  "ref": "57d8aadda66874cf61c5d8303c83d3328f0db9d6",
   "entrypoint": "kimi.lua",
   "managed": [
     "startup.lua",
@@ -21,6 +21,7 @@
     "core/telemetry_health.lua",
     "core/fleet_truth.lua",
     "core/fleet_identity.lua",
+    "core/fleet_display.lua",
     "core/module_loader.lua",
     "core/network.lua",
     "core/monitor_config.lua",
@@ -96,6 +97,7 @@
     "modules/builder.lua",
     "modules/attachments.lua",
     "modules/doors.lua",
+    "modules/fleet_admin.lua",
     "modules/remote_doors.lua",
     "modules/remote_doors_async.lua"
   ],

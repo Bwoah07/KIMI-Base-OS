@@ -61,6 +61,6 @@ assert(fleet.output():find("FLEET / IDENTIFY",1,true)and fleet.output():find("OF
 assert(weather.output():find("ENVIRONMENT / WEATHER",1,true)and weather.output():find("-- O --",1,true),"sun animation/weather dashboard missing")
 local extras=s1.output().."\n"..s2.output().."\n"..s3.output();assert(extras:find("AE2 NETWORK",1,true),"AE2 did not get a monitor");assert(extras:find("BUILDER / QUARRY",1,true)and extras:find("ETA 1m 05s",1,true),"Builder dashboard/ETA missing");assert(extras:find("SENSOR",1,true),"remaining monitor was not used for sensors")
 local called={};admin.handleEvent({"monitor_touch","fleet",5,13},env,function(module,action,args)called={module=module,action=action,args=args};return{ok=true}end)
-assert(called.module==nil,"OFFLINE fleet row was incorrectly treated as reachable for identify")
-assert(fleet.output():find("OFFLINE",1,true)and fleet.output():find("LAST SEEN",1,true),"offline identify touch did not explain reachability state")
+assert(called.module==nil,"OFFLINE fleet row was incorrectly treated as reachable or deleted on first tap")
+assert(fleet.output():find("OFFLINE",1,true)and fleet.output():find("AGAIN TO FORGET",1,true),"offline fleet touch did not preserve reachability truth + two-tap cleanup")
 realPrint("alpha73 base nervous system smoke test OK")

@@ -1,4 +1,5 @@
 local monitorConfig = require("core.monitor_config")
+local fleetDisplay = require("core.fleet_display")
 local builderUI = require("clients.builder_dashboard")
 
 local M = {}
@@ -6,6 +7,8 @@ local config = { assignments = {} }
 local targets = {}
 local builderPages = {}
 local lastEnv, lastMeta
+local fleetForgetRequest=nil
+local fleetMessage=""
 
 local C = {
     bg=colors.black, text=colors.white, dim=colors.lightGray,
@@ -197,16 +200,15 @@ end
 
 local function renderFleet(e,env)
     prep(e); header(e,"FLEET / IDENTIFY"); targets[e.name]={}
-    local fleet=state(env).fleet or {}; local rows={}
-    for id,m in pairs(fleet) do rows[#rows+1]={id=id,m=m or {}} end
-    table.sort(rows,function(a,b)return tostring(a.m.name or a.id)<tostring(b.m.name or b.id)end)
-    put(e,2,5,"TOUCH ONLINE ROW TO IDENTIFY",C.dim); local y=7
+    local fleet=state(env).fleet or {}; local rows=fleetDisplay.rows(fleet,env and env.serverId)
+    put(e,2,5,fleetMessage~="" and fleetMessage or "ONLINE: IDENTIFY / OFFLINE: TAP TWICE TO FORGET",fleetMessage~="" and C.warn or C.dim); local y=7
     for _,r in ipairs(rows) do
         if y+1>e.h then break end
-        local status=upper(r.m.presence or(r.m.online==true and"ONLINE"or"OFFLINE")); local fg=status=="ONLINE"and C.good or(status=="LATE"and C.warn or C.bad)
-        put(e,2,y,"ID "..tostring(r.id).." "..upper(r.m.name or r.m.role or"KIMI"),C.text); put(e,math.max(2,e.w-#status-1),y,status,fg)
+        local main=r.main; local status=main and"MAIN"or upper(r.m.presence or(r.m.online==true and"ONLINE"or"OFFLINE")); local fg=(status=="ONLINE"or status=="MAIN")and C.good or(status=="LATE"and C.warn or C.bad)
+        local displayId=r.displayId or r.transportId
+        put(e,2,y,"ID "..tostring(displayId).." "..upper(r.m.name or r.m.role or"KIMI"),C.text); put(e,math.max(2,e.w-#status-1),y,status,fg)
         put(e,2,y+1,upper(r.m.role or"?").."  "..tostring(r.m.version or"?"),C.dim)
-        if status=="ONLINE" and tostring(r.id)~=tostring(env and env.serverId) then reg(e.name,2,y,e.w-2,y+1,{kind="identify",id=r.id}) end
+        if not main then reg(e.name,2,y,e.w-2,y+1,{kind="fleet",id=r.transportId,displayId=displayId,status=status}) end
         y=y+3
     end
 end
@@ -269,7 +271,7 @@ function M.reload()
     return config
 end
 function M.init()
-    targets={}; builderPages={}; lastEnv,lastMeta=nil,nil; M.reload()
+    targets={}; builderPages={}; fleetForgetRequest=nil;fleetMessage="";lastEnv,lastMeta=nil,nil; M.reload()
 end
 function M.hasManualAssignments()
     for _,view in pairs(config.assignments or {}) do if monitorConfig.normalizeView(view)~="auto" then return true end end
@@ -302,6 +304,20 @@ function M.handleEvent(ev,env,action)
         local args={source=source,_source=source,target=d.target,side=d.side,id=d.id,key=d.key}
         local module=tostring(source)==tostring(os.getComputerID()) and"__local_doors"or"remote_doors_async"
         pcall(action,module,cmd,args)
+    elseif t.kind=="fleet" then
+        if t.status=="OFFLINE" then
+            local stamp=now()
+            if fleetForgetRequest and tostring(fleetForgetRequest.id)==tostring(t.id) and stamp-fleetForgetRequest.at<=6000 then
+                fleetForgetRequest=nil
+                local ok,res=pcall(action,"fleet_admin","forget",{id=t.id})
+                if ok and(type(res)~="table"or res.ok~=false)then fleetMessage="FORGETTING ID "..tostring(t.displayId).." - REBOOTING..."else fleetMessage="FORGET FAILED -> ID "..tostring(t.displayId)end
+            else
+                fleetForgetRequest={id=t.id,at=stamp};fleetMessage="TAP ID "..tostring(t.displayId).." AGAIN TO FORGET"
+            end
+        else
+            fleetForgetRequest=nil;fleetMessage=""
+            pcall(action,"server","identify",{id=t.id,duration=10})
+        end
     elseif t.kind=="identify" then
         pcall(action,"server","identify",{id=t.id,duration=10})
     elseif t.kind=="builder_prev" or t.kind=="builder_next" then
