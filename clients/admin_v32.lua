@@ -1,9 +1,8 @@
--- Alpha86 exclusive manual-screen authority.
--- Pinned monitors are hidden from the legacy adaptive renderer while it paints,
--- then rendered by the manual dashboard. This prevents adaptive pages from
--- stealing a screen back after setup selected a fixed view such as DOORS.
+-- Alpha88 hard manual-screen authority.
+-- A pinned monitor is hidden from every legacy/adaptive lifecycle path,
+-- including init, and the manual dashboard reloads its saved mapping live.
 local base=require("clients.admin_v30")
-local manual=require("clients.manual_dashboard")
+local manual=require("clients.manual_dashboard_v2")
 local authority=require("core.monitor_authority")
 local M={}
 for k,v in pairs(base)do M[k]=v end
@@ -13,7 +12,9 @@ local lastEnv,lastMeta
 function M.init(cfg)
     lastEnv,lastMeta=nil,nil
     manual.init(cfg)
-    if base.init then return base.init(cfg)end
+    if base.init then
+        return authority.withAutomaticMonitorsHidden(function()return base.init(cfg)end)
+    end
 end
 
 function M.render(env,meta)
