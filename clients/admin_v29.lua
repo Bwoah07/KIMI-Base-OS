@@ -142,7 +142,7 @@ function M.handleEvent(ev,env,action)
      if forgetRequest and sameId(forgetRequest.id,t.id)and stamp-forgetRequest.at<=6000 then
       local ok,res=pcall(action,"fleet_admin","forget",{id=t.id})
       forgetRequest=nil
-      if ok and(not type(res)=="table"or res.ok~=false)then localMessage="FORGETTING ID "..tostring(t.displayId).." - REBOOTING..."else localMessage="FORGET FAILED -> ID "..tostring(t.displayId)end
+      if ok and(type(res)~="table"or res.ok~=false)then localMessage="FORGETTING ID "..tostring(t.displayId).." - REBOOTING..."else localMessage="FORGET FAILED -> ID "..tostring(t.displayId)end
      else
       forgetRequest={id=t.id,at=stamp};localMessage="TAP ID "..tostring(t.displayId).." AGAIN TO FORGET"
      end
