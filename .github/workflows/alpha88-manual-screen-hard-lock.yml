@@ -1,0 +1,32 @@
+name: Alpha88 Manual Screen Hard Lock Checks
+
+on:
+  push:
+    branches:
+      - feature/alpha88-main-id1-headless
+    paths:
+      - '**/*.lua'
+      - 'manifest.json'
+      - 'version.txt'
+      - '.github/workflows/alpha88-manual-screen-hard-lock.yml'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  alpha88-manual-screen-hard-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Lua 5.2
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.2
+
+      - name: Syntax check Lua files
+        run: find . -name '*.lua' -not -path './mods/*' -print0 | xargs -0 -n1 luac5.2 -p
+
+      - name: Alpha88 live manual-screen hard-lock regression
+        run: lua5.2 tests/alpha88_manual_screen_hard_lock_smoke.lua

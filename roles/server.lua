@@ -306,7 +306,7 @@ function M.run(cfg)
         return true
     end
 
-    print("KIMI Base Server online - ID "..selfId)
+    print("KIMI Base Server online - KIMI ID 1")
     print("Version: "..updates.localVersion())
     print("Modules: "..tostring(countTable(modules)))
     if cfg.localUI then print("Command-center admin UI: enabled") end
