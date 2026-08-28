@@ -28,21 +28,23 @@ local env={serverId=7,version="5.0.0-alpha.81",state={fleet={
 assert(admin.render(env,{})~=false,"admin render failed")
 local out=fleet.output()
 assert(out:find("FLEET / IDENTIFY",1,true),"fleet screen missing")
-assert(out:find("ID 9 OUTDOOR SENSORS",1,true)and out:find("ONLINE",1,true),"fresh heartbeat is not shown ONLINE")
-assert(out:find("ID 10 UPPER DOOR",1,true)and out:find("OFFLINE",1,true),"dead machine disappeared or stayed falsely green")
-assert(out:find("ID 11 KIMI-11",1,true),"remembered sleeping infrastructure disappeared from operational list")
+-- Alpha87 hides raw CC transport IDs. Main is KIMI ID 1 and the remembered
+-- remotes are displayed 2/3/4, while actions still target CC 9/10/11.
+assert(out:find("ID 2 OUTDOOR SENSORS",1,true)and out:find("ONLINE",1,true),"fresh heartbeat is not shown ONLINE under logical KIMI ID")
+assert(out:find("ID 3 UPPER DOOR",1,true)and out:find("OFFLINE",1,true),"dead machine disappeared or stayed falsely green")
+assert(out:find("ID 4 KIMI-11",1,true),"remembered sleeping infrastructure disappeared from operational list")
 assert(not out:find("VERIFY",1,true)and not out:find("GHOST",1,true)and not out:find("HIDDEN",1,true),"fleet archaeology labels leaked back into the operational screen")
 
 local called=nil
 local function action(module,verb,args)called={module=module,verb=verb,id=args and args.id};return{ok=true}end
 assert(admin.handleEvent({"monitor_touch","fleet",5,12},env,action)==true,"fleet touch not handled")
-assert(called and called.module=="server"and called.verb=="identify"and called.id==9,"touch did not identify the genuinely online target")
+assert(called and called.module=="server"and called.verb=="identify"and called.id==9,"logical KIMI ID did not preserve physical identify target")
 _G.kimiIdentifyAck={["9"]={at=now+1,name="Outdoor Sensors"}};now=now+500;admin.render(env,{});out=fleet.output()
-assert(out:find("CONFIRMED ID 9 FLASHING",1,true),"real identify ACK is not surfaced");_G.kimiIdentifyAck=nil
+assert(out:find("CONFIRMED ID 2 FLASHING",1,true),"real identify ACK is not surfaced under logical KIMI ID");_G.kimiIdentifyAck=nil
 called=nil
 assert(admin.handleEvent({"monitor_touch","fleet",5,15},env,action)==true,"offline fleet touch not handled")
-assert(called==nil,"offline remembered machine incorrectly received identify command")
-assert(fleet.output():find("OFFLINE",1,true),"offline feedback disappeared")
+assert(called==nil,"offline remembered machine incorrectly received identify/delete on first tap")
+assert(fleet.output():find("OFFLINE",1,true)and fleet.output():find("AGAIN TO FORGET",1,true),"offline cleanup confirmation disappeared")
 
 local function read(path)local f=assert(io.open(path,"r"));local s=f:read("*a");f:close();return s end
 local kimi=read("kimi.lua")
@@ -56,7 +58,8 @@ assert(read("roles/client_v7.lua"):find('"fleet.identify.ack"',1,true),"clients 
 assert(read("roles/node_v4.lua"):find('"fleet.identify.ack"',1,true),"nodes do not ACK identify")
 assert(read("clients/admin.lua"):find("clients.admin_v32",1,true),"admin is not loading current UI wrapper")
 local v32=read("clients/admin_v32.lua");assert(v32:find('require("clients.admin_v30")',1,true)and v32:find("core.monitor_authority",1,true),"current UI wrapper lost working v30 fleet screen or monitor authority")
-assert(read("clients/admin_v29.lua"):find("CONFIRMED ID",1,true)and read("clients/admin_v29.lua"):find("OFFLINE - LAST SEEN",1,true),"identify feedback/reachability contract missing")
+local current=read("clients/admin_v29.lua")
+assert(current:find("CONFIRMED ID",1,true)and current:find("AGAIN TO FORGET",1,true)and current:find('"fleet_admin","forget"',1,true),"identify/offline cleanup contract missing")
 assert(read("roles/client_v4.lua"):find('"door.command.direct"',1,true),"alpha70 direct Pocket door path disappeared")
 
 realPrint("alpha77 working fleet identify smoke test OK")
