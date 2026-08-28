@@ -1,9 +1,9 @@
--- Alpha86 wall-client exclusive manual-screen authority.
--- A monitor pinned by setup is removed from automatic wall/Builder planning
--- while those legacy renderers run, then painted by the manual dashboard.
+-- Alpha88 wall-client hard manual-screen authority.
+-- Pinned monitors are hidden from automatic wall/Builder code for the complete
+-- lifecycle, while the manual dashboard reloads saved assignments live.
 local normal=require("clients.room_v16")
 local builder=require("clients.builder_dashboard")
-local manual=require("clients.manual_dashboard")
+local manual=require("clients.manual_dashboard_v2")
 local authority=require("core.monitor_authority")
 local M={}
 
@@ -13,9 +13,11 @@ local function localBuilders(meta)
 end
 
 function M.init(cfg)
-    if normal.init then normal.init(cfg)end
-    if builder.init then builder.init(cfg)end
     manual.init(cfg)
+    authority.withAutomaticMonitorsHidden(function()
+        if normal.init then normal.init(cfg)end
+        if builder.init then builder.init(cfg)end
+    end)
 end
 
 function M.render(env,meta)
@@ -29,8 +31,10 @@ function M.render(env,meta)
 end
 
 function M.onState(state)
-    if normal.onState then pcall(normal.onState,state)end
-    if builder.onState then pcall(builder.onState,state)end
+    authority.withAutomaticMonitorsHidden(function()
+        if normal.onState then pcall(normal.onState,state)end
+        if builder.onState then pcall(builder.onState,state)end
+    end)
 end
 
 function M.onPeripheralChange(...)
