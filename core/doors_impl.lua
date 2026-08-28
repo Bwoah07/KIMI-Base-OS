@@ -4,6 +4,7 @@ local ROOT = ".kimi"
 local LOCAL_PATH = ROOT .. "/local_doors"
 local relativeSides = {"top","bottom","left","right","front","back"}
 local cardinalSides = {"north","south","east","west","up","down"}
+local integratorSides = {"top","bottom","left","right","front","back","north","south","east","west","up","down"}
 
 local function key(target, side) return tostring(target or "") .. "|" .. tostring(side or "") end
 local function has(list, value) for _,v in ipairs(list or {}) do if v==value then return true end end return false end
@@ -107,13 +108,22 @@ end
 local function controllerSides(c)
     if not c or (c.kind~="digital_side" and c.kind~="analog_side") then return {} end
     local typ=normalizedType(c.type)
-    -- CC:Tweaked Redstone Relay is computer-relative only. Advanced
-    -- Peripherals' Redstone Integrator accepts relative sides too, so prefer
-    -- one stable vocabulary for both common KIMI door controllers.
-    if typ=="redstonerelay" or typ=="redstoneintegrator" then return relativeSides end
+    -- CC:Tweaked Redstone Relay is computer-relative only.
+    if typ=="redstonerelay" then return relativeSides end
+    -- Advanced Peripherals' Redstone Integrator accepts both relative and
+    -- cardinal/world directions. Keep both so old saved KIMI doors continue to
+    -- work while new setups can use the simpler relative vocabulary too.
+    if typ=="redstoneintegrator" then return integratorSides end
     -- Preserve compatibility for older/other actuator peripherals which KIMI
     -- historically addressed with world/cardinal directions.
     return cardinalSides
+end
+
+local function controllerSideModel(c)
+    local typ=normalizedType(c and c.type)
+    if typ=="redstonerelay" then return "relative" end
+    if typ=="redstoneintegrator" then return "relative+cardinal" end
+    return "cardinal"
 end
 
 local function controllers()
@@ -127,7 +137,7 @@ local function controllers()
                 if c then
                     c.channels={}
                     if c.kind=="digital_side" or c.kind=="analog_side" then
-                        c.sideModel=(controllerSides(c)==relativeSides) and "relative" or "cardinal"
+                        c.sideModel=controllerSideModel(c)
                         for _,side in ipairs(controllerSides(c)) do
                             local o,orx=peripheralOutput(name,c.methods,side)
                             local i,ir=peripheralInput(name,c.methods,side)
@@ -256,6 +266,7 @@ function M.handleCommand(action,args)
         local saved=loadDoors(); local d=findSaved(saved,target,side); if not d then error("local door is not configured") end
         d.mode=normalizeMode(args.mode or d.mode)
         d.pulseSeconds=math.max(.05,math.min(5,tonumber(args.pulseSeconds) or tonumber(d.pulseSeconds) or .5))
+        if args.name~=nil then local n=tostring(args.name); if n:match("%S") then d.name=n end end
         if args.feedbackSide~=nil then local f=tostring(args.feedbackSide); d.feedbackSide=(f=="" or f=="none") and nil or f end
         if args.feedbackInvert~=nil then d.feedbackInvert=args.feedbackInvert==true end
         saveDoors(saved); return d
