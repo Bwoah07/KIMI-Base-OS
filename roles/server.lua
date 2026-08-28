@@ -4,6 +4,7 @@ local loader = require("core.module_loader")
 local updates = require("core.update_service")
 local doorRegistry = require("core.door_registry")
 local fleetRegistry = require("core.fleet_registry")
+local fleetHealth = require("core.fleet_health")
 
 local function countTable(t) local n=0; for _ in pairs(t or {}) do n=n+1 end; return n end
 local function loadProfile(name)
@@ -31,7 +32,7 @@ local function moduleValues(localState,sources,moduleId)
     local out={}
     if type(localState and localState[moduleId])=="table" then out[#out+1]={sourceId="server",value=localState[moduleId]} end
     for sourceId,source in pairs(sources or {}) do
-        local value=source.online~=false and source.state and source.state[moduleId] or nil
+        local value=source.online==true and source.state and source.state[moduleId] or nil
         if type(value)=="table" then out[#out+1]={sourceId=tostring(sourceId),value=value} end
     end
     table.sort(out,function(a,b)return tostring(a.sourceId)<tostring(b.sourceId)end)
@@ -79,7 +80,7 @@ end
 local function canonicalState(localState,sources,machines,updateInfo,doorEntries)
     local combined=copyTable(localState); local selected={}
     for sourceId,source in pairs(sources or {}) do
-        if source.online~=false then
+        if source.online==true then
             for moduleId,value in pairs(source.state or {}) do
                 if type(value)=="table" then
                     local candidate={stamp=tonumber(value._updated) or tonumber(source.generated) or 0,value=value,sourceId=sourceId}
@@ -105,6 +106,17 @@ local function makeEnvelope(localState,sources,machines,updateInfo,doorEntries)
     return {schema=3,serverId=os.getComputerID(),version=updates.localVersion(),generated=os.epoch("utc"),state=canonicalState(localState,sources,machines,updateInfo,doorEntries)}
 end
 
+local function applyReachability(id,record,serverId,now,seen)
+    record=record or{}
+    local probe={lastSeen=tonumber(seen) or tonumber(record.lastSeen),ageMs=record.ageMs}
+    local status,age=fleetHealth.reachability(id,probe,serverId,now)
+    record.ageMs=age
+    record.presence=status
+    record.stale=status=="LATE"
+    record.online=status=="ONLINE"
+    return status,age
+end
+
 function M.run(cfg)
     network.host(cfg)
     local modules=loader.discover("modules")
@@ -115,8 +127,8 @@ function M.run(cfg)
     local lastModuleScan=os.epoch("utc")
     local startedAt=os.epoch("utc")
     local selfId=os.getComputerID()
-    machines[selfId]={firstSeen=startedAt,lastSeen=startedAt,role="server",name=cfg.name,profile="admin",version=updates.localVersion(),online=true,stale=false,updateStatus="current"}
-    for id,m in pairs(machines) do if tonumber(id)~=selfId then m.online=false;m.stale=false end end
+    machines[selfId]={firstSeen=startedAt,lastSeen=startedAt,role="server",name=cfg.name,profile="admin",version=updates.localVersion(),online=true,stale=false,presence="ONLINE",updateStatus="current"}
+    for id,m in pairs(machines) do if tonumber(id)~=selfId then m.online=false;m.stale=false;m.presence="OFFLINE" end end
     fleetRegistry.save(machines)
 
     local updateInfo={authority=selfId,lastCheck=nil,lastResult="not checked",remoteVersion=nil,targetVersion=nil,fleetTarget=updates.localVersion(),fleetCurrent=1,fleetOutdated=0,fleetOffline=0,lastSync=nil,syncResult="discovering fleet",discovered=0}
@@ -140,7 +152,7 @@ function M.run(cfg)
         local sourceId=args._source
         if sourceId and tostring(sourceId)~="server" and tostring(sourceId)~=tostring(selfId) then
             local targetId=tonumber(sourceId); local source=targetId and sources[tostring(targetId)] or nil
-            if not targetId or not source or source.online==false then return {ok=false,error="target telemetry node is offline",module=moduleId} end
+            if not targetId or not source or source.online~=true then return {ok=false,error="target telemetry node is offline",module=moduleId} end
             local sent=network.send(targetId,cfg,"module.command",{module=moduleId,action=action,args=args,issuedBy=selfId})
             return {ok=sent==true,result={queued=sent==true,sourceId=targetId},module=moduleId}
         end
@@ -157,7 +169,7 @@ function M.run(cfg)
     local function requestScadaUpdates(reason)
         local requested,skipped=0,0
         for sourceId,source in pairs(sources) do
-            if source.online~=false and source.role=="scada" then
+            if source.online==true and source.role=="scada" then
                 local needs=false
                 for _,value in pairs(source.state or {}) do if type(value)=="table" and value.updateAvailable==true then needs=true; break end end
                 if needs then
@@ -181,11 +193,13 @@ function M.run(cfg)
     local function touchMachine(sender,payload,defaultRole)
         sender=tonumber(sender) or sender
         local now=os.epoch("utc"); local m=machines[sender] or {firstSeen=now}
-        m.lastSeen=now; m.online=true; m.stale=false; m.ageMs=0
+        m.lastSeen=now; m.online=true; m.stale=false; m.presence="ONLINE"; m.ageMs=0
         m.role=payload and payload.role or m.role or defaultRole or "client"
         m.name=payload and payload.name or m.name or ("KIMI-"..tostring(sender))
         m.profile=payload and payload.profile or m.profile
         m.version=payload and payload.version or m.version
+        local source=sources[tostring(sender)]
+        if source then source.lastHeartbeat=now end
         machines[sender]=m; offerCatchup(sender,m); saveFleet(); return m
     end
 
@@ -208,9 +222,9 @@ function M.run(cfg)
         probeFleet()
         local target=updates.localVersion(); local current,outdated,offline,notified=0,0,0,0
         for id,machine in pairs(machines) do
-            if tonumber(id)==selfId then current=current+1; machine.online=true;machine.stale=false; machine.version=target; machine.updateStatus="current"
+            if tonumber(id)==selfId then current=current+1; machine.online=true;machine.stale=false;machine.presence="ONLINE"; machine.version=target; machine.updateStatus="current"
             elseif machine.role~="scada" then
-                if machine.online==false then offline=offline+1
+                if machine.online~=true then offline=offline+1
                 elseif machine.version==target then current=current+1; machine.updateTarget=nil; machine.updateStatus="current"
                 else
                     outdated=outdated+1
@@ -260,8 +274,12 @@ function M.run(cfg)
         if e[1]=="timer" and e[2]==refreshTimer then
             state=loader.readAll(modules,state); local now=os.epoch("utc")
             if now-lastModuleScan>=10000 then modules=loader.discover("modules"); lastModuleScan=now end
-            for id,m in pairs(machines) do if tonumber(id)~=selfId then local age=now-(tonumber(m.lastSeen)or 0);m.ageMs=age;m.stale=age>10000 and age<=45000;m.online=age<=45000 end end
-            for _,s in pairs(sources) do local age=now-(tonumber(s.lastSeen)or 0);s.ageMs=age;s.stale=age>10000 and age<=45000;s.online=age<=45000 end
+            for id,m in pairs(machines) do
+                if tonumber(id)~=selfId then applyReachability(id,m,selfId,now,m.lastSeen) end
+            end
+            for id,s in pairs(sources) do
+                applyReachability(id,s,selfId,now,s.lastHeartbeat or s.lastSeen)
+            end
             renderLocal(); refreshTimer=os.startTimer(0.5)
 
         elseif e[1]=="timer" and e[2]==probationTimer then
@@ -282,7 +300,8 @@ function M.run(cfg)
                 elseif msg.kind=="state.get" then touchMachine(sender,payload,"client"); network.send(sender,cfg,"state",env())
                 elseif msg.kind=="telemetry.state" or msg.kind=="node.state" then
                     local m=touchMachine(sender,payload,msg.kind=="node.state" and "node" or "client")
-                    sources[tostring(sender)]={sourceId=payload.sourceId or payload.nodeId or sender,role=payload.role or m.role,name=payload.name or m.name,profile=payload.profile or m.profile,version=payload.version or m.version,generated=payload.generated,lastSeen=os.epoch("utc"),online=true,stale=false,state=payload.state or {}}
+                    local seen=os.epoch("utc")
+                    sources[tostring(sender)]={sourceId=payload.sourceId or payload.nodeId or sender,role=payload.role or m.role,name=payload.name or m.name,profile=payload.profile or m.profile,version=payload.version or m.version,generated=payload.generated,lastSeen=seen,lastHeartbeat=seen,online=true,stale=false,presence="ONLINE",state=payload.state or {}}
                 elseif msg.kind=="ping" then touchMachine(sender,payload,payload.role or "client"); network.send(sender,cfg,"pong",{serverId=selfId,version=updates.localVersion()})
                 elseif msg.kind=="command" then
                     touchMachine(sender,payload,"client"); local result
