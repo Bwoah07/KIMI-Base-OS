@@ -1,0 +1,32 @@
+name: Alpha84 Full Touch Setup Checks
+
+on:
+  push:
+    branches:
+      - feature/alpha84-full-touch-setup
+    paths:
+      - '**/*.lua'
+      - 'manifest.json'
+      - 'version.txt'
+      - '.github/workflows/alpha84-touch-setup.yml'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  alpha84-touch-setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Lua 5.2
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.2
+
+      - name: Syntax check Lua files
+        run: find . -name '*.lua' -not -path './mods/*' -print0 | xargs -0 -n1 luac5.2 -p
+
+      - name: Alpha84 full touchscreen setup regression test
+        run: lua5.2 tests/alpha84_full_touch_setup_smoke.lua
