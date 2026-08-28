@@ -1,26 +1,21 @@
 local args = {...}
 local cmd = tostring(args[1] or "help"):lower()
 local ROOT = ".kimi"
-local FLAG = ROOT .. "/door_setup_request"
+local LEGACY_FLAG = ROOT .. "/door_setup_request"
 
-local function ensureRoot()
-  if not fs.exists(ROOT) then fs.makeDir(ROOT) end
+local function clearLegacyFlag()
+  if fs.exists(LEGACY_FLAG) and not fs.isDir(LEGACY_FLAG) then fs.delete(LEGACY_FLAG) end
 end
 
 if cmd == "setup" then
-  ensureRoot()
-  local f = assert(fs.open(FLAG, "w"))
-  f.writeLine("setup")
-  f.close()
-  print("[KIMI] door setup requested")
-  print("[KIMI] rebooting into setup wizard...")
-  sleep(0.5)
-  os.reboot()
+  clearLegacyFlag()
+  if not fs.exists("door_setup.lua") then error("door_setup.lua is not installed") end
+  shell.run("door_setup")
 elseif cmd == "cancel" then
-  if fs.exists(FLAG) and not fs.isDir(FLAG) then fs.delete(FLAG) end
-  print("[KIMI] door setup request cleared")
+  clearLegacyFlag()
+  print("[KIMI] legacy door setup request cleared")
 else
   print("KIMI door command")
-  print("  door setup   - reopen the room door setup wizard")
-  print("  door cancel  - cancel a pending setup request")
+  print("  door setup   - open standalone touchscreen door setup")
+  print("  door cancel  - clear an old pending setup request")
 end
