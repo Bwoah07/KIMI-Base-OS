@@ -204,7 +204,7 @@ local function renderFleet(e,env)
     put(e,2,5,fleetMessage~="" and fleetMessage or "ONLINE: IDENTIFY / OFFLINE: TAP TWICE TO FORGET",fleetMessage~="" and C.warn or C.dim); local y=7
     for _,r in ipairs(rows) do
         if y+1>e.h then break end
-        local main=r.main; local status=main and"MAIN"or upper(r.m.presence or(r.m.online==true and"ONLINE"or"OFFLINE")); local fg=status=="ONLINE"or status=="MAIN"and C.good or(status=="LATE"and C.warn or C.bad)
+        local main=r.main; local status=main and"MAIN"or upper(r.m.presence or(r.m.online==true and"ONLINE"or"OFFLINE")); local fg=(status=="ONLINE"or status=="MAIN")and C.good or(status=="LATE"and C.warn or C.bad)
         local displayId=r.displayId or r.transportId
         put(e,2,y,"ID "..tostring(displayId).." "..upper(r.m.name or r.m.role or"KIMI"),C.text); put(e,math.max(2,e.w-#status-1),y,status,fg)
         put(e,2,y+1,upper(r.m.role or"?").."  "..tostring(r.m.version or"?"),C.dim)
@@ -308,9 +308,9 @@ function M.handleEvent(ev,env,action)
         if t.status=="OFFLINE" then
             local stamp=now()
             if fleetForgetRequest and tostring(fleetForgetRequest.id)==tostring(t.id) and stamp-fleetForgetRequest.at<=6000 then
-                fleetMessage="FORGETTING ID "..tostring(t.displayId).." - REBOOTING..."
                 fleetForgetRequest=nil
-                pcall(action,"fleet_admin","forget",{id=t.id})
+                local ok,res=pcall(action,"fleet_admin","forget",{id=t.id})
+                if ok and(type(res)~="table"or res.ok~=false)then fleetMessage="FORGETTING ID "..tostring(t.displayId).." - REBOOTING..."else fleetMessage="FORGET FAILED -> ID "..tostring(t.displayId)end
             else
                 fleetForgetRequest={id=t.id,at=stamp};fleetMessage="TAP ID "..tostring(t.displayId).." AGAIN TO FORGET"
             end
