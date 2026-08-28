@@ -1,7 +1,7 @@
 {
-  "version": "5.0.0-alpha.80",
+  "version": "5.0.0-alpha.81",
   "channel": "alpha",
-  "ref": "c99ae6232081dd9c8f90bf710c9dc4efc633315e",
+  "ref": "5afd0ceae90bcc2f9dfc199c491bface0a14194b",
   "entrypoint": "kimi.lua",
   "managed": [
     "startup.lua",
@@ -68,6 +68,7 @@
     "clients/admin_v25.lua",
     "clients/admin_v26.lua",
     "clients/admin_v27.lua",
+    "clients/admin_v28.lua",
     "clients/room_v12.lua",
     "clients/room_v15.lua",
     "clients/room_v16.lua",
