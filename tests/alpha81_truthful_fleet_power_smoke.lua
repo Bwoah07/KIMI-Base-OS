@@ -23,7 +23,9 @@ assert(server:find("lastHeartbeat=seen",1,true),"telemetry source does not initi
 assert(server:find("source.online==true",1,true),"canonical telemetry still accepts non-live sources")
 
 local admin=read("clients/admin.lua")
-assert(admin:find("admin_v30",1,true),"current admin profile is not alpha81 final truth overlay")
+assert(admin:find("admin_v31",1,true),"current admin profile is not alpha83 UI wrapper")
+local v31=read("clients/admin_v31.lua")
+assert(v31:find('require("clients.admin_v30")',1,true),"alpha83 manual-screen wrapper lost alpha81 truth overlay")
 local v29=read("clients/admin_v29.lua")
 assert(v29:find("health.reachability",1,true),"fleet display is not using strict heartbeat truth")
 assert(v29:find("ONLINE ",1,true)and v29:find("LATE ",1,true)and v29:find("OFFLINE ",1,true),"fleet summary lost explicit ONLINE/LATE/OFFLINE states")

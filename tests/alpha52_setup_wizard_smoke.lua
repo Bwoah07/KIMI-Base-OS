@@ -14,7 +14,10 @@ peripheral={
 }
 local flag=false
 fs={
-  exists=function(path) return path==".kimi/door_setup_request" and flag or false end,
+  exists=function(path)
+    if path=="door_setup.lua" then return true end
+    return path==".kimi/door_setup_request" and flag or false
+  end,
   isDir=function() return false end,
   delete=function(path) if path==".kimi/door_setup_request" then flag=false end end,
   makeDir=function()end,
@@ -33,6 +36,10 @@ os={
 }
 sleep=function()end
 term={setBackgroundColor=function()end,setTextColor=function()end,clear=function()end,setCursorPos=function()end}
+local shellRuns={}
+shell={run=function(...)
+  local a={...};shellRuns[#shellRuns+1]=a;return true
+end}
 
 package.loaded["clients.room_v12"]={init=function()end,render=function() return true end,handleEvent=function() return false end}
 package.loaded["clients.room_v14"]=nil
@@ -45,6 +52,7 @@ local function action(mod,act,args)
   return true,{ok=true}
 end
 
+-- Historical wizard still works when explicitly loaded: keep this compatibility.
 ui.init({})
 ui.render({},meta)
 local ok=ui.handleEvent({"monitor_touch","monitor_0",5,11},{},action)
@@ -56,11 +64,13 @@ assert(calls[1] and calls[1].act=="register_local","door was not registered")
 assert(calls[2] and calls[2].act=="configure_local","invert mode was not saved")
 assert(calls[2].args.mode=="invert","wrong setup mode saved")
 
--- door setup shell command creates a request and reboots.
-flag=false; _G.__rebooted=false
+-- Alpha83 contract: `door setup` is standalone and explicit. It must not
+-- create a reboot flag or restart the computer just to configure a door.
+flag=true; _G.__rebooted=false; shellRuns={}
 local chunk=assert(loadfile("door.lua"))
 chunk("setup")
-assert(flag==true,"door setup command did not create setup request")
-assert(_G.__rebooted==true,"door setup command did not reboot")
+assert(flag==false,"door setup command did not clear legacy setup request")
+assert(_G.__rebooted~=true,"door setup command must not reboot")
+assert(shellRuns[1] and shellRuns[1][1]=="door_setup","door setup did not launch standalone wizard")
 
 realPrint("alpha52 setup wizard smoke test OK")
