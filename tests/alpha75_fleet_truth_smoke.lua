@@ -9,8 +9,6 @@ assert(st=="ONLINE"and verified==true and truth.versionText({version="5.0.0-alph
 st,age,verified=truth.status(10,{lastSeen=now-1000,version="5.0.0-alpha.73"},7,now)
 assert(st=="VERIFY"and verified==false and truth.versionText({version="5.0.0-alpha.73"},false)=="LAST 5.0.0-alpha.73","historical proof policy unexpectedly changed")
 st,age,verified=truth.status(11,{lastSeen=now-700000,version="5.0.0-alpha.73"},7,now)
--- Alpha75 called this age GHOST. Newer releases may deliberately retain a
--- chunk-sleeping machine as STALE longer, but it must never be promoted LIVE.
 assert((st=="STALE"or st=="GHOST")and verified==false,"historical sleeping/ghost policy returned invalid state")
 assert(truth.shouldForget({lastSeen=now-90000000},now)==true,"day-old ghosts should be forgettable")
 
@@ -37,9 +35,10 @@ assert(read("roles/client_v8.lua"):find('roles.client_v7',1,true),"alpha78 clien
 assert(read("roles/node_v3.lua"):find('"fleet.identity"',1,true),"nodes do not publish live identity proof")
 assert(read("roles/node_v4.lua"):find('roles.node_v3',1,true),"alpha77 node wrapper lost alpha75 proof lineage")
 assert(read("roles/node_v5.lua"):find('roles.node_v4',1,true),"alpha78 node wrapper lost alpha77/75 proof lineage")
-assert(read("clients/admin.lua"):find("clients.admin_v27",1,true),"admin is not loading current fleet screen")
+assert(read("clients/admin.lua"):find("clients.admin_v30",1,true),"admin is not loading current fleet screen")
 local ui=read("clients/admin_v26.lua");assert(ui:find("truth.status",1,true)and ui:find("truth.versionText",1,true)and ui:find("PROVED NOW",1,true),"historical fleet truth overlay was removed from compatibility chain")
-local current=read("clients/admin_v27.lua");assert(current:find("health.status",1,true)and current:find("CONFIRMED ID",1,true),"current operational fleet screen is not heartbeat/ACK driven")
+local current=read("clients/admin_v29.lua");assert(current:find("health.reachability",1,true)and current:find("CONFIRMED ID",1,true)and current:find('"OFFLINE"',1,true),"current operational fleet screen is not strict heartbeat/ACK driven")
+assert(read("clients/admin_v30.lua"):find('require("clients.admin_v29")',1,true),"final UI lost truthful v29 lineage")
 assert(read("roles/client_v4.lua"):find('"door.command.direct"',1,true),"alpha70 direct Pocket door path disappeared")
 
 print("alpha75 fleet truth smoke test OK")
