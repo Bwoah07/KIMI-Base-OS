@@ -12,8 +12,6 @@ assert(select(1,health.reachability(9,{lastSeen=now-14900},7,now))=="LATE","14.9
 assert(select(1,health.reachability(9,{lastSeen=now-15100},7,now))=="OFFLINE","15.1s heartbeat age must be OFFLINE")
 assert(select(1,health.reachability(7,{lastSeen=0},7,now))=="ONLINE","Main Base must remain locally ONLINE")
 
--- Alpha80's long remembered/sleeping history may remain for compatibility, but
--- the operational UI/server must use strict reachability instead of status().
 assert(health.ONLINE_MS==120000 and health.OFFLINE_MS==1800000,"alpha80 historical retention contract unexpectedly changed")
 
 local function read(path)local f=assert(io.open(path,"r"));local s=f:read("*a");f:close();return s end
@@ -25,7 +23,7 @@ assert(server:find("lastHeartbeat=seen",1,true),"telemetry source does not initi
 assert(server:find("source.online==true",1,true),"canonical telemetry still accepts non-live sources")
 
 local admin=read("clients/admin.lua")
-assert(admin:find("admin_v29",1,true),"current admin profile is not alpha81 aspect-aware truth overlay")
+assert(admin:find("admin_v30",1,true),"current admin profile is not alpha81 final truth overlay")
 local v29=read("clients/admin_v29.lua")
 assert(v29:find("health.reachability",1,true),"fleet display is not using strict heartbeat truth")
 assert(v29:find("ONLINE ",1,true)and v29:find("LATE ",1,true)and v29:find("OFFLINE ",1,true),"fleet summary lost explicit ONLINE/LATE/OFFLINE states")
@@ -35,6 +33,8 @@ assert(v29:find("WAITING FOR LIVE MAIN",1,true),"reserve screen does not explain
 assert(v29:find("NO LIVE FLUX TELEMETRY",1,true),"Flux screen does not distinguish offline telemetry")
 assert(v29:find("power.w>=power.h*1.45",1,true),"wide truth POWER overlay is not aspect-aware")
 assert(v29:find("keep v27's proven vertical battery",1,true),"tall POWER compatibility contract disappeared")
+local v30=read("clients/admin_v30.lua")
+assert(v30:find("NOT INSTALLED",1,true)and v30:find("NO RESERVE MATRIX",1,true),"one-Matrix reserve wording compatibility regressed")
 
 local client8=read("roles/client_v8.lua")
 local node5=read("roles/node_v5.lua")
