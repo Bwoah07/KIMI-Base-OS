@@ -114,6 +114,10 @@ jobs:
         run: lua5.2 tests/alpha77_working_fleet_identify_smoke.lua
       - name: Alpha79 fleet stability test
         run: lua5.2 tests/alpha79_fleet_stability_smoke.lua
+      - name: Alpha80 calm fleet test
+        run: lua5.2 tests/alpha80_calm_fleet_smoke.lua
+      - name: Alpha81 truthful fleet/power test
+        run: lua5.2 tests/alpha81_truthful_fleet_power_smoke.lua
 
       - name: Validate managed manifest
         run: |
