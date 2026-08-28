@@ -21,36 +21,45 @@ local devices={main=main,power=power,fleet=fleet}
 peripheral={getNames=function()return{"main","power","fleet"}end,getType=function(n)return devices[n]and"monitor"or nil end,hasType=function(n,t)return devices[n]~=nil and t=="monitor"end,wrap=function(n)return devices[n]end}
 os={epoch=function()return now end,time=function()return 9.5 end,getComputerLabel=function()return"Main Server"end,getComputerID=function()return 7 end}
 
-package.loaded["clients.admin_v26"]={init=function()return true end,render=function()return true end,handleEvent=function()return false end}
-package.loaded["clients.admin_v27"]=nil
-local admin=require("clients.admin_v27")
+-- Isolate the current truth overlay from historical dashboard rendering. The
+-- fleet screen itself is real v29/v30 code; only the inherited v27 canvas is a
+-- no-op in this focused identify test.
+package.loaded["clients.admin_v27"]={init=function()return true end,render=function()return true end,handleEvent=function()return false end}
+package.loaded["clients.admin_v29"]=nil
+package.loaded["clients.admin_v30"]=nil
+local admin=require("clients.admin_v30")
 admin.init({name="Main Server"})
-local env={serverId=7,version="5.0.0-alpha.77",state={fleet={
- [7]={name="Main Server",role="server",version="5.0.0-alpha.77",lastSeen=1},
- [9]={name="Outdoor Sensors",role="node",version="5.0.0-alpha.77",lastSeen=now-8000},
- [10]={name="Upper Door",role="client",version="5.0.0-alpha.77",lastSeen=now-90000},
+local env={serverId=7,version="5.0.0-alpha.81",state={fleet={
+ [7]={name="Main Server",role="server",version="5.0.0-alpha.81",lastSeen=1},
+ [9]={name="Outdoor Sensors",role="node",version="5.0.0-alpha.81",lastSeen=now-4000},
+ [10]={name="Upper Door",role="client",version="5.0.0-alpha.81",lastSeen=now-90000},
  [11]={name="KIMI-11",role="client",version="5.0.0-alpha.70",lastSeen=now-700000}
 }}}
 assert(admin.render(env,{})~=false,"admin render failed")
 local out=fleet.output()
 assert(out:find("FLEET / IDENTIFY",1,true),"fleet screen missing")
-assert(out:find("ID 9 OUTDOOR SENSORS",1,true)and out:find("LIVE",1,true),"fresh heartbeat is not shown LIVE")
-assert(out:find("ID 10 UPPER DOOR",1,true),"recently sleeping machine disappeared from operational list")
--- Alpha80 deliberately retains chunk-sleeping infrastructure for 30 minutes,
--- so an 11-minute-old machine remains visible and identifiable as STALE.
-assert(out:find("ID 11 KIMI-11",1,true)and out:find("STALE",1,true),"sleeping infrastructure was hidden too aggressively")
-assert(not out:find("VERIFY",1,true)and not out:find("GHOST",1,true)and not out:find("LAST ",1,true),"fleet archaeology labels leaked back into the live screen")
+assert(out:find("ID 9 OUTDOOR SENSORS",1,true)and out:find("ONLINE",1,true),"fresh heartbeat is not shown ONLINE")
+assert(out:find("ID 10 UPPER DOOR",1,true)and out:find("OFFLINE",1,true),"dead machine disappeared or stayed falsely green")
+assert(out:find("ID 11 KIMI-11",1,true),"remembered sleeping infrastructure disappeared from operational list")
+assert(not out:find("VERIFY",1,true)and not out:find("GHOST",1,true)and not out:find("HIDDEN",1,true),"fleet archaeology labels leaked back into the operational screen")
 
 local called=nil
 local function action(module,verb,args)called={module=module,verb=verb,id=args and args.id};return{ok=true}end
 assert(admin.handleEvent({"monitor_touch","fleet",5,12},env,action)==true,"fleet touch not handled")
-assert(called and called.module=="server"and called.verb=="identify"and called.id==9,"touch did not identify the live target")
+assert(called and called.module=="server"and called.verb=="identify"and called.id==9,"touch did not identify the genuinely online target")
 _G.kimiIdentifyAck={ ["9"]={at=now+1,name="Outdoor Sensors"} }
 now=now+500
 admin.render(env,{})
 out=fleet.output()
 assert(out:find("CONFIRMED ID 9 FLASHING",1,true),"real identify ACK is not surfaced")
 _G.kimiIdentifyAck=nil
+
+-- An OFFLINE row must never be treated as reachable merely because it remains
+-- remembered in the 24-hour fleet registry.
+called=nil
+assert(admin.handleEvent({"monitor_touch","fleet",5,15},env,action)==true,"offline fleet touch not handled")
+assert(called==nil,"offline remembered machine incorrectly received identify command")
+assert(fleet.output():find("OFFLINE",1,true),"offline feedback disappeared")
 
 local function read(path)local f=assert(io.open(path,"r"));local s=f:read("*a");f:close();return s end
 local kimi=read("kimi.lua")
@@ -62,8 +71,8 @@ assert(read("roles/node_v5.lua"):find('roles.node_v4',1,true),"alpha78 node wrap
 assert(read("roles/server_v5.lua"):find('"fleet.identify.ack"',1,true)and read("roles/server_v5.lua"):find("PURGE_MS=86400000",1,true),"server ACK/retention transport incomplete")
 assert(read("roles/client_v7.lua"):find('"fleet.identify.ack"',1,true),"clients do not ACK identify")
 assert(read("roles/node_v4.lua"):find('"fleet.identify.ack"',1,true),"nodes do not ACK identify")
-assert(read("clients/admin.lua"):find("clients.admin_v27",1,true),"admin is not loading working fleet screen")
-assert(read("clients/admin_v27.lua"):find("CONFIRMED ID",1,true)and read("clients/admin_v27.lua"):find("NOT REACHABLE",1,true),"identify feedback contract missing")
+assert(read("clients/admin.lua"):find("clients.admin_v30",1,true),"admin is not loading working fleet screen")
+assert(read("clients/admin_v29.lua"):find("CONFIRMED ID",1,true)and read("clients/admin_v29.lua"):find("OFFLINE - LAST SEEN",1,true),"identify feedback/reachability contract missing")
 assert(read("roles/client_v4.lua"):find('"door.command.direct"',1,true),"alpha70 direct Pocket door path disappeared")
 
 realPrint("alpha77 working fleet identify smoke test OK")
