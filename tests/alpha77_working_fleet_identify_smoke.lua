@@ -4,14 +4,8 @@ local realPrint=print
 colors={black=1,white=2,lightGray=3,lime=4,orange=5,red=6,gray=7,cyan=8,lightBlue=9,yellow=10}
 local now=1000000
 local function mon(w,h)
- local cells={};local cx,cy=1,1
- local m={}
- function m.setTextScale()end
- function m.getSize()return w,h end
- function m.setBackgroundColor()end
- function m.setTextColor()end
- function m.clear()cells={}end
- function m.setCursorPos(x,y)cx,cy=x,y end
+ local cells={};local cx,cy=1,1;local m={}
+ function m.setTextScale()end;function m.getSize()return w,h end;function m.setBackgroundColor()end;function m.setTextColor()end;function m.clear()cells={}end;function m.setCursorPos(x,y)cx,cy=x,y end
  function m.write(s)cells[cy]=cells[cy]or{};cells[cy][cx]=tostring(s)end
  function m.output()local out={};for y=1,h do local row=cells[y]or{};local parts={};for _,s in pairs(row)do parts[#parts+1]=s end;out[#out+1]=table.concat(parts," ")end;return table.concat(out,"\n")end
  return m
@@ -21,12 +15,8 @@ local devices={main=main,power=power,fleet=fleet}
 peripheral={getNames=function()return{"main","power","fleet"}end,getType=function(n)return devices[n]and"monitor"or nil end,hasType=function(n,t)return devices[n]~=nil and t=="monitor"end,wrap=function(n)return devices[n]end}
 os={epoch=function()return now end,time=function()return 9.5 end,getComputerLabel=function()return"Main Server"end,getComputerID=function()return 7 end}
 
--- Isolate the current truth overlay from historical dashboard rendering. The
--- fleet screen itself is real v29/v30 code; only the inherited v27 canvas is a
--- no-op in this focused identify test.
 package.loaded["clients.admin_v27"]={init=function()return true end,render=function()return true end,handleEvent=function()return false end}
-package.loaded["clients.admin_v29"]=nil
-package.loaded["clients.admin_v30"]=nil
+package.loaded["clients.admin_v29"]=nil;package.loaded["clients.admin_v30"]=nil
 local admin=require("clients.admin_v30")
 admin.init({name="Main Server"})
 local env={serverId=7,version="5.0.0-alpha.81",state={fleet={
@@ -47,15 +37,8 @@ local called=nil
 local function action(module,verb,args)called={module=module,verb=verb,id=args and args.id};return{ok=true}end
 assert(admin.handleEvent({"monitor_touch","fleet",5,12},env,action)==true,"fleet touch not handled")
 assert(called and called.module=="server"and called.verb=="identify"and called.id==9,"touch did not identify the genuinely online target")
-_G.kimiIdentifyAck={ ["9"]={at=now+1,name="Outdoor Sensors"} }
-now=now+500
-admin.render(env,{})
-out=fleet.output()
-assert(out:find("CONFIRMED ID 9 FLASHING",1,true),"real identify ACK is not surfaced")
-_G.kimiIdentifyAck=nil
-
--- An OFFLINE row must never be treated as reachable merely because it remains
--- remembered in the 24-hour fleet registry.
+_G.kimiIdentifyAck={["9"]={at=now+1,name="Outdoor Sensors"}};now=now+500;admin.render(env,{});out=fleet.output()
+assert(out:find("CONFIRMED ID 9 FLASHING",1,true),"real identify ACK is not surfaced");_G.kimiIdentifyAck=nil
 called=nil
 assert(admin.handleEvent({"monitor_touch","fleet",5,15},env,action)==true,"offline fleet touch not handled")
 assert(called==nil,"offline remembered machine incorrectly received identify command")
@@ -71,8 +54,8 @@ assert(read("roles/node_v5.lua"):find('roles.node_v4',1,true),"alpha78 node wrap
 assert(read("roles/server_v5.lua"):find('"fleet.identify.ack"',1,true)and read("roles/server_v5.lua"):find("PURGE_MS=86400000",1,true),"server ACK/retention transport incomplete")
 assert(read("roles/client_v7.lua"):find('"fleet.identify.ack"',1,true),"clients do not ACK identify")
 assert(read("roles/node_v4.lua"):find('"fleet.identify.ack"',1,true),"nodes do not ACK identify")
-assert(read("clients/admin.lua"):find("clients.admin_v31",1,true),"admin is not loading alpha83 UI wrapper")
-assert(read("clients/admin_v31.lua"):find('require("clients.admin_v30")',1,true),"alpha83 UI wrapper lost working v30 fleet screen")
+assert(read("clients/admin.lua"):find("clients.admin_v32",1,true),"admin is not loading current UI wrapper")
+local v32=read("clients/admin_v32.lua");assert(v32:find('require("clients.admin_v30")',1,true)and v32:find("core.monitor_authority",1,true),"current UI wrapper lost working v30 fleet screen or monitor authority")
 assert(read("clients/admin_v29.lua"):find("CONFIRMED ID",1,true)and read("clients/admin_v29.lua"):find("OFFLINE - LAST SEEN",1,true),"identify feedback/reachability contract missing")
 assert(read("roles/client_v4.lua"):find('"door.command.direct"',1,true),"alpha70 direct Pocket door path disappeared")
 
