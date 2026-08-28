@@ -92,12 +92,16 @@ local function slurp(path)
 end
 
 -- Wall clients must no longer enter a door wizard merely because no door exists.
-local room=slurp("clients/room_v18.lua")
-ok(not room:find("door_setup_request",1,true),"room_v18 still depends on automatic door setup flag")
-ok(not room:find("clients.room_v15",1,true),"room_v18 still loads legacy automatic door wizard")
-ok(room:find("clients.manual_dashboard",1,true),"wall clients lost manual-screen overlay")
+-- Keep the old room_v18 contract, while allowing newer wrappers to own pinned
+-- monitors exclusively.
+local room18=slurp("clients/room_v18.lua")
+ok(not room18:find("door_setup_request",1,true),"room_v18 still depends on automatic door setup flag")
+ok(not room18:find("clients.room_v15",1,true),"room_v18 still loads legacy automatic door wizard")
+ok(room18:find("clients.manual_dashboard",1,true),"room_v18 lost manual-screen support")
 local wall=slurp("clients/wall.lua")
-ok(wall:find("clients.room_v18",1,true),"wall profile is not routed through room_v18")
+local room19=slurp("clients/room_v19.lua")
+ok(wall:find("clients.room_v19",1,true),"wall profile is not routed through current room_v19 lineage")
+ok(room19:find("clients.manual_dashboard",1,true) and room19:find("core.monitor_authority",1,true),"wall clients lost manual-screen ownership")
 
 -- Setup must expose first-class naming and exact-monitor assignment, and the
 -- standalone door wizard must pass edited names through configure_local.
@@ -113,7 +117,8 @@ local doorSetup=slurp("door_setup.lua")
 ok(doorSetup:find("name=name,mode=mode",1,true),"touchscreen door update does not persist renamed name")
 ok(doorSetup:find("name=name,mode=m",1,true),"terminal door update does not persist renamed name")
 local admin=slurp("clients/admin.lua")
-local admin31=slurp("clients/admin_v31.lua")
-ok(admin:find("clients.admin_v31",1,true) and admin31:find("clients.manual_dashboard",1,true),"Command Center is not routed through manual-screen overlay")
+local admin32=slurp("clients/admin_v32.lua")
+ok(admin:find("clients.admin_v32",1,true),"Command Center is not routed through current admin_v32 lineage")
+ok(admin32:find("clients.manual_dashboard",1,true) and admin32:find("core.monitor_authority",1,true) and admin32:find("clients.admin_v30",1,true),"Command Center lost manual-screen/adaptive compatibility chain")
 
 print("alpha83 touchscreen setup smoke: OK")
