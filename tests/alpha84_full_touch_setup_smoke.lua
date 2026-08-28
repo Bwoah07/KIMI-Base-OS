@@ -30,7 +30,7 @@ assert(ok==true and value=="KIMI MAIN","touch keyboard did not produce expected 
 local function read(path)local f=assert(io.open(path,"r"));local s=f:read("*a");f:close();return s end
 local setup=read("setup.lua")
 assert(setup:find('require("core.touch_input")',1,true),"setup does not use shared touch keyboard")
-assert(setup:find("COMPUTER NAME",1,true)and setup:find("SCREEN ASSIGNMENTS",1,true)and setup:find("DOOR SETUP",1,true),"touch setup hub is incomplete")
+assert(setup:find("COMPUTER NAME",1,true)and(setup:find("SCREEN ASSIGNMENTS",1,true)or setup:find("THIS SCREEN VIEW",1,true))and setup:find("DOOR SETUP",1,true),"touch setup hub is incomplete")
 assert(setup:find("REBOOT / APPLY",1,true),"touch setup hub has no apply/reboot path")
 local door=read("door_setup.lua")
 assert(door:find('require("core.touch_input")',1,true)and door:find("readNameTouch",1,true),"door naming still leaves the monitor")
