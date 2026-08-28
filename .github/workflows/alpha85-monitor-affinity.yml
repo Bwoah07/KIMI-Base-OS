@@ -1,0 +1,32 @@
+name: Alpha85 Monitor Affinity Checks
+
+on:
+  push:
+    branches:
+      - feature/alpha85-monitor-affinity
+    paths:
+      - '**/*.lua'
+      - 'manifest.json'
+      - 'version.txt'
+      - '.github/workflows/alpha85-monitor-affinity.yml'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  alpha85-monitor-affinity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Lua 5.2
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.2
+
+      - name: Syntax check Lua files
+        run: find . -name '*.lua' -not -path './mods/*' -print0 | xargs -0 -n1 luac5.2 -p
+
+      - name: Alpha85 monitor affinity regression test
+        run: lua5.2 tests/alpha85_monitor_affinity_smoke.lua
