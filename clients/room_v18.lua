@@ -39,11 +39,9 @@ end
 
 function M.handleEvent(ev,env,action)
     if manual.handleEvent(ev,env,action) then return true end
-    if #localBuilders(nil)>0 and builder.handleEvent then
-        local handled=builder.handleEvent(ev,env,action); if handled then return true end
-    end
     if builder.handleEvent then
-        local handled=builder.handleEvent(ev,env,action); if handled then return true end
+        local handled=builder.handleEvent(ev,env,action)
+        if handled then return true end
     end
     if normal.handleEvent then return normal.handleEvent(ev,env,action) end
     return false
