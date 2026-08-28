@@ -35,10 +35,11 @@ assert(read("roles/client_v8.lua"):find('roles.client_v7',1,true),"alpha78 clien
 assert(read("roles/node_v3.lua"):find('"fleet.identity"',1,true),"nodes do not publish live identity proof")
 assert(read("roles/node_v4.lua"):find('roles.node_v3',1,true),"alpha77 node wrapper lost alpha75 proof lineage")
 assert(read("roles/node_v5.lua"):find('roles.node_v4',1,true),"alpha78 node wrapper lost alpha77/75 proof lineage")
-assert(read("clients/admin.lua"):find("clients.admin_v30",1,true),"admin is not loading current fleet screen")
+assert(read("clients/admin.lua"):find("clients.admin_v31",1,true),"admin is not loading current alpha83 fleet/UI wrapper")
+assert(read("clients/admin_v31.lua"):find('require("clients.admin_v30")',1,true),"alpha83 manual-screen wrapper lost truthful v30 lineage")
 local ui=read("clients/admin_v26.lua");assert(ui:find("truth.status",1,true)and ui:find("truth.versionText",1,true)and ui:find("PROVED NOW",1,true),"historical fleet truth overlay was removed from compatibility chain")
 local current=read("clients/admin_v29.lua");assert(current:find("health.reachability",1,true)and current:find("CONFIRMED ID",1,true)and current:find('"OFFLINE"',1,true),"current operational fleet screen is not strict heartbeat/ACK driven")
-assert(read("clients/admin_v30.lua"):find('require("clients.admin_v29")',1,true),"final UI lost truthful v29 lineage")
+assert(read("clients/admin_v30.lua"):find('require("clients.admin_v29")',1,true),"final truthful UI lost v29 lineage")
 assert(read("roles/client_v4.lua"):find('"door.command.direct"',1,true),"alpha70 direct Pocket door path disappeared")
 
 print("alpha75 fleet truth smoke test OK")
