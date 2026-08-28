@@ -34,7 +34,8 @@ local doors=require("core.doors_impl")
 local snapshot=doors.read()
 ok(hasCandidate(snapshot.candidates,"relay_0","front"),"redstone relay must expose relative/front side")
 ok(not hasCandidate(snapshot.candidates,"relay_0","north"),"redstone relay must not expose cardinal/north side")
-ok(hasCandidate(snapshot.candidates,"integrator_0","top"),"redstone integrator should use stable relative side vocabulary")
+ok(hasCandidate(snapshot.candidates,"integrator_0","top"),"redstone integrator must expose relative sides")
+ok(hasCandidate(snapshot.candidates,"integrator_0","west"),"redstone integrator must keep cardinal compatibility")
 ok(hasCandidate(snapshot.candidates,"legacy_0","north"),"unknown legacy actuator must preserve cardinal compatibility")
 
 -- Monitor-map normalization is deterministic and rejects unknown views.
