@@ -3,6 +3,7 @@
 -- every layout and the richer live-telemetry POWER dashboard on wide screens.
 local base=require("clients.admin_v27")
 local health=require("core.fleet_health")
+local fleetDisplay=require("core.fleet_display")
 local builderUI=require("clients.builder_dashboard")
 local M={}
 for k,v in pairs(base)do M[k]=v end
@@ -12,6 +13,7 @@ local lastEnv,lastMeta
 local targets={}
 local viewTargets={}
 local lastRequest=nil
+local forgetRequest=nil
 local localMessage=""
 local sharedView=nil
 local builderPage=1
@@ -42,24 +44,29 @@ local function header(e,title)put(e,2,1,title,C.text);put(e,math.max(2,e.w-6),1,
 
 local function fleetEntries(env)
  local fleet=state(env).fleet or{};local serverId=env and env.serverId;local t=now();local out={};local counts={ONLINE=0,LATE=0,OFFLINE=0}
- for id,m in pairs(fleet)do local status,age=health.reachability(id,m,serverId,t);local main=sameId(id,serverId);if main then status="MAIN";counts.ONLINE=counts.ONLINE+1 else counts[status]=(counts[status]or 0)+1 end;out[#out+1]={id=id,m=m or{},status=status,age=age,main=main}end
- table.sort(out,function(a,b)local rank={MAIN=0,ONLINE=1,LATE=2,OFFLINE=3};local ra,rb=rank[a.status]or 9,rank[b.status]or 9;if ra~=rb then return ra<rb end;local na,nb=upper(a.m.name or a.m.role or a.id),upper(b.m.name or b.m.role or b.id);if na~=nb then return na<nb end;return tostring(a.id)<tostring(b.id)end)
+ for _,displayRow in ipairs(fleetDisplay.rows(fleet,serverId))do
+  local id,m=displayRow.transportId,displayRow.m or{};local status,age=health.reachability(id,m,serverId,t);local main=displayRow.main
+  if main then status="MAIN";counts.ONLINE=counts.ONLINE+1 else counts[status]=(counts[status]or 0)+1 end
+  out[#out+1]={id=id,displayId=displayRow.displayId,m=m,status=status,age=age,main=main}
+ end
+ table.sort(out,function(a,b)local rank={MAIN=0,ONLINE=1,LATE=2,OFFLINE=3};local ra,rb=rank[a.status]or 9,rank[b.status]or 9;if ra~=rb then return ra<rb end;return (a.displayId or 999)<(b.displayId or 999)end)
  return out,counts,t
 end
 local function feedback(t)
  if localMessage~=""then return localMessage,C.warn end
- if not lastRequest then return"TOUCH ONLINE ROW -> FLASH THAT COMPUTER",C.dim end
+ if not lastRequest then return"ONLINE: IDENTIFY   OFFLINE: TAP TWICE TO FORGET",C.dim end
  local acks=rawget(_G,"kimiIdentifyAck")or{};local ack=acks[tostring(lastRequest.id)]
- if type(ack)=="table"and tonumber(ack.at)and tonumber(ack.at)>=lastRequest.at then return"CONFIRMED ID "..tostring(lastRequest.id).." FLASHING",C.good end
- if t-lastRequest.at<3000 then return"WAITING FOR ID "..tostring(lastRequest.id).." ACK...",C.warn end
- return"ID "..tostring(lastRequest.id).." NOT REACHABLE",C.bad
+ local shown=lastRequest.displayId or lastRequest.id
+ if type(ack)=="table"and tonumber(ack.at)and tonumber(ack.at)>=lastRequest.at then return"CONFIRMED ID "..tostring(shown).." FLASHING",C.good end
+ if t-lastRequest.at<3000 then return"WAITING FOR ID "..tostring(shown).." ACK...",C.warn end
+ return"ID "..tostring(shown).." NOT REACHABLE",C.bad
 end
 local function renderFleet(e,env)
  prep(e);targets[e.name]={};header(e,"FLEET / IDENTIFY");local rows,c,t=fleetEntries(env)
  put(e,2,4,"VERSION "..tostring(env and env.version or"?"),C.dim);put(e,2,5,"ONLINE "..c.ONLINE.."  LATE "..c.LATE.."  OFFLINE "..c.OFFLINE,(c.LATE+c.OFFLINE)>0 and C.warn or C.good)
- local msg,fg=feedback(t);put(e,2,6,msg,fg);rule(e,7);if e.w>=42 then put(e,2,8,"GREEN = HEARTBEAT <= 6.5s   LATE <= 15s",C.dim)end
+ local msg,fg=feedback(t);put(e,2,6,msg,fg);rule(e,7);if e.w>=42 then put(e,2,8,"KIMI ID 1 = MAIN   CC TRANSPORT IDS ARE HIDDEN",C.dim)end
  local y=e.w>=42 and 10 or 9;local shown=0
- for _,row in ipairs(rows)do if y+1>e.h then break end;local id,m,status=row.id,row.m,row.status;local name=upper(m.name or m.role or("KIMI-"..tostring(id)));local sf=status=="OFFLINE"and C.bad or(status=="LATE"and C.warn or C.good);put(e,2,y,"ID "..tostring(id).." "..name,C.text);put(e,math.max(2,e.w-#status-1),y,status,sf);put(e,2,y+1,upper(m.role or"?").."  "..tostring(m.version or"?"),C.dim);local seen=row.main and"LOCAL"or("SEEN "..health.ageText(row.age));put(e,math.max(2,e.w-#seen-1),y+1,seen,status=="OFFLINE"and C.bad or C.dim);targets[e.name][#targets[e.name]+1]={y1=y,y2=y+1,id=tonumber(id)or id,main=row.main,status=status,age=row.age};y=y+3;shown=shown+1 end
+ for _,row in ipairs(rows)do if y+1>e.h then break end;local id,m,status=row.id,row.m,row.status;local displayId=row.displayId or id;local name=upper(m.name or m.role or("KIMI-"..tostring(displayId)));local sf=status=="OFFLINE"and C.bad or(status=="LATE"and C.warn or C.good);put(e,2,y,"ID "..tostring(displayId).." "..name,C.text);put(e,math.max(2,e.w-#status-1),y,status,sf);put(e,2,y+1,upper(m.role or"?").."  "..tostring(m.version or"?"),C.dim);local seen=row.main and"LOCAL"or("SEEN "..health.ageText(row.age));put(e,math.max(2,e.w-#seen-1),y+1,seen,status=="OFFLINE"and C.bad or C.dim);targets[e.name][#targets[e.name]+1]={y1=y,y2=y+1,id=tonumber(id)or id,displayId=displayId,name=name,main=row.main,status=status,age=row.age};y=y+3;shown=shown+1 end
  if #rows>shown and e.h>=2 then put(e,2,e.h,"+"..tostring(#rows-shown).." MORE REMEMBERED",C.dim)end
 end
 
@@ -98,7 +105,7 @@ local function renderBuilder(e,env,dedicated)
  if not dedicated then paintViewButton(e,"FLEET")end
 end
 
-function M.init(c)targets={};viewTargets={};lastRequest=nil;localMessage="";lastEnv,lastMeta=nil,nil;sharedView=nil;builderPage=1;return base.init and base.init(c)end
+function M.init(c)targets={};viewTargets={};lastRequest=nil;forgetRequest=nil;localMessage="";lastEnv,lastMeta=nil,nil;sharedView=nil;builderPage=1;return base.init and base.init(c)end
 function M.render(env,meta)
  lastEnv,lastMeta=env,meta;viewTargets={};local ok=base.render(env,meta);local ms=monitors();local power=ms[2];local bs=builders(env);local dedicated=plannedBuilderMonitor(ms,env)
  -- Wide screens get the alpha81 three-column truth dashboard. Tall/narrow
@@ -124,7 +131,30 @@ function M.handleEvent(ev,env,action)
    if #bs>1 and y==builderMon.h and x then builderPage=((builderPage-1+(x<=math.floor(builderMon.w/2)and-1 or 1))%#bs)+1;M.render(lastEnv,lastMeta)end
    return true
   end
-  if fm and name==fm.name then localMessage="";for _,t in ipairs(targets[name]or{})do if y and y>=t.y1 and y<=t.y2 then if t.main then lastRequest=nil;localMessage="THAT IS MAIN BASE - YOU ARE LOOKING AT IT" elseif t.status=="OFFLINE"then lastRequest=nil;localMessage="ID "..tostring(t.id).." OFFLINE - LAST SEEN "..health.ageText(t.age) else local stamp=now();local ok,res=pcall(action,"server","identify",{id=t.id,duration=10});local sent=ok and type(res)=="table"and res.ok~=false;if sent then lastRequest={id=t.id,at=stamp};localMessage=""else lastRequest=nil;localMessage="IDENTIFY SEND FAILED -> ID "..tostring(t.id)end end;M.render(lastEnv,lastMeta);return true end end;return true end
+  if fm and name==fm.name then
+   localMessage=""
+   for _,t in ipairs(targets[name]or{})do if y and y>=t.y1 and y<=t.y2 then
+    if t.main then
+     lastRequest=nil;forgetRequest=nil;localMessage="KIMI ID 1 IS MAIN SERVER - CANNOT FORGET"
+    elseif t.status=="OFFLINE"then
+     lastRequest=nil
+     local stamp=now()
+     if forgetRequest and sameId(forgetRequest.id,t.id)and stamp-forgetRequest.at<=6000 then
+      local ok,res=pcall(action,"fleet_admin","forget",{id=t.id})
+      forgetRequest=nil
+      if ok and(not type(res)=="table"or res.ok~=false)then localMessage="FORGETTING ID "..tostring(t.displayId).." - REBOOTING..."else localMessage="FORGET FAILED -> ID "..tostring(t.displayId)end
+     else
+      forgetRequest={id=t.id,at=stamp};localMessage="TAP ID "..tostring(t.displayId).." AGAIN TO FORGET"
+     end
+    else
+     forgetRequest=nil
+     local stamp=now();local ok,res=pcall(action,"server","identify",{id=t.id,duration=10});local sent=ok and type(res)=="table"and res.ok~=false
+     if sent then lastRequest={id=t.id,displayId=t.displayId,at=stamp};localMessage=""else lastRequest=nil;localMessage="IDENTIFY SEND FAILED -> ID "..tostring(t.displayId)end
+    end
+    M.render(lastEnv,lastMeta);return true
+   end end
+   return true
+  end
   if bm and name==bm.name then return true end
  end
  local handled=base.handleEvent and base.handleEvent(ev,env,action)or false;if handled then M.render(lastEnv,lastMeta)end;return handled
