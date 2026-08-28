@@ -2,6 +2,14 @@
 
 A modular CC:Tweaked base-control operating system for FTB Evolution.
 
+## Quick install
+
+On a fresh CC:Tweaked computer, run:
+
+```lua
+wget run https://raw.githubusercontent.com/Bwoah07/KIMI-Base-OS/main/installer.lua
+```
+
 ## Architecture
 
 `installer.lua -> recovery startup -> updater -> kimi.lua -> role -> modules -> client profile`
@@ -20,7 +28,7 @@ Remote clients/nodes can contribute telemetry from anywhere the KIMI network rea
 
 ## Modules
 
-The server and remote nodes discover `modules/*.lua` dynamically. Current integrations include environment/weather/moon, AE2, complete attachment/sensor discovery, Flux Networks, Mekanism Induction Matrix power telemetry, and door/redstone control.
+The server and remote nodes discover `modules/*.lua` dynamically. Current integrations include environment/weather/moon, AE2, complete attachment/sensor discovery, Flux Networks, Mekanism Induction Matrix power telemetry, RFTools Builder/quarry telemetry (direct peripheral or Advanced Peripherals Block Reader), and door/redstone control.
 
 Every attached peripheral is reported with all of its CC:Tweaked types and methods. Detector/scanner/reader/environment/player/block/Geo-style devices are classified from both their peripheral types and their method signatures. KIMI takes only safe, read-only summary samples; expensive world scans and methods requiring arguments remain visible in the method list without being invoked automatically.
 
@@ -64,6 +72,16 @@ From alpha.32 onward, `update.available` notices include the server's installed 
 
 The recovery bootloader no longer replaces a known-good `updater.lua` from mutable `main` on every boot; it only performs that fetch as an emergency bootstrap when the updater is missing. Server boot checks also respect `update.auto` and `update.checkOnBoot`.
 
+Alpha.82 separates fleet reachability from telemetry freshness. A computer is ONLINE only after a recent real heartbeat. Its hardware data is independently labelled LIVE or CACHED, so a slow scan or sleeping chunk no longer makes attached hardware disappear or contradict the fleet screen. Cached data is visible for diagnosis but is never used as permission for remote controls.
+
+Update notices use exponential retry backoff and fleet-registry writes are batched. This keeps the main event loop responsive when several computers reconnect or update together.
+
+## Builder / quarry dashboard
+
+Builder nodes now show progress, estimated scan completion, processed/remaining work, learned rate and ETA, energy, current coordinates, scan-box dimensions, RFTools mode, errors and stall detection. When a mod exposes no formal progress API, the dashboard shows bounded raw Block Reader fields instead of an empty panel.
+
+A wall computer with a detected Builder is no longer forced into door setup simply because it has no local door. The Command Center gives Builder its own monitor when capacity exists; on a three-monitor base, the Fleet and Builder views share a responsive touch-selectable operations monitor.
+
 ## cc-mek-scada / Nuclear
 
 `scada/` contains the KIMI bridge for MikaylaFischler's `cc-mek-scada` project.
@@ -103,6 +121,6 @@ The network core opens every attached CC modem, allowing wired and wireless netw
 
 ## Current version
 
-`5.0.0-alpha.32`
+`5.0.0-alpha.82`
 
 The repository is public so CC:Tweaked can perform unauthenticated HTTPS downloads from GitHub.

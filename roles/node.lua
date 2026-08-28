@@ -19,10 +19,12 @@ function M.run(cfg)
     end
 
     local function publish()
-        if not serverId then return end
-        network.send(serverId,cfg,"fleet.hello",hello())
+        if not serverId then return false end
+        local helloSent=network.send(serverId,cfg,"fleet.hello",hello())
         local payload=hello(); payload.state=state
-        network.send(serverId,cfg,"telemetry.state",payload)
+        local telemetrySent=network.send(serverId,cfg,"telemetry.state",payload)
+        if helloSent==false and telemetrySent==false then serverId=nil;return false end
+        return helloSent==true or telemetrySent==true
     end
 
     print("KIMI Remote Node online - ID "..os.getComputerID())

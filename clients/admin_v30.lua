@@ -19,7 +19,8 @@ end
 function M.render(env,meta)
  local ok=base.render(env,meta)
  local ms=monitors();local e=ms[2];local st=env and env.state or{};local p=st.power or{};local rs=st.power_reserve or{}
- if e and e.w>=e.h*1.45 and #(p.matrices or{})==1 and tostring(rs.status or""):upper()=="NO RESERVE MATRIX"then
+ local matrix=(p.matrices or{})[1]
+ if e and e.w>=e.h*1.45 and #(p.matrices or{})==1 and tostring(matrix and matrix._telemetryStatus or"LIVE"):upper()=="LIVE"and tostring(rs.status or""):upper()=="NO RESERVE MATRIX"then
   local col=math.max(12,math.floor((e.w-6)/3));local a1=2;local a2=math.min(e.w-2,a1+col-1);local b1=a2+2;local b2=math.min(e.w-2,b1+col-1)
   e.mon.setBackgroundColor(colors.black);e.mon.setTextColor(colors.black);e.mon.setCursorPos(b1,6);e.mon.write(string.rep(" ",math.max(0,b2-b1+1)))
   e.mon.setCursorPos(b1,6);e.mon.setTextColor(colors.lightGray);e.mon.write("NOT INSTALLED")

@@ -1,4 +1,5 @@
 local M={id="builder"}
+local RFT_MODE={[0]="COPY",[1]="MOVE",[2]="SWAP",[3]="BACK",[4]="COLLECT"}
 
 local function norm(v)return tostring(v or""):lower():gsub("[^a-z0-9]","")end
 local function methods(name)
@@ -50,16 +51,19 @@ local function deriveRate(now,b,old)
 end
 
 local function flatten(root)
- local out,count={},0
- local function walk(v,path,depth)
+ local out,details,count={}, {},0
+ local function walk(v,path,keyPath,depth)
   if count>=384 or depth>5 then return end
   if type(v)=="table"then
-   for k,x in pairs(v)do walk(x,path..norm(k),depth+1)end
+   for k,x in pairs(v)do
+    local label=tostring(k);local shown=path==""and label or(path.."."..label)
+    walk(x,shown,keyPath..norm(k),depth+1)
+   end
   elseif type(v)=="number"or type(v)=="boolean"or type(v)=="string"then
-   if path~=""then out[path]=v;count=count+1 end
+   if keyPath~=""then out[keyPath]=v;details[#details+1]={path=path,value=tostring(v)};count=count+1 end
   end
  end
- walk(root,"",0);return out,count
+ walk(root,"","",0);table.sort(details,function(a,b)return a.path<b.path end);return out,count,details
 end
 local function pick(flat,exact,contains)
  for _,k in ipairs(exact or{})do if flat[k]~=nil then return flat[k],k end end
@@ -83,11 +87,15 @@ local function enrichFromFlat(b,flat)
  v=pickNum(flat,{"maxboxx","maxx","boxmaxx"},{"maxboxx","boxmaxx"});b.maxX=v
  v=pickNum(flat,{"minboxz","minz","boxminz"},{"minboxz","boxminz"});b.minZ=v
  v=pickNum(flat,{"maxboxz","maxz","boxmaxz"},{"maxboxz","boxmaxz"});b.maxZ=v
- v,k=pickNum(flat,{"energy","storedenergy","energystored","power"},{"storedenergy","energystored"});b.energy=v;b.energyField=k
- v,k=pickNum(flat,{"maxenergy","energycapacity","maxenergystored"},{"maxenergy","energycapacity"});b.energyCapacity=v;b.energyCapacityField=k
+ v,k=pickNum(flat,{"energy","infoenergy","storedenergy","infostoredenergy","energystored","power"},{"storedenergy","energystored"});b.energy=v;b.energyField=k
+ v,k=pickNum(flat,{"maxenergy","infomaxenergy","energycapacity","infoenergycapacity","maxenergystored"},{"maxenergy","energycapacity"});b.energyCapacity=v;b.energyCapacityField=k
  v=pickNum(flat,{"energyusage","powerusage","rfpertick","fepertick"},{"powerusage","rfpertick","fepertick"});b.energyUsage=v
  v,k=pickBool(flat,{"running","active","working","enabled"},{"running","isactive","isworking"});b.running=v;b.runningField=k
- local status=pick(flat,{"status","state","mode"},{"workstatus","builderstatus"});if status~=nil then b.status=tostring(status)end
+ local status=pick(flat,{"status","state","infostatus"},{"workstatus","builderstatus"});if status~=nil then b.status=tostring(status)end
+ v,k=pick(flat,{"lasterror","infolasterror","error","errorstatus","suspendreason"},{"lasterror","errormessage","suspendreason"});if v~=nil and tostring(v)~=""then b.error=tostring(v);b.errorField=k end
+ v,k=pickNum(flat,{"mode","infomode"},{"buildermode"});if v~=nil then b.modeId=v;b.mode=RFT_MODE[math.floor(v)]or("MODE "..tostring(v));b.modeField=k end
+ v=pick(flat,{"cardname","shapecard","cardtype","itemname"},{"shapecard","cardtype"});if v~=nil then b.card=tostring(v)end
+ v=pick(flat,{"rsmode","redstonemode"},{"redstonemode"});if v~=nil then b.redstoneMode=tostring(v)end
  if not b.remaining and b.total and b.processed then b.remaining=math.max(0,b.total-b.processed)end
  if not b.progress and b.total and b.total>0 and b.processed then b.progress=math.max(0,math.min(100,b.processed/b.total*100))end
  -- If the reader exposes a complete scan box and scan position, expose an approximate
@@ -102,6 +110,33 @@ local function enrichFromFlat(b,flat)
    b.total=b.total or total;b.processed=b.processed or ordinal;b.remaining=b.remaining or math.max(0,total-ordinal)
   end
  end
+end
+
+local function finalize(now,b,old)
+ if b.energy and b.energyCapacity and b.energyCapacity>0 then b.energyPercent=math.max(0,math.min(100,b.energy/b.energyCapacity*100))end
+ if b.minX and b.maxX then b.sizeX=math.abs(b.maxX-b.minX)+1 end
+ if b.minY and b.maxY then b.sizeY=math.abs(b.maxY-b.minY)+1 end
+ if b.minZ and b.maxZ then b.sizeZ=math.abs(b.maxZ-b.minZ)+1 end
+ if b.sizeX and b.sizeY and b.sizeZ then b.volume=b.sizeX*b.sizeY*b.sizeZ end
+ if b.currentX and b.currentY and b.currentZ then b.position=string.format("%d, %d, %d",b.currentX,b.currentY,b.currentZ)end
+ if b.progressField then b.progressSource=b.progressApprox and"APPROX BOX SCAN"or("FIELD "..b.progressField)
+ elseif b.progressApprox then b.progressSource="APPROX BOX SCAN"
+ elseif b.processed and b.total then b.progressSource="BLOCK COUNTS"end
+ deriveRate(now,b,old)
+ local moved=false
+ if old then
+  moved=(b.processed and old.processed and b.processed~=old.processed)or(b.progress and old.progress and b.progress~=old.progress)or(b.position and old.position and b.position~=old.position)
+ end
+ b.lastProgressAt=moved and now or(tonumber(old and old.lastProgressAt)or tonumber(old and old.sampledAt)or now)
+ if b.running==true and now-b.lastProgressAt>=30000 then b.stalled=true;b.stalledSeconds=math.floor((now-b.lastProgressAt)/1000)end
+ if b.error and b.error~=""then b.status="ERROR"
+ elseif b.stalled then b.status="STALLED"
+ elseif b.running==true then b.status=b.status or"RUNNING"
+ elseif b.running==false then b.status=b.status or"IDLE"
+ else b.status=b.status or"CONNECTED"end
+ if b.running==true and b.energy~=nil and b.energy<=0 then b.issue="NO POWER"elseif b.error then b.issue=b.error elseif b.stalled then b.issue="NO PROGRESS"end
+ b.apiLimited=not(b.progress or b.processed or b.remaining or b.currentY or b.energy or b.error)
+ return b
 end
 
 local function readDirect(name,ts,ml,set,now,previous)
@@ -119,18 +154,22 @@ local function readDirect(name,ts,ml,set,now,previous)
  v=first(name,set,{"getMinY","getMinimumY"});b.minY=num(v);v=first(name,set,{"getMaxY","getMaximumY"});b.maxY=num(v)
  v=first(name,set,{"getEnergy","getStoredEnergy","getEnergyStored"});b.energy=num(v);v=first(name,set,{"getEnergyCapacity","getMaxEnergy","getMaxEnergyStored"});b.energyCapacity=num(v)
  v=first(name,set,{"getEnergyUsage","getPowerUsage","getRfPerTick","getFEPerTick"});b.energyUsage=num(v)
- deriveRate(now,b,oldFor(previous,name));b.apiLimited=not(b.progress or b.processed or b.remaining or b.currentY)
- return b
+ return finalize(now,b,oldFor(previous,name))
 end
 
 local function readBlockReader(name,ts,ml,set,now,previous)
  local blockName=first(name,set,{"getBlockName"});if type(blockName)~="string"then return nil end
  local target=norm(blockName);if not(target:find("builder",1,true)or target:find("quarry",1,true))then return nil end
  local data=first(name,set,{"getBlockData"})
- local b={peripheral=name,type=ts[1],types=ts,methods=ml,methodCount=#ml,sampledAt=now,source="block_reader",reader=true,targetBlock=blockName,status="BLOCK READER"}
- if type(data)=="table"then local flat,count=flatten(data);b.rawFieldCount=count;enrichFromFlat(b,flat)else b.rawFieldCount=0 end
- deriveRate(now,b,oldFor(previous,name));b.apiLimited=not(b.progress or b.processed or b.remaining or b.currentY or b.energy)
- return b
+ local b={peripheral=name,type=ts[1],types=ts,methods=ml,methodCount=#ml,sampledAt=now,source="block_reader",reader=true,targetBlock=blockName}
+ if set.hasBlockEntity then local has=first(name,set,{"hasBlockEntity"});b.hasBlockEntity=bool(has)end
+ if set.getBlockState then local blockState=first(name,set,{"getBlockState"});if type(blockState)=="table"then b.blockState=blockState end end
+ if type(data)=="table"then
+  local flat,count,details=flatten(data);b.rawFieldCount=count;b.rawFields={}
+  for i=1,math.min(24,#details)do b.rawFields[i]=details[i]end
+  enrichFromFlat(b,flat)
+ else b.rawFieldCount=0 end
+ return finalize(now,b,oldFor(previous,name))
 end
 
 function M.read(previous)

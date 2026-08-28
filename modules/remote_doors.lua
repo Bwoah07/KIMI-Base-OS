@@ -1,6 +1,7 @@
 local M={id="remote_doors"}
 local network=require("core.network")
 local config=require("core.config")
+local unpack=table.unpack or unpack
 
 local allowed={open=true,close=true,toggle=true,pulse=true}
 

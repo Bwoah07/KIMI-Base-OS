@@ -25,7 +25,7 @@ local function rule(e,y)if y>=1 and y<=e.h then put(e,2,y,string.rep("-",math.ma
 local function header(e,title)put(e,2,1,title,C.text);put(e,math.max(2,e.w-6),1,gameTime(),C.dim);put(e,2,2,baseName(),C.dim);rule(e,3)end
 
 local function allSensors(env)local a=state(env).attachments or{};local out,seen={},{};for _,d in ipairs(a.devices or{})do if hasCategory(d,"sensor")or hasCategory(d,"sensor_candidate")then local k=tostring(d._source or"").."|"..tostring(d.name or d.type);if not seen[k]then seen[k]=true;out[#out+1]=d end end end;for _,d in ipairs(a.sensors or{})do local k=tostring(d._source or"").."|"..tostring(d.name or d.type);if not seen[k]then seen[k]=true;out[#out+1]=d end end;table.sort(out,function(a,b)return tostring(a.name or a.type)<tostring(b.name or b.type)end);return out end
-local function chooseMain(raw,rs)local best,score=nil,-1;for _,m in ipairs(raw.matrices or{})do local s=(tostring(m.peripheral)==tostring(rs.mainPeripheral)and 1e30 or 0)+(tonumber(m.capacity)or 0);if s>score then best,score=m,s end end;return best or raw.matrices and raw.matrices[1] or raw end
+local function chooseMain(raw,rs)local best,score=nil,-1;for _,m in ipairs(raw.matrices or{})do local data=upper(m._telemetryStatus or"LIVE");local s=(data=="LIVE"and 1e35 or(data=="CACHED"and 1e34 or 0))+(tostring(m.peripheral)==tostring(rs.mainPeripheral)and 1e30 or 0)+(tonumber(m.capacity)or 0);if s>score then best,score=m,s end end;return best or raw.matrices and raw.matrices[1] or raw end
 local function reserveText(rs,raw)local st=upper(rs and rs.status or"");if st=="NO RESERVE MATRIX"then return"NOT INSTALLED"end;if st=="NO MAIN MATRIX"and raw and #(raw.matrices or{})>0 then return"NOT INSTALLED"end;if st==""then return"NOT INSTALLED"end;return st end
 
 local function renderPowerWide(e,env)
@@ -40,10 +40,10 @@ local function renderPowerWide(e,env)
 end
 
 local function renderPowerTall(e,env)
- prep(e);header(e,"POWER");local raw=state(env).power or{};local rs=state(env).power_reserve or{};local main=chooseMain(raw,rs);local mp=percent(main)
- center(e,5,"MAIN MATRIX",C.dim);center(e,6,mp and string.format("%.1f%%",mp)or"NO MATRIX",mp and C.good or C.warn)
- local x1=math.floor(e.w/2)-3;local x2=x1+6;local y1=8;local y2=math.min(15,e.h-12);if y2<y1+4 then y2=y1+4 end;fill(e,x1,y1,x2,y2,C.panel);fill(e,x1+1,y1+1,x2-1,y2-1,C.bg);local ih=y2-y1-1;local rows=mp and math.floor(ih*mp/100+.5)or 0;if rows>0 then fill(e,x1+1,y2-rows,x2-1,y2-1,C.good)end
- local y=y2+1;center(e,y,powerStatus(main),C.text);y=y+2;put(e,2,y,"STORED "..fmt(main and main.stored).." FE",C.text);y=y+1;put(e,2,y,"IN +"..fmt(main and main.input).." /t",C.good);y=y+1;put(e,2,y,"OUT -"..fmt(main and main.output).." /t",C.dim);y=y+2;if y<=e.h then rule(e,y)end;y=y+1;if y<=e.h then put(e,2,y,"RESERVE",C.dim)end;y=y+1;if y<=e.h then put(e,2,y,reserveText(rs,raw),rs.feeding and C.warn or(rs.configured and C.good or C.dim))end;y=y+2;local fx=raw.fluxNetworks or{};if y<=e.h then put(e,2,y,"FLUX "..#fx,#fx>0 and C.good or C.warn)end
+ prep(e);header(e,"POWER");local raw=state(env).power or{};local rs=state(env).power_reserve or{};local main=chooseMain(raw,rs);local mp=percent(main);local data=upper(main and(main._telemetryStatus or"LIVE")or"MISSING");local live=data=="LIVE";local dataColor=live and C.good or C.warn
+ center(e,5,"MAIN MATRIX",C.dim);center(e,6,mp and(string.format("%.1f%%",mp).." "..data)or"NO MATRIX",mp and dataColor or C.warn)
+ local x1=math.floor(e.w/2)-3;local x2=x1+6;local y1=8;local y2=math.min(15,e.h-12);if y2<y1+4 then y2=y1+4 end;fill(e,x1,y1,x2,y2,C.panel);fill(e,x1+1,y1+1,x2-1,y2-1,C.bg);local ih=y2-y1-1;local rows=mp and math.floor(ih*mp/100+.5)or 0;if rows>0 then fill(e,x1+1,y2-rows,x2-1,y2-1,dataColor)end
+ local y=y2+1;center(e,y,powerStatus(main),live and C.text or C.warn);y=y+2;put(e,2,y,"STORED "..fmt(main and main.stored).." FE",C.text);y=y+1;put(e,2,y,"IN +"..fmt(main and main.input).." /t",dataColor);y=y+1;put(e,2,y,"OUT -"..fmt(main and main.output).." /t",C.dim);y=y+2;if y<=e.h then rule(e,y)end;y=y+1;if y<=e.h then put(e,2,y,"RESERVE",C.dim)end;y=y+1;if y<=e.h then put(e,2,y,live and reserveText(rs,raw)or"WAITING FOR LIVE MAIN",live and(rs.feeding and C.warn or(rs.configured and C.good or C.dim))or C.warn)end;y=y+2;local fx=raw.fluxNetworks or{};if y<=e.h then local liveFlux=0;for _,n in ipairs(fx)do if upper(n._telemetryStatus or"LIVE")=="LIVE"then liveFlux=liveFlux+1 end end;put(e,2,y,"FLUX "..#fx.." / "..liveFlux.." LIVE",#fx>0 and(liveFlux>0 and C.good or C.warn)or C.warn)end
 end
 
 local function renderEnvironment(e,env)

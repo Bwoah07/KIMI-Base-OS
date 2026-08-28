@@ -1,4 +1,5 @@
 local M = { id = "doors" }
+local unpack=table.unpack or unpack
 local ROOT = ".kimi"
 local LOCAL_PATH = ROOT .. "/local_doors"
 local computerSides = {"top","bottom","left","right","front","back"}
@@ -6,10 +7,12 @@ local worldSides = {"north","south","east","west","up","down"}
 
 local function key(target, side) return tostring(target or "") .. "|" .. tostring(side or "") end
 local function has(list, value) for _,v in ipairs(list) do if v==value then return true end end return false end
-local function ensureRoot() if not fs.exists(ROOT) then fs.makeDir(ROOT) end end
+local function hasFs()return type(fs)=="table"and type(fs.exists)=="function"and type(fs.open)=="function"end
+local function ensureRoot()if not hasFs()then return false end;if not fs.exists(ROOT)then fs.makeDir(ROOT)end;return true end
 local function normalizeMode(v) v=tostring(v or "hold"); if v~="hold" and v~="invert" and v~="pulse" then v="hold" end; return v end
 
 local function loadDoors()
+  if not hasFs()then return{}end
   if not fs.exists(LOCAL_PATH) or fs.isDir(LOCAL_PATH) then return {} end
   local f=fs.open(LOCAL_PATH,"r"); if not f then return {} end
   local raw=f.readAll(); f.close()
@@ -27,7 +30,7 @@ local function loadDoors()
 end
 
 local function saveDoors(v)
-  ensureRoot(); local f=assert(fs.open(LOCAL_PATH,"w")); f.write(textutils.serialize(v or {})); f.close()
+  if not ensureRoot()then return false end;local f=assert(fs.open(LOCAL_PATH,"w"));f.write(textutils.serialize(v or{}));f.close();return true
 end
 
 local function methods(name)
@@ -45,9 +48,15 @@ local function ptype(name)
 end
 
 local function pcallPeripheral(name, method, ...)
-  if not peripheral or type(peripheral.call)~="function" then return false,"peripheral.call unavailable" end
   local args={...}
-  local ok,value=pcall(function() return peripheral.call(name,method,unpack(args)) end)
+  if type(peripheral)~="table"then return false,"peripheral API unavailable"end
+  local ok,value
+  if type(peripheral.call)=="function"then ok,value=pcall(function()return peripheral.call(name,method,unpack(args))end)
+  elseif type(peripheral.wrap)=="function"then
+    local wrappedOk,wrapped=pcall(peripheral.wrap,name);local fn=wrappedOk and wrapped and wrapped[method]
+    if type(fn)~="function"then return false,"peripheral method unavailable"end
+    ok,value=pcall(fn,unpack(args))
+  else return false,"peripheral.call unavailable"end
   if not ok then return false,tostring(value) end
   return true,value
 end
@@ -199,7 +208,7 @@ function M.read()
       end
     end
   end
-  return {controllers=cs,controllerCount=#cs,candidates=candidates,candidateCount=#candidates,localDoors=localDoors,localDoorCount=#localDoors,_status="online",_updated=os.epoch("utc")}
+  return {controllers=cs,controllerCount=#cs,candidates=candidates,candidateCount=#candidates,localDoors=localDoors,localDoorCount=#localDoors,channelCount=#localDoors,_status="online",_updated=os.epoch("utc")}
 end
 
 function M.handleCommand(action,args)

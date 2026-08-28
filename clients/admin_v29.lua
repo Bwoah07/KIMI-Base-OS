@@ -3,14 +3,18 @@
 -- every layout and the richer live-telemetry POWER dashboard on wide screens.
 local base=require("clients.admin_v27")
 local health=require("core.fleet_health")
+local builderUI=require("clients.builder_dashboard")
 local M={}
 for k,v in pairs(base)do M[k]=v end
 
 local C={bg=colors.black,text=colors.white,dim=colors.lightGray,good=colors.lime,warn=colors.orange,bad=colors.red,panel=colors.gray}
 local lastEnv,lastMeta
 local targets={}
+local viewTargets={}
 local lastRequest=nil
 local localMessage=""
+local sharedView=nil
+local builderPage=1
 
 local function upper(v)return tostring(v or""):upper()end
 local function nice(v)return upper(tostring(v or""):gsub("minecraft:",""):gsub("[_%-]"," "):gsub("(%l)(%u)","%1 %2"))end
@@ -59,7 +63,8 @@ local function renderFleet(e,env)
  if #rows>shown and e.h>=2 then put(e,2,e.h,"+"..tostring(#rows-shown).." MORE REMEMBERED",C.dim)end
 end
 
-local function biggestMatrix(list)local best,cap=nil,-1;for _,m in ipairs(list or{})do local c=tonumber(m.capacity)or 0;if c>cap then best,cap=m,c end end;return best end
+local function dataRank(v)local s=upper(v and v._telemetryStatus or"LIVE");if s=="LIVE"then return 2 elseif s=="CACHED"then return 1 end;return 0 end
+local function biggestMatrix(list)local best,rank,cap=nil,-1,-1;for _,m in ipairs(list or{})do local r=dataRank(m);local c=tonumber(m.capacity)or 0;if r>rank or(r==rank and c>cap)then best,rank,cap=m,r,c end end;return best end
 local function sourcePowerInfo(env)
  local st=state(env);local t=now();local serverId=env and env.serverId;local out={}
  for id,s in pairs(st.sources or{})do local p=s.state and s.state.power;local matrices=type(p)=="table"and p.matrices or nil;local flux=type(p)=="table"and p.fluxNetworks or nil;if (type(matrices)=="table"and #matrices>0)or(type(flux)=="table"and #flux>0)then local seen=s.lastHeartbeat or s.lastSeen;local status,age=health.reachability(id,{lastSeen=seen},serverId,t);out[#out+1]={id=id,name=s.name or("KIMI-"..tostring(id)),status=status,age=age,matrices=matrices or{},flux=flux or{}}end end
@@ -67,28 +72,61 @@ local function sourcePowerInfo(env)
 end
 local function offlineMatrixHint(env)local best=nil;for _,s in ipairs(sourcePowerInfo(env))do if #s.matrices>0 and s.status~="ONLINE"then if not best or s.age<best.age then best=s end end end;return best end
 local function renderPowerWide(e,env)
- prep(e);header(e,"POWER / LIVE TELEMETRY");local st=state(env);local p=st.power or{};local matrices=p.matrices or{};local fx=p.fluxNetworks or{};local rs=st.power_reserve or{};local main=biggestMatrix(matrices);local mp=pct(main)
+ prep(e);header(e,"POWER / TELEMETRY");local st=state(env);local p=st.power or{};local matrices=p.matrices or{};local fx=p.fluxNetworks or{};local rs=st.power_reserve or{};local main=biggestMatrix(matrices);local mp=pct(main);local mainData=upper(main and(main._telemetryStatus or"LIVE")or"MISSING");local mainColor=mainData=="LIVE"and C.good or C.warn
  local col=math.max(12,math.floor((e.w-6)/3));local a1=2;local a2=math.min(e.w-2,a1+col-1);local b1=a2+2;local b2=math.min(e.w-2,b1+col-1);local c1=b2+2
  put(e,a1,5,"MAIN MATRIX",C.dim)
- if main then put(e,a1,6,mp and string.format("%.1f%%",mp)or"LIVE",C.good);fill(e,a1,7,a2,7,C.panel);if mp then local n=math.floor((a2-a1+1)*mp/100+.5);if n>0 then fill(e,a1,7,a1+n-1,7,C.good)end end;put(e,a1,9,"STORED "..fmt(main.stored).." FE",C.text);put(e,a1,10,"CAP "..fmt(main.capacity).." FE",C.dim);if e.h>=12 then put(e,a1,11,"IN  +"..fmt(main.input).."/t",C.good);put(e,a1,12,"OUT -"..fmt(main.output).."/t",C.dim)end
+ if main then put(e,a1,6,(mp and string.format("%.1f%%",mp)or"DATA").."  "..mainData,mainColor);fill(e,a1,7,a2,7,C.panel);if mp then local n=math.floor((a2-a1+1)*mp/100+.5);if n>0 then fill(e,a1,7,a1+n-1,7,mainColor)end end;put(e,a1,9,"STORED "..fmt(main.stored).." FE",C.text);put(e,a1,10,"CAP "..fmt(main.capacity).." FE",C.dim);if e.h>=12 then put(e,a1,11,"IN  +"..fmt(main.input).."/t",mainColor);put(e,a1,12,"OUT -"..fmt(main.output).."/t",C.dim)end
  else put(e,a1,6,"NO LIVE MATRIX TELEMETRY",C.bad);local hint=offlineMatrixHint(env);if hint then put(e,a1,8,upper(hint.name),C.warn);put(e,a1,9,"LAST SEEN "..health.ageText(hint.age),C.dim)else put(e,a1,8,"CHECK MATRIX NODE",C.warn)end end
- put(e,b1,5,"RESERVE",C.dim);if not main then put(e,b1,6,"WAITING FOR LIVE MAIN",C.warn)else local status=upper(rs.status or(rs.configured and"ARMED"or"NOT CONFIGURED"));if status=="NO MAIN MATRIX"then status="WAITING FOR TELEMETRY"end;put(e,b1,6,status,rs.feeding and C.warn or(rs.configured and C.good or C.dim));if rs.reservePercent~=nil then put(e,b1,8,string.format("%.1f%%",tonumber(rs.reservePercent)or 0),C.good)elseif #matrices<2 then put(e,b1,8,"NO LIVE BACKUP MATRIX",C.dim)end;put(e,b1,10,"FEED <= "..tostring(math.floor(tonumber(rs.lowPercent) or 20)).."%",C.dim);if e.h>=11 then put(e,b1,11,"STOP >= "..tostring(math.floor(tonumber(rs.highPercent) or 80)).."%",C.dim)end end
- put(e,c1,5,"FLUX NETWORKS",C.dim);put(e,c1,6,tostring(#fx),#fx>0 and C.good or C.bad);if #fx==0 then put(e,c1,8,"NO LIVE FLUX TELEMETRY",C.warn)else local y=8;for i,n in ipairs(fx)do if y>e.h then break end;put(e,c1,y,nice(n.networkName or n.name or n.peripheral or("NETWORK "..i)),C.text);if y+1<=e.h then put(e,c1,y+1,fmt(n.stored).." FE  NET "..fmt(n.net).."/t",C.dim)end;y=y+2 end end
+ put(e,b1,5,"RESERVE",C.dim);if not main or mainData~="LIVE"then put(e,b1,6,"WAITING FOR LIVE MAIN",C.warn);if main then put(e,b1,8,"CACHED DATA IS DISPLAY ONLY",C.dim)end else local status=upper(rs.status or(rs.configured and"ARMED"or"NOT CONFIGURED"));if status=="NO MAIN MATRIX"then status="WAITING FOR TELEMETRY"end;put(e,b1,6,status,rs.feeding and C.warn or(rs.configured and C.good or C.dim));if rs.reservePercent~=nil then put(e,b1,8,string.format("%.1f%%",tonumber(rs.reservePercent)or 0),C.good)elseif #matrices<2 then put(e,b1,8,"NO LIVE BACKUP MATRIX",C.dim)end;put(e,b1,10,"FEED <= "..tostring(math.floor(tonumber(rs.lowPercent) or 20)).."%",C.dim);if e.h>=11 then put(e,b1,11,"STOP >= "..tostring(math.floor(tonumber(rs.highPercent) or 80)).."%",C.dim)end end
+ local liveFlux=0;for _,n in ipairs(fx)do if upper(n._telemetryStatus or"LIVE")=="LIVE"then liveFlux=liveFlux+1 end end
+ put(e,c1,5,"FLUX NETWORKS",C.dim);put(e,c1,6,tostring(#fx).." FOUND / "..liveFlux.." LIVE",#fx>0 and(liveFlux>0 and C.good or C.warn)or C.bad);if #fx==0 then put(e,c1,8,"NO LIVE FLUX TELEMETRY",C.warn)else local y=8;for i,n in ipairs(fx)do if y>e.h then break end;local ds=upper(n._telemetryStatus or"LIVE");put(e,c1,y,nice(n.networkName or n.name or n.peripheral or("NETWORK "..i)),C.text);if y+1<=e.h then put(e,c1,y+1,fmt(n.stored).." FE  "..ds,ds=="LIVE"and C.good or C.warn)end;y=y+2 end end
 end
 
-function M.init(c)targets={};lastRequest=nil;localMessage="";lastEnv,lastMeta=nil,nil;return base.init and base.init(c)end
+local function builders(env)local b=state(env).builder or{};return b.builders or{}end
+local function plannedBuilderMonitor(ms,env)
+ local extras={};for i=4,#ms do extras[#extras+1]=ms[i]end;if#extras==0 then return nil end
+ local envIndex,envScore=1,-1;for i,e in ipairs(extras)do local score=(e.w/math.max(1,e.h))*1000+e.area;if score>envScore then envIndex,envScore=i,score end end;table.remove(extras,envIndex)
+ local ae=state(env).ae2 or{};if#extras>0 and(ae.bridge or ae.online==true or ae.connected==true)then table.remove(extras,1)end
+ return extras[1]
+end
+local function paintViewButton(e,label)
+ local x1=math.max(2,e.w-#label-3);fill(e,x1,2,e.w-1,2,colors.blue);put(e,x1+1,2,label,C.text,colors.blue);viewTargets[e.name]={x1=x1,x2=e.w-1,y=2,action=label}
+end
+local function renderBuilder(e,env,dedicated)
+ local list=builders(env);if #list==0 then builderPage=1 else builderPage=((builderPage-1)%#list)+1 end
+ builderUI.paint(e,list[builderPage],builderPage,#list,{title=dedicated and"BUILDER / QUARRY"or"BUILDER / QUARRY"})
+ if not dedicated then paintViewButton(e,"FLEET")end
+end
+
+function M.init(c)targets={};viewTargets={};lastRequest=nil;localMessage="";lastEnv,lastMeta=nil,nil;sharedView=nil;builderPage=1;return base.init and base.init(c)end
 function M.render(env,meta)
- lastEnv,lastMeta=env,meta;local ok=base.render(env,meta);local ms=monitors();local power=ms[2]
+ lastEnv,lastMeta=env,meta;viewTargets={};local ok=base.render(env,meta);local ms=monitors();local power=ms[2];local bs=builders(env);local dedicated=plannedBuilderMonitor(ms,env)
  -- Wide screens get the alpha81 three-column truth dashboard. Tall/narrow
  -- screens deliberately keep v27's proven vertical battery + Flux renderer.
  if power and power.w>=power.h*1.45 then renderPowerWide(power,env)end
- if ms[3]then renderFleet(ms[3],env)end
+ if ms[3]then
+  if dedicated and#bs>0 then renderFleet(ms[3],env);renderBuilder(dedicated,env,true)
+  elseif #bs>0 then
+   sharedView=sharedView or"BUILDER"
+   if sharedView=="BUILDER"then renderBuilder(ms[3],env,false)else renderFleet(ms[3],env);paintViewButton(ms[3],"BUILDER")end
+  else sharedView="FLEET";renderFleet(ms[3],env)end
+ end
  return ok
 end
-function M.onPeripheralChange(...)targets={};if base.onPeripheralChange then return base.onPeripheralChange(...)end end
+function M.onPeripheralChange(...)targets={};viewTargets={};if base.onPeripheralChange then return base.onPeripheralChange(...)end end
 function M.handleEvent(ev,env,action)
  lastEnv=env or lastEnv
- if ev[1]=="monitor_touch"then local ms=monitors();local fm=ms[3];local name,y=ev[2],tonumber(ev[4]);if fm and name==fm.name then localMessage="";for _,t in ipairs(targets[name]or{})do if y and y>=t.y1 and y<=t.y2 then if t.main then lastRequest=nil;localMessage="THAT IS MAIN BASE - YOU ARE LOOKING AT IT" elseif t.status=="OFFLINE"then lastRequest=nil;localMessage="ID "..tostring(t.id).." OFFLINE - LAST SEEN "..health.ageText(t.age) else local stamp=now();local ok,res=pcall(action,"server","identify",{id=t.id,duration=10});local sent=ok and type(res)=="table"and res.ok~=false;if sent then lastRequest={id=t.id,at=stamp};localMessage=""else lastRequest=nil;localMessage="IDENTIFY SEND FAILED -> ID "..tostring(t.id)end end;M.render(lastEnv,lastMeta);return true end end;return true end end
+ if ev[1]=="monitor_touch"then
+  local ms=monitors();local fm=ms[3];local bm=plannedBuilderMonitor(ms,lastEnv);local name,x,y=ev[2],tonumber(ev[3]),tonumber(ev[4]);local nav=viewTargets[name]
+  if nav and x and y==nav.y and x>=nav.x1 and x<=nav.x2 then sharedView=nav.action;M.render(lastEnv,lastMeta);return true end
+  local bs=builders(lastEnv);if#bs==0 then bm=nil end;local builderMon=bm or(fm and sharedView=="BUILDER"and fm or nil)
+  if builderMon and name==builderMon.name then
+   if #bs>1 and y==builderMon.h and x then builderPage=((builderPage-1+(x<=math.floor(builderMon.w/2)and-1 or 1))%#bs)+1;M.render(lastEnv,lastMeta)end
+   return true
+  end
+  if fm and name==fm.name then localMessage="";for _,t in ipairs(targets[name]or{})do if y and y>=t.y1 and y<=t.y2 then if t.main then lastRequest=nil;localMessage="THAT IS MAIN BASE - YOU ARE LOOKING AT IT" elseif t.status=="OFFLINE"then lastRequest=nil;localMessage="ID "..tostring(t.id).." OFFLINE - LAST SEEN "..health.ageText(t.age) else local stamp=now();local ok,res=pcall(action,"server","identify",{id=t.id,duration=10});local sent=ok and type(res)=="table"and res.ok~=false;if sent then lastRequest={id=t.id,at=stamp};localMessage=""else lastRequest=nil;localMessage="IDENTIFY SEND FAILED -> ID "..tostring(t.id)end end;M.render(lastEnv,lastMeta);return true end end;return true end
+  if bm and name==bm.name then return true end
+ end
  local handled=base.handleEvent and base.handleEvent(ev,env,action)or false;if handled then M.render(lastEnv,lastMeta)end;return handled
 end
 return M

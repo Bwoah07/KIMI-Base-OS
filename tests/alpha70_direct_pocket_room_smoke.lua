@@ -1,4 +1,5 @@
 local realPrint=print
+local unpack=table.unpack or unpack
 local realOs=os
 
 colors={white=1,orange=2,lightBlue=8,lime=32,gray=128,lightGray=256,cyan=512,blue=2048,red=16384,black=32768}

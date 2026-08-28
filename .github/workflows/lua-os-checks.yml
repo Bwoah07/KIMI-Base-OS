@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/auto-display-overhaul
+      - feature/alpha82-connected-builder-overhaul
     paths:
       - '**/*.lua'
       - 'manifest.json'
@@ -112,12 +113,16 @@ jobs:
         run: lua5.2 tests/alpha76_rftools_builder_reader_smoke.lua
       - name: Alpha77 working fleet identify test
         run: lua5.2 tests/alpha77_working_fleet_identify_smoke.lua
+      - name: Alpha78 real fleet heartbeat test
+        run: lua5.2 tests/alpha78_real_fleet_heartbeat_smoke.lua
       - name: Alpha79 fleet stability test
         run: lua5.2 tests/alpha79_fleet_stability_smoke.lua
       - name: Alpha80 calm fleet test
         run: lua5.2 tests/alpha80_calm_fleet_smoke.lua
       - name: Alpha81 truthful fleet/power test
         run: lua5.2 tests/alpha81_truthful_fleet_power_smoke.lua
+      - name: Alpha82 connected Builder overhaul test
+        run: lua5.2 tests/alpha82_connected_builder_overhaul_smoke.lua
 
       - name: Validate managed manifest
         run: |

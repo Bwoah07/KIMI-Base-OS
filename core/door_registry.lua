@@ -20,6 +20,12 @@ local function localKey(target, side)
     return tostring(target or "") .. "|" .. tostring(side or "")
 end
 
+local function candidateOnline(item)
+    if type(item)~="table" then return false end
+    local status=tostring(item._telemetryStatus or"LIVE"):upper()
+    return status=="LIVE"and item._connected~=false
+end
+
 function M.key(source, target, side)
     return tostring(source or "server") .. "|" .. tostring(target or "") .. "|" .. tostring(side or "")
 end
@@ -70,6 +76,9 @@ function M.candidates(values)
                     item.localName = logical.name or item.localName
                 end
                 item._source = sourceId
+                item._telemetryStatus=source.telemetryStatus or"LIVE"
+                item._telemetryAgeMs=source.telemetryAgeMs or 0
+                item._connected=source.connected~=false
                 item.key = M.key(sourceId, item.target, item.side)
                 out[#out + 1] = item
             end
@@ -87,6 +96,9 @@ function M.candidates(values)
                         readable = channel.readable == true,
                         _source = sourceId
                     }
+                    item._telemetryStatus=source.telemetryStatus or"LIVE"
+                    item._telemetryAgeMs=source.telemetryAgeMs or 0
+                    item._connected=source.connected~=false
                     local logical = logicalByKey[localKey(item.target, item.side)]
                     if logical then
                         item.open = logical.open == true
@@ -117,7 +129,7 @@ function M.snapshot(entries, candidates)
         local item = copy(entry)
         item.key = key
         item._source = tostring(entry.source or "server")
-        item.online = live ~= nil
+        item.online = candidateOnline(live)
         item.open = live and live.open == true or false
         item.readable = live and live.readable == true or false
         item.controller = live and live.controller or entry.controller
@@ -139,7 +151,7 @@ function M.snapshot(entries, candidates)
             item.name = candidate.localName or ((tostring(candidate.label or candidate.side or "LOCAL")):upper() .. " DOOR")
             item.source = tostring(candidate._source or "server")
             item._source = item.source
-            item.online = true
+            item.online = candidateOnline(candidate)
             item.open = candidate.open == true
             item.readable = candidate.readable == true
             item.origin = "room"
@@ -183,7 +195,7 @@ function M.add(entries, candidates, wantedKey)
 
     local selected
     for _, candidate in ipairs(candidates or {}) do if candidate.key == wantedKey then selected = candidate; break end end
-    if not selected then return nil, "door candidate is no longer online" end
+    if not selected or not candidateOnline(selected)then return nil,"door candidate is no longer online"end
 
     local nextId = 1
     for _, entry in ipairs(entries or {}) do nextId = math.max(nextId, (tonumber(entry.id) or 0) + 1) end

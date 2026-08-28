@@ -1,5 +1,5 @@
 {
-  "version": "5.0.0-alpha.81",
+  "version": "5.0.0-alpha.82",
   "channel": "alpha",
   "ref": "86c4de5e4fb42279b20c3e39d304b41b91b464bc",
   "entrypoint": "kimi.lua",
@@ -16,6 +16,7 @@
     "core/doors_impl.lua",
     "core/fleet_registry.lua",
     "core/fleet_health.lua",
+    "core/telemetry_health.lua",
     "core/fleet_truth.lua",
     "core/fleet_identity.lua",
     "core/module_loader.lua",
@@ -71,6 +72,7 @@
     "clients/admin_v28.lua",
     "clients/admin_v29.lua",
     "clients/admin_v30.lua",
+    "clients/builder_dashboard.lua",
     "clients/room_v12.lua",
     "clients/room_v15.lua",
     "clients/room_v16.lua",

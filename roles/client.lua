@@ -67,6 +67,8 @@ function M.run(cfg)
     local modules = discoverModules()
     local localState = loader.readAll(modules, {})
     local serverId, state, lastSeen = nil, nil, 0
+    local serverFoundAt=0
+    local SERVER_REPLY_MS=15000
     local lastModuleScan = os.epoch("utc")
 
     if profileLoadErr then paintUiError("profile load failed: " .. tostring(profileLoadErr)) end
@@ -86,6 +88,7 @@ function M.run(cfg)
     local function meta(connected)
         return {
             connected=connected, lastSeen=lastSeen, serverId=serverId,
+            connectionAgeMs=lastSeen>0 and math.max(0,os.epoch("utc")-lastSeen)or(serverFoundAt>0 and math.max(0,os.epoch("utc")-serverFoundAt)or math.huge),
             localState=localState, localVersion=updates.localVersion(),
             clientName=cfg.name, localServer=false, profile=resolvedProfile
         }
@@ -212,19 +215,22 @@ function M.run(cfg)
         local e = { os.pullEvent() }
 
         if e[1] == "timer" and e[2] == pollTimer then
-            if not serverId then serverId = network.findServer(cfg) end
             local now = os.epoch("utc")
+            if serverId and((lastSeen>0 and now-lastSeen>SERVER_REPLY_MS)or(lastSeen==0 and serverFoundAt>0 and now-serverFoundAt>SERVER_REPLY_MS))then serverId=nil;serverFoundAt=0 end
+            if not serverId then serverId=network.findServer(cfg);if serverId then serverFoundAt=now end end
             if now - lastModuleScan >= 10000 then modules=discoverModules(); lastModuleScan=now end
             localState = loader.readAll(modules, localState)
 
             if serverId then
                 network.send(serverId, cfg, "fleet.hello", helloPayload())
-                network.send(serverId, cfg, "state.get", helloPayload())
+                local requested=network.send(serverId, cfg, "state.get", helloPayload())
                 local telemetry=helloPayload(); telemetry.state=localState
-                network.send(serverId, cfg, "telemetry.state", telemetry)
+                local published=network.send(serverId, cfg, "telemetry.state", telemetry)
+                if requested==false and published==false then serverId=nil;serverFoundAt=0 end
             end
 
-            render(serverId ~= nil)
+            local connected=serverId~=nil and lastSeen>0 and now-lastSeen<=SERVER_REPLY_MS
+            render(connected)
             pollTimer = os.startTimer(1)
 
         elseif e[1] == "timer" and e[2] == probationTimer then
@@ -236,7 +242,7 @@ function M.run(cfg)
             if protocol==cfg.network.protocol and type(msg)=="table" then
                 local payload=type(msg.payload)=="table" and msg.payload or {}
                 if msg.kind=="fleet.probe" then
-                    if not serverId then serverId=network.findServer(cfg) end
+                    if not serverId then serverId=network.findServer(cfg);serverFoundAt=serverId and os.epoch("utc")or 0 end
                     if sender==serverId then network.send(sender,cfg,"fleet.hello",helloPayload()) end
 
                 elseif sender==serverId and msg.kind=="state" then
@@ -271,7 +277,7 @@ function M.run(cfg)
 
         elseif e[1]=="peripheral" or e[1]=="peripheral_detach" then
             network.openAll(); network.advertise(cfg,"client")
-            serverId=network.findServer(cfg); modules=discoverModules(); localState=loader.readAll(modules,localState); lastModuleScan=os.epoch("utc")
+            serverId=network.findServer(cfg);serverFoundAt=serverId and os.epoch("utc")or 0;modules=discoverModules(); localState=loader.readAll(modules,localState); lastModuleScan=os.epoch("utc")
             if profile.onPeripheralChange then
                 local okPer, perErr = pcall(profile.onPeripheralChange)
                 if not okPer then paintUiError("peripheral refresh failed: " .. tostring(perErr)) end
