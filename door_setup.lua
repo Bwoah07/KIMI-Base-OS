@@ -1,6 +1,8 @@
 local doors=require("modules.doors")
 local touchInput=require("core.touch_input")
 
+local args={...}
+local requestedMonitor=tostring(args[1]or"")
 local C={bg=colors.black,text=colors.white,dim=colors.lightGray,good=colors.lime,warn=colors.orange,bad=colors.red,panel=colors.gray,action=colors.blue}
 local selected=nil
 local mode="hold"
@@ -27,6 +29,12 @@ local function monitors()
     end end
     table.sort(out,function(a,b)if a.area~=b.area then return a.area>b.area end;return a.name<b.name end)
     return out
+end
+local function findMonitor(ms,name)
+    name=tostring(name or"");for _,e in ipairs(ms or{})do if tostring(e.name)==name then return e end end
+end
+local function chooseMonitor(ms,preferred)
+    return findMonitor(ms,preferred)or ms[1]
 end
 local function put(e,x,y,text,fg,bg)
     if not e or y<1 or y>e.h or x>e.w then return end
@@ -68,9 +76,7 @@ end
 local function rawSet(c,on)
     if not c then return false,"no candidate selected"end
     local target=tostring(c.target or"");local side=c.side
-    if target=="computer"then
-        local ok,err=pcall(redstone.setOutput,side,on==true);return ok,ok and nil or tostring(err)
-    end
+    if target=="computer"then local ok,err=pcall(redstone.setOutput,side,on==true);return ok,ok and nil or tostring(err)end
     local kind=tostring(c.kind or"")
     if kind=="digital_side"then local ok,err=pcall(peripheral.call,target,"setOutput",side,on==true);return ok,ok and nil or tostring(err)end
     if kind=="analog_side"then
@@ -88,8 +94,18 @@ end
 
 local function drawList(e)
     hitboxes={};selected=nil;e.mon.setBackgroundColor(C.bg);e.mon.setTextColor(C.text);e.mon.clear()
-    put(e,2,1,"KIMI DOOR SETUP",C.text);put(e,2,2,"EXPLICIT CONTROLLER + SIDE. NOTHING IS GUESSED.",C.dim)
-    local list=candidates();local rows=math.max(1,math.floor((e.h-8)/2));local pages=math.max(1,math.ceil(#list/rows));page=math.max(1,math.min(page,pages));local first=(page-1)*rows+1
+    put(e,2,1,"KIMI DOOR SETUP",C.text);put(e,2,2,e.name.." / EXPLICIT CONTROLLER + SIDE",C.dim)
+    local list=candidates()
+    if #list==0 then
+        center(e,6,"NO DOOR CONTROLLERS FOUND",C.warn)
+        center(e,8,"A MODEM DOES NOT OUTPUT REDSTONE",C.dim)
+        center(e,10,"USE A REDSTONE RELAY ON THE WIRED NETWORK",C.text)
+        center(e,12,"OR REDSTONE DIRECTLY FROM THIS COMPUTER",C.text)
+        center(e,14,"ATTACH IT, THEN TAP REFRESH",C.good)
+        local half=math.floor(e.w/2);button(e,2,e.h-2,half-1,e.h,"EXIT","exit",C.bad);button(e,half+1,e.h-2,e.w-2,e.h,"REFRESH","refresh",C.action)
+        return
+    end
+    local rows=math.max(1,math.floor((e.h-8)/2));local pages=math.max(1,math.ceil(#list/rows));page=math.max(1,math.min(page,pages));local first=(page-1)*rows+1
     put(e,2,4,"PAGE "..page.."/"..pages.."  CHANNELS "..#list,C.dim)
     local y=6
     for i=first,math.min(#list,first+rows-1)do
@@ -110,8 +126,7 @@ local function drawDetail(e,c)
     put(e,2,5,"TARGET",C.dim);put(e,14,5,tostring(c.target),C.text)
     put(e,2,6,"SIDE",C.dim);put(e,14,6,upper(c.side or"DOOR").."  ("..upper(c.sideModel or"N/A")..")",C.text)
     put(e,2,7,"TYPE",C.dim);put(e,14,7,nice(c.type).." / "..nice(c.kind),C.text)
-    local half=math.floor(e.w/2)
-    button(e,2,9,half-1,11,"RAW OFF","raw_off",C.panel);button(e,half+1,9,e.w-2,11,"RAW ON","raw_on",C.warn)
+    local half=math.floor(e.w/2);button(e,2,9,half-1,11,"RAW OFF","raw_off",C.panel);button(e,half+1,9,e.w-2,11,"RAW ON","raw_on",C.warn)
     put(e,2,13,"BEHAVIOR",C.dim)
     local w=math.floor((e.w-6)/3);button(e,2,14,1+w,16,"HOLD","mode_hold",mode=="hold"and C.good or C.panel);button(e,3+w,14,2+w*2,16,"INVERT","mode_invert",mode=="invert"and C.good or C.panel);button(e,4+w*2,14,e.w-2,16,"PULSE","mode_pulse",mode=="pulse"and C.good or C.panel)
     if mode=="pulse"then put(e,2,18,"PULSE "..tostring(pulseSeconds).."s",C.dim);button(e,18,18,30,19,"0.25","pulse_025",pulseSeconds==.25 and C.good or C.panel);button(e,32,18,44,19,"0.5","pulse_05",pulseSeconds==.5 and C.good or C.panel);button(e,46,18,58,19,"1.0","pulse_10",pulseSeconds==1 and C.good or C.panel)end
@@ -121,19 +136,14 @@ local function drawDetail(e,c)
 end
 
 local function readNameTerminal(default)
-    term.setBackgroundColor(colors.black);term.setTextColor(colors.white);term.clear();term.setCursorPos(1,1)
-    print("KIMI Door Setup");write("Name ["..tostring(default or"DOOR").."]: ")
-    local v=read();if not v or not v:match("%S")then return default or"DOOR"end
-    return v
+    term.setBackgroundColor(colors.black);term.setTextColor(colors.white);term.clear();term.setCursorPos(1,1);print("KIMI Door Setup");write("Name ["..tostring(default or"DOOR").."]: ")
+    local v=read();if not v or not v:match("%S")then return default or"DOOR"end;return v
 end
 local function readNameTouch(e,default)
-    local name,ok,err=touchInput.read(e,{title="KIMI DOOR NAME",subtitle="NAME THIS DOOR - TOUCH ONLY",value=default or"DOOR",maxLen=28})
-    if not ok then return nil,err end
-    return name
+    local name,ok,err=touchInput.read(e,{title="KIMI DOOR NAME",subtitle="NAME THIS DOOR - TOUCH ONLY",value=default or"DOOR",maxLen=28});if not ok then return nil,err end;return name
 end
-
 local function terminalFallback()
-    local list=candidates();if #list==0 then print("[KIMI] no door-capable controllers detected");return end
+    local list=candidates();if #list==0 then print("[KIMI] no door-capable controllers detected. A modem alone cannot output redstone; attach a Redstone Relay or wire the computer directly.");return end
     term.clear();term.setCursorPos(1,1);print("KIMI DOOR SETUP")
     for i,c in ipairs(list)do print(string.format("%d) %s / %s / %s%s",i,tostring(c.controller or c.target),tostring(c.side or"DOOR"),tostring(c.kind),c.localConfigured and" [configured]"or""))end
     write("Channel number: ");local ix=tonumber(read());local c=list[ix or 0];if not c then print("Invalid selection");return end
@@ -145,14 +155,16 @@ local function terminalFallback()
 end
 
 local ms=monitors();if #ms==0 then terminalFallback();return end
-local e=ms[1];drawList(e)
+local e=chooseMonitor(ms,requestedMonitor);local activeName=e and e.name or requestedMonitor;drawList(e)
 while true do
     local ev={os.pullEvent()}
     if ev[1]=="terminate"then break end
-    if ev[1]=="peripheral"or ev[1]=="peripheral_detach"then ms=monitors();if #ms==0 then break end;e=ms[1];drawList(e)
-    elseif ev[1]=="monitor_touch"and ev[2]==e.name then
+    if ev[1]=="peripheral"or ev[1]=="peripheral_detach"then
+        ms=monitors();if #ms==0 then break end;e=chooseMonitor(ms,activeName)or ms[1];activeName=e.name;drawList(e)
+    elseif ev[1]=="monitor_touch"and tostring(ev[2])==tostring(e.name)then
         local id=hit(tonumber(ev[3])or 0,tonumber(ev[4])or 0)
         if id=="exit"then rawSet(selected,false);break
+        elseif id=="refresh"then drawList(e)
         elseif id=="prev"then page=math.max(1,page-1);drawList(e)
         elseif id=="next"then page=page+1;drawList(e)
         elseif id=="back"then rawSet(selected,false);status="";drawList(e)
@@ -178,5 +190,6 @@ while true do
     ::continue::
 end
 if selected then pcall(rawSet,selected,false)end
+if e then e.mon.setBackgroundColor(C.bg);e.mon.setTextColor(C.text);e.mon.clear();center(e,2,"DOOR SETUP CLOSED",C.dim)end
 term.setBackgroundColor(colors.black);term.setTextColor(colors.white);term.clear();term.setCursorPos(1,1)
 print("[KIMI] door setup closed")
