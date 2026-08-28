@@ -136,8 +136,8 @@ local function terminalFallback()
     write("Mode hold/invert/pulse [hold]: ");local m=tostring(read()or""):lower();if m~="invert"and m~="pulse"then m="hold"end
     local old=configured(c.target,c.side);local name=readName(old and old.name or"DOOR")
     if not old then local ok,err=pcall(doors.handleCommand,"register_local",{target=c.target,side=c.side,name=name});if not ok then error(err,0)end end
-    local ok,err=pcall(doors.handleCommand,"configure_local",{target=c.target,side=c.side,mode=m,pulseSeconds=.5});if not ok then error(err,0)end
-    print("Saved. Reboot KIMI to refresh the fleet immediately.")
+    local ok,err=pcall(doors.handleCommand,"configure_local",{target=c.target,side=c.side,name=name,mode=m,pulseSeconds=.5});if not ok then error(err,0)end
+    print("Saved. KIMI will publish it on the next refresh.")
 end
 
 local ms=monitors();if #ms==0 then terminalFallback();return end
@@ -165,7 +165,7 @@ while true do
         elseif id=="save"and selected then
             rawSet(selected,false);local old=configured(selected.target,selected.side);local name=readName(old and old.name or"DOOR")
             if not old then local ok,err=pcall(doors.handleCommand,"register_local",{target=selected.target,side=selected.side,name=name});if not ok then status="SAVE FAILED: "..tostring(err);drawDetail(e,selected);goto continue end end
-            local ok,err=pcall(doors.handleCommand,"configure_local",{target=selected.target,side=selected.side,mode=mode,pulseSeconds=pulseSeconds});status=ok and("SAVED "..upper(name).." - TEST FROM KIMI AFTER REBOOT")or("SAVE FAILED: "..tostring(err));drawDetail(e,selected)
+            local ok,err=pcall(doors.handleCommand,"configure_local",{target=selected.target,side=selected.side,name=name,mode=mode,pulseSeconds=pulseSeconds});status=ok and("SAVED "..upper(name).." - LIVE ON NEXT REFRESH")or("SAVE FAILED: "..tostring(err));drawDetail(e,selected)
         elseif id and id:sub(1,5)=="pick:"then
             local ix=tonumber(id:sub(6));local list=candidates();selected=list[ix or 0];status="";if selected then local old=configured(selected.target,selected.side);mode=old and tostring(old.mode or"hold")or"hold";pulseSeconds=old and tonumber(old.pulseSeconds)or.5;drawDetail(e,selected)end
         end
