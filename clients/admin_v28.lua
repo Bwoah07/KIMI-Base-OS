@@ -178,8 +178,8 @@ local function renderPower(e,env)
         if status=="NO MAIN MATRIX"then status="WAITING FOR TELEMETRY"end
         put(e,b1,6,status,rs.feeding and C.warn or(rs.configured and C.good or C.dim))
         if rs.reservePercent~=nil then put(e,b1,8,string.format("%.1f%%",tonumber(rs.reservePercent)or 0),C.good)elseif #matrices<2 then put(e,b1,8,"NO LIVE BACKUP MATRIX",C.dim)end
-        put(e,b1,10,"FEED <= "..tostring(math.floor(tonumber(rs.lowPercent)or20)).."%",C.dim)
-        if e.h>=11 then put(e,b1,11,"STOP >= "..tostring(math.floor(tonumber(rs.highPercent)or80)).."%",C.dim)end
+        put(e,b1,10,"FEED <= "..tostring(math.floor(tonumber(rs.lowPercent) or 20)).."%",C.dim)
+        if e.h>=11 then put(e,b1,11,"STOP >= "..tostring(math.floor(tonumber(rs.highPercent) or 80)).."%",C.dim)end
     end
 
     put(e,c1,5,"FLUX NETWORKS",C.dim);put(e,c1,6,tostring(#fx),#fx>0 and C.good or C.bad)
