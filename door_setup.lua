@@ -1,4 +1,5 @@
 local doors=require("modules.doors")
+local touchInput=require("core.touch_input")
 
 local C={bg=colors.black,text=colors.white,dim=colors.lightGray,good=colors.lime,warn=colors.orange,bad=colors.red,panel=colors.gray,action=colors.blue}
 local selected=nil
@@ -119,13 +120,16 @@ local function drawDetail(e,c)
     if status~=""then put(e,2,math.max(20,by-2),status,status:find("FAILED",1,true)and C.bad or C.warn)end
 end
 
-local function readName(default)
+local function readNameTerminal(default)
     term.setBackgroundColor(colors.black);term.setTextColor(colors.white);term.clear();term.setCursorPos(1,1)
-    print("KIMI Door Setup")
-    print("Type a door name and press Enter.")
-    write("Name ["..tostring(default or"DOOR").."]: ")
+    print("KIMI Door Setup");write("Name ["..tostring(default or"DOOR").."]: ")
     local v=read();if not v or not v:match("%S")then return default or"DOOR"end
     return v
+end
+local function readNameTouch(e,default)
+    local name,ok,err=touchInput.read(e,{title="KIMI DOOR NAME",subtitle="NAME THIS DOOR - TOUCH ONLY",value=default or"DOOR",maxLen=28})
+    if not ok then return nil,err end
+    return name
 end
 
 local function terminalFallback()
@@ -134,7 +138,7 @@ local function terminalFallback()
     for i,c in ipairs(list)do print(string.format("%d) %s / %s / %s%s",i,tostring(c.controller or c.target),tostring(c.side or"DOOR"),tostring(c.kind),c.localConfigured and" [configured]"or""))end
     write("Channel number: ");local ix=tonumber(read());local c=list[ix or 0];if not c then print("Invalid selection");return end
     write("Mode hold/invert/pulse [hold]: ");local m=tostring(read()or""):lower();if m~="invert"and m~="pulse"then m="hold"end
-    local old=configured(c.target,c.side);local name=readName(old and old.name or"DOOR")
+    local old=configured(c.target,c.side);local name=readNameTerminal(old and old.name or"DOOR")
     if not old then local ok,err=pcall(doors.handleCommand,"register_local",{target=c.target,side=c.side,name=name});if not ok then error(err,0)end end
     local ok,err=pcall(doors.handleCommand,"configure_local",{target=c.target,side=c.side,name=name,mode=m,pulseSeconds=.5});if not ok then error(err,0)end
     print("Saved. KIMI will publish it on the next refresh.")
@@ -163,7 +167,8 @@ while true do
         elseif id=="remove"and selected then
             rawSet(selected,false);local ok,err=pcall(doors.handleCommand,"remove_local",{target=selected.target,side=selected.side});status=ok and"DOOR REMOVED"or("REMOVE FAILED: "..tostring(err));selected=nil;drawList(e)
         elseif id=="save"and selected then
-            rawSet(selected,false);local old=configured(selected.target,selected.side);local name=readName(old and old.name or"DOOR")
+            rawSet(selected,false);local old=configured(selected.target,selected.side);local name,nameErr=readNameTouch(e,old and old.name or"DOOR")
+            if not name then status="SAVE CANCELLED: "..tostring(nameErr or"cancelled");drawDetail(e,selected);goto continue end
             if not old then local ok,err=pcall(doors.handleCommand,"register_local",{target=selected.target,side=selected.side,name=name});if not ok then status="SAVE FAILED: "..tostring(err);drawDetail(e,selected);goto continue end end
             local ok,err=pcall(doors.handleCommand,"configure_local",{target=selected.target,side=selected.side,name=name,mode=mode,pulseSeconds=pulseSeconds});status=ok and("SAVED "..upper(name).." - LIVE ON NEXT REFRESH")or("SAVE FAILED: "..tostring(err));drawDetail(e,selected)
         elseif id and id:sub(1,5)=="pick:"then
