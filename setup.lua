@@ -107,13 +107,13 @@ local function drawHome(e,status)
     e.mon.setBackgroundColor(C.bg);e.mon.setTextColor(C.text);e.mon.clear()
     put(e,2,1,"KIMI SETUP",C.text);put(e,2,2,"COMPUTER ID "..tostring(os.getComputerID()).."  /  "..name:upper(),C.good)
     put(e,2,3,"EVERYTHING BELOW IS TOUCHSCREEN",C.dim)
-    local x1,x2=2,e.w-2;local top=5;local bh=3;local gap=1
+    local x1,x2=2,e.w-2;local top=5;local gap=1;local bh=math.max(2,math.min(3,math.floor((e.h-10)/3)))
     button(e,boxes,x1,top,x2,top+bh-1,"COMPUTER NAME","name",C.action)
     button(e,boxes,x1,top+(bh+gap),x2,top+(bh+gap)+bh-1,"SCREEN ASSIGNMENTS","screens",C.panel)
     button(e,boxes,x1,top+2*(bh+gap),x2,top+2*(bh+gap)+bh-1,"DOOR SETUP","doors",C.panel)
-    local bottom=e.h-3;local half=math.floor(e.w/2)
-    button(e,boxes,2,bottom,half-1,e.h-1,"EXIT","exit",C.bad)
-    button(e,boxes,half+1,bottom,e.w-2,e.h-1,"REBOOT / APPLY","reboot",C.good,C.bg)
+    local bottom=math.max(top+3*(bh+gap),e.h-2);local half=math.floor(e.w/2)
+    button(e,boxes,2,bottom,half-1,e.h,"EXIT","exit",C.bad)
+    button(e,boxes,half+1,bottom,e.w-2,e.h,"REBOOT / APPLY","reboot",C.good,C.bg)
     if status and status~=""then put(e,2,math.max(4,bottom-2),status,C.warn)end
     return boxes
 end
