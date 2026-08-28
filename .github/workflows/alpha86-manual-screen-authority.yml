@@ -1,0 +1,32 @@
+name: Alpha86 Manual Screen Authority Checks
+
+on:
+  push:
+    branches:
+      - feature/alpha86-manual-screen-authority
+    paths:
+      - '**/*.lua'
+      - 'manifest.json'
+      - 'version.txt'
+      - '.github/workflows/alpha86-manual-screen-authority.yml'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  alpha86-manual-screen-authority:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Lua 5.2
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.2
+
+      - name: Syntax check Lua files
+        run: find . -name '*.lua' -not -path './mods/*' -print0 | xargs -0 -n1 luac5.2 -p
+
+      - name: Alpha86 exclusive monitor ownership regression test
+        run: lua5.2 tests/alpha86_manual_screen_authority_smoke.lua
