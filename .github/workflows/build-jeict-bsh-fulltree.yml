@@ -1,0 +1,45 @@
+name: Build JEICT BSH Full Tree
+
+on:
+  push:
+    branches:
+      - bsh-jeict-fulltree-builder
+    paths:
+      - 'tools/jeict-bsh-fulltree/**'
+      - '.github/workflows/build-jeict-bsh-fulltree.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout builder branch
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Clone JEI Crafting Tree v0.0.3
+        run: git clone --depth 1 --branch v0.0.3 https://github.com/lhy512103/JEI-Crafting-Tree.git JEI-Crafting-Tree
+
+      - name: Apply BSH Full Tree patch
+        run: python3 tools/jeict-bsh-fulltree/patch.py
+
+      - name: Build custom jar
+        working-directory: JEI-Crafting-Tree
+        run: ./gradlew --no-daemon clean build
+
+      - name: Show build outputs
+        run: ls -lah JEI-Crafting-Tree/build/libs
+
+      - name: Upload custom jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: jeict-0.0.3-bsh-fulltree
+          path: JEI-Crafting-Tree/build/libs/jeict-0.0.3-bsh1.jar
+          if-no-files-found: error
