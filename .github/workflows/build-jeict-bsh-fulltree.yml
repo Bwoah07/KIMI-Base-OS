@@ -32,7 +32,7 @@ jobs:
 
       - name: Build custom jar
         working-directory: JEI-Crafting-Tree
-        run: ./gradlew --no-daemon clean build
+        run: chmod +x gradlew && ./gradlew --no-daemon clean build
 
       - name: Show build outputs
         run: ls -lah JEI-Crafting-Tree/build/libs
