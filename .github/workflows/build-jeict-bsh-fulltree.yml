@@ -28,7 +28,9 @@ jobs:
         run: git clone --depth 1 --branch v0.0.3 https://github.com/lhy512103/JEI-Crafting-Tree.git JEI-Crafting-Tree
 
       - name: Apply BSH Full Tree patch
-        run: python3 tools/jeict-bsh-fulltree/patch.py
+        run: |
+          python3 tools/jeict-bsh-fulltree/patch.py
+          python3 tools/jeict-bsh-fulltree/fix_source.py
 
       - name: Build custom jar
         working-directory: JEI-Crafting-Tree
