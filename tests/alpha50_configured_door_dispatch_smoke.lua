@@ -1,4 +1,5 @@
 -- PR CI verification for alpha50 configured-door dispatch.
+-- Final pinned-release verification.
 local realPrint=print
 
 local calls={}
