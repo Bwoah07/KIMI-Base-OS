@@ -8,24 +8,49 @@ props_path = ROOT / "gradle.properties"
 
 src = screen_path.read_text(encoding="utf-8")
 
-# The upstream v0.0.3 tag contains two mojibake UI glyph literals that break javac when
-# checked out on the Linux builder. Normalize those lines to plain ASCII before doing anything else.
-src, zoom_fix_count = re.subn(
-    r'^\s*this\.zoomOutButton = chromeButton\(this\.width - 180, 8, 22, 20, Component\.literal\(.*$',
-    '        this.zoomOutButton = chromeButton(this.width - 180, 8, 22, 20, Component.literal("-"), btn -> zoomAtCenter(-0.1D));',
-    src,
-    count=1,
-    flags=re.M,
-)
-src, settings_fix_count = re.subn(
-    r'^\s*this\.settingsButton = chromeButton\(this\.width - 34, 8, 26, 20, Component\.literal\(.*$',
-    '        this.settingsButton = chromeButton(this.width - 34, 8, 26, 20, Component.literal("..."), btn -> {',
-    src,
-    count=1,
-    flags=re.M,
-)
-if zoom_fix_count != 1 or settings_fix_count != 1:
-    raise SystemExit(f"Could not normalize upstream UI literals: zoom={zoom_fix_count}, settings={settings_fix_count}")
+# The upstream v0.0.3 tag contains several mojibake glyph literals that break javac when
+# checked out on the Linux builder. Normalize only those known UI-only lines to ASCII.
+ui_literal_fixes = [
+    (
+        r'^\s*this\.zoomOutButton = chromeButton\(this\.width - 180, 8, 22, 20, Component\.literal\(.*$',
+        '        this.zoomOutButton = chromeButton(this.width - 180, 8, 22, 20, Component.literal("-"), btn -> zoomAtCenter(-0.1D));',
+        'zoom-out',
+    ),
+    (
+        r'^\s*this\.settingsButton = chromeButton\(this\.width - 34, 8, 26, 20, Component\.literal\(.*$',
+        '        this.settingsButton = chromeButton(this.width - 34, 8, 26, 20, Component.literal("..."), btn -> {',
+        'settings',
+    ),
+    (
+        r'^\s*graphics\.drawCenteredString\(this\.font, .*endX, Math\.max\(midY, endY - 11\), theme\.danger\(\)\);$',
+        '                    graphics.drawCenteredString(this.font, "!", endX, Math.max(midY, endY - 11), theme.danger());',
+        'cycle-marker-edge',
+    ),
+    (
+        r'^\s*graphics\.drawCenteredString\(this\.font, .*centerX, rowY - 14, theme\.danger\(\)\);$',
+        '                    graphics.drawCenteredString(this.font, "!", centerX, rowY - 14, theme.danger());',
+        'cycle-marker-row',
+    ),
+    (
+        r'^\s*graphics\.drawString\(this\.font, .*currentX \+ width - 9, y \+ 2, theme\.danger\(\), false\);$',
+        '                    graphics.drawString(this.font, "!", currentX + width - 9, y + 2, theme.danger(), false);',
+        'cycle-marker-material',
+    ),
+    (
+        r'^\s*graphics\.drawString\(this\.font, .*x \+ width - 9, y \+ 2, theme\.danger\(\), false\);$',
+        '            graphics.drawString(this.font, "!", x + width - 9, y + 2, theme.danger(), false);',
+        'cycle-marker-generic',
+    ),
+    (
+        r'^\s*String ellipsis = .*;$',
+        '        String ellipsis = "...";',
+        'ellipsis',
+    ),
+]
+for regex, replacement_line, label in ui_literal_fixes:
+    src, fixed = re.subn(regex, replacement_line, src, count=1, flags=re.M)
+    if fixed != 1:
+        raise SystemExit(f"Could not normalize upstream UI literal: {label} count={fixed}")
 
 # We use the registry id of an item for safe terminal/base-material rules.
 needle = "import net.minecraft.ChatFormatting;\n"
